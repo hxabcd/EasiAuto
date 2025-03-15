@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import subprocess
+import sys
 import time
 
 import pyautogui
@@ -18,6 +19,13 @@ def logger(text: str):
     if DEBUG:
         print(text)
 
+def get_resource(file):
+    """获取资源路径"""
+    if hasattr(sys, 'frozen'):
+        base_path = getattr(sys, '_MEIPASS')
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, "resources", file)
 
 async def show_warning_toast():
     """显示警告通知"""
@@ -96,15 +104,15 @@ def login(account, password, is_4k=False):
     if is_4k:
         logger("已启用 4K 适配")
         scale = 2
-        account_login_img = "resources\\account_login_4k.png"
-        account_login_img_selected = "resources\\account_login_selected_4k.png"
-        agree_checkbox_img = "resources\\agree_checkbox_4k.png"
+        account_login_img = get_resource("account_login_4k.png")
+        account_login_img_selected = get_resource("account_login_selected_4k.png")
+        agree_checkbox_img = get_resource("agree_checkbox_4k.png")
     else:
         logger("未启用 4K 适配")
         scale = 1
-        account_login_img = "resources\\account_login.png"
-        account_login_img_selected = "resources\\account_login_selected.png"
-        agree_checkbox_img = "resources\\agree_checkbox.png"
+        account_login_img = get_resource("account_login.png")
+        account_login_img_selected = get_resource("account_login_selected.png")
+        agree_checkbox_img = get_resource("agree_checkbox.png")
 
     # 点击登录
     logger("点击登录")

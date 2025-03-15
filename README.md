@@ -59,3 +59,11 @@ auto_login_for_easinote.exe -a {手机号} -p {密码} --4k
 ```pwsh
 auto_login_for_easinote.exe -a {手机号} -p {密码} --debug
 ```
+
+## 开发
+
+使用 **Python 3.12.9** 开发
+
+使用 **uv** 来管理项目
+
+使用 **Nuitka** 构建
