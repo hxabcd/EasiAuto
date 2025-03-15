@@ -7,7 +7,7 @@
 
 推荐与 [ClassIsland](https://github.com/ClassIsland/ClassIsland/) 的 **「自动化」** 功能结合使用，可实现在指定课程开始时自动登录至任课老师的希沃账号。
 
-目前已在本人班级内的 Windows 10 希沃一体机上进行了一段时间的测试基本没有问题。偶尔可能会因为同学或老师误触导致登录被打断，此时会进行错误重试
+目前已在本人班级内的 Windows 10 希沃一体机上进行了一段时间的测试，基本没有问题。偶尔可能会因为同学或老师误触导致登录被打断，此时会进行错误重试
 
 ## 使用
 
@@ -30,7 +30,7 @@ auto_login_for_easinote.exe -a {手机号} -p {密码}
 
 ### 显示警告
 
-通过 `-w` 或 `--warning` 参数显示警告
+通过 `-w` 或 `--show-warning` 参数显示警告
 
 ```pwsh
 auto_login_for_easinote.exe -a {手机号} -p {密码} -w
