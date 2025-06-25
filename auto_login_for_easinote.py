@@ -37,7 +37,6 @@ def load_config(path: str):
 
     with open(path, "r", encoding="utf-8") as f:
         config = toml.load(f)
-        config = toml.load(f)
 
     # 初始化日志
     try:
