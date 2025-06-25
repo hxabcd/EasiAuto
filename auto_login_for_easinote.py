@@ -12,9 +12,11 @@ from argparse import ArgumentParser
 
 import pyautogui
 import win11toast
-from retry import retry
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from default_config import DEFAULT_CONFIG
+
+logger = logging.getLogger(__name__)
 
 
 def get_resource(file: str):
@@ -227,7 +229,11 @@ def login(account: str, password: str, is_4k=False, directly=False):
     pyautogui.click(button_button.x, button_button.y + 198 * scale)
 
 
-@retry(tries=2, delay=1)
+@retry(
+    stop=stop_after_attempt(2),
+    wait=wait_fixed(2),
+    before_sleep=before_sleep_log(logger, logging.ERROR),
+)
 def main(args):
     """执行自动登录"""
 
