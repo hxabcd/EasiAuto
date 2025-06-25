@@ -34,6 +34,8 @@ def load_config(path: str):
         logging.warning(f"配置文件 {path} 不存在，自动创建")
         with open(path, "w", encoding="utf-8") as f:
             f.write(DEFAULT_CONFIG)
+        time.sleep(1)
+        exit(0)
 
     with open(path, "r", encoding="utf-8") as f:
         config = toml.load(f)
