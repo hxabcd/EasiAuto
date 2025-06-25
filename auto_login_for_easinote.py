@@ -1,7 +1,6 @@
 """自动登录希沃白板"""
 
 import asyncio
-import json
 import logging
 import os
 import subprocess
@@ -11,6 +10,7 @@ import winreg
 from argparse import ArgumentParser
 
 import pyautogui
+import toml
 import win11toast
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
@@ -33,10 +33,10 @@ def load_config(path: str):
     if not os.path.exists(path):
         logging.warning(f"配置文件 {path} 不存在，自动创建")
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=4, ensure_ascii=False)
+            toml.dump(DEFAULT_CONFIG, f)
 
     with open(path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+        config = toml.load(f)
 
     # 初始化日志
     try:
