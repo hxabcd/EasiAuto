@@ -158,11 +158,9 @@ def login(account: str, password: str, is_4k=False, directly=False):
     scale = 2 if is_4k else 1
 
     # 获取资源图片
-    account_login_img = get_resource("account_login%s.png" % path_suffix)
-    account_login_img_selected = get_resource(
-        "account_login_selected%s.png" % path_suffix
-    )
-    agree_checkbox_img = get_resource("agree_checkbox.png")
+    buttuon_img = get_resource("button%s.png" % path_suffix)
+    button_img_selected = get_resource("button_selected%s.png" % path_suffix)
+    checkbox_img = get_resource("checkbox%s.png" % path_suffix)
 
     # 进入登录界面
     if not directly:
@@ -175,22 +173,22 @@ def login(account: str, password: str, is_4k=False, directly=False):
     # 识别并点击账号登录按钮
     logging.info("尝试识别账号登录按钮")
     try:
-        account_login_button = pyautogui.locateCenterOnScreen(
-            # account_login_img, confidence=0.8
-            account_login_img
+        button_button = pyautogui.locateCenterOnScreen(
+            # button_img, confidence=0.8
+            buttuon_img
         )
-        assert account_login_button
+        assert button_button
         logging.info("识别到账号登录按钮，正在点击")
-        pyautogui.click(account_login_button)
+        pyautogui.click(button_button)
         time.sleep(1)
     except (pyautogui.ImageNotFoundException, AssertionError):
         logging.warning("未能识别到账号登录按钮，尝试识别已选中样式")
         try:
-            account_login_button = pyautogui.locateCenterOnScreen(
-                # account_login_img_selected, confidence=0.8
-                account_login_img_selected
+            button_button = pyautogui.locateCenterOnScreen(
+                # button_img_selected, confidence=0.8
+                button_img_selected
             )
-            assert account_login_button
+            assert button_button
         except (pyautogui.ImageNotFoundException, AssertionError) as e:
             logging.exception("未能识别到账号登录按钮，正在退出")
             raise e
@@ -198,7 +196,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
     # 输入账号
     logging.info("尝试输入账号")
     logging.debug(f"账号：{account}")
-    pyautogui.click(account_login_button.x, account_login_button.y + 70 * scale)
+    pyautogui.click(button_button.x, button_button.y + 70 * scale)
     pyautogui.hotkey("ctrl", "a")
     pyautogui.press("backspace")
     pyautogui.typewrite(account)
@@ -206,7 +204,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
     # 输入密码
     logging.info("尝试输入密码")
     logging.debug(f"密码：{password}")
-    pyautogui.click(account_login_button.x, account_login_button.y + 134 * scale)
+    pyautogui.click(button_button.x, button_button.y + 134 * scale)
     pyautogui.typewrite(password)
 
     # 识别并勾选用户协议复选框
@@ -214,7 +212,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
     try:
         agree_checkbox = pyautogui.locateCenterOnScreen(
             # agree_checkbox_img, confidence=0.8
-            agree_checkbox_img
+            checkbox_img
         )
         assert agree_checkbox
     except (pyautogui.ImageNotFoundException, AssertionError) as e:
@@ -226,7 +224,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
 
     # 点击登录按钮
     logging.info("点击登录按钮")
-    pyautogui.click(account_login_button.x, account_login_button.y + 198 * scale)
+    pyautogui.click(button_button.x, button_button.y + 198 * scale)
 
 
 @retry(tries=2, delay=1)
