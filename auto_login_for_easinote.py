@@ -126,7 +126,7 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
     # 配置终止指令
     echo_flag = (
         "@echo off\n"
-        if not logging.getLogger().level not in [logging.DEBUG, logging.INFO]
+        if logging.getLogger().level not in [logging.DEBUG, logging.INFO]
         else ""
     )
     command = f"{echo_flag}taskkill /f /im {process_name}"
