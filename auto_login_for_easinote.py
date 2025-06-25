@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -11,12 +12,14 @@ import pyautogui
 import win11toast
 from retry import retry
 
-DEBUG = False
+from default_config import DEFAULT_CONFIG
+
+debug = False
 
 
 def logger(text: str):
     """日志输出"""
-    if DEBUG:
+    if debug:
         print(text)
 
 
@@ -29,12 +32,25 @@ def get_resource(file):
     return os.path.join(base_path, "resources", file)
 
 
+def load_config(path):
+    """加载配置文件"""
+    if not os.path.exists(path):
+        logger(f"配置文件 {path} 不存在，自动创建")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_CONFIG)
+
+    with open(path, "r", encoding="utf-8") as f:
+        logger(f"载入配置文件：{path}")
+        config = json.load(f)
+        return config
+
+
 async def show_warning():
     """显示警告通知"""
 
     logger("尝试显示警告通知")
 
-    def empty_func(*args):
+    async def empty_func(*args):
         return args
 
     async def toast():
@@ -75,16 +91,12 @@ async def show_warning():
             logger(f"错误：任务 {task} 已取消")
 
 
-def restart_easinote():
+def restart_easinote(program_path, process_name="EasiNote.exe", args=""):
     """重启希沃进程"""
 
     logger("尝试重启希沃进程")
 
-    process_name = "EasiNote.exe"
     command = f"taskkill /f /im {process_name}"
-    program_path = (
-        r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
-    )
 
     # 终止希沃进程
     logger(f"终止进程：{command}")
@@ -93,12 +105,11 @@ def restart_easinote():
 
     # 启动希沃白板
     logger(f"启动程序：{program_path}")
-    # "-m", "Display", "-iwb"
     subprocess.Popen([program_path], shell=True)
     time.sleep(8)  # 等待启动
 
 
-def login(account, password, is_4k=False):
+def login(account, password, is_4k=False, directly=False):
     """自动登录"""
 
     logger("尝试自动登录")
@@ -117,10 +128,13 @@ def login(account, password, is_4k=False):
         account_login_img_selected = get_resource("account_login_selected.png")
         agree_checkbox_img = get_resource("agree_checkbox.png")
 
-    # 点击登录
-    logger("点击登录")
-    pyautogui.click(172 * scale, 1044 * scale)
-    time.sleep(3)
+    # 进入登录界面
+    if not directly:
+        logger("点击进入登录界面")
+        pyautogui.click(172 * scale, 1044 * scale)
+        time.sleep(3)
+    else:
+        logger("直接进入登录界面")
 
     # 识别并点击账号登录按钮
     logger("尝试识别账号登录按钮")
@@ -175,20 +189,34 @@ def login(account, password, is_4k=False):
 @retry(tries=2, delay=1)
 def main(args):
     """执行自动登录"""
+
+    # 加载配置文件
+    config = load_config("config.json")
+    global debug
+    debug = config["debug_mode"]
+
     # 显示调试信息
-    if DEBUG:
+    if config["debug_mode"]:
         print("已启用调试模式")
         print("传入的参数:")
         for key, value in vars(args).items():
             print(f" - {key}: {value}")
+        print("载入的配置:")
+        for key, value in config.items():
+            print(f" - {key}: {value}")
 
     # 显示警告
-    if args.show_warning:
+    if config["show_warning"]:
         asyncio.run(show_warning())
 
     # 执行操作
-    restart_easinote()
-    login(args.account, args.password, args.is_4k)
+    restart_easinote(*config["easinote"])
+    login(
+        args.account,
+        args.password,
+        is_4k=config["4k_mode"],
+        directly=config["login_directly"],
+    )
 
     logger("执行完毕")
     return 0
@@ -199,10 +227,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-a", "--account", type=str, required=True, help="账号")
     parser.add_argument("-p", "--password", type=str, required=True, help="密码")
-    parser.add_argument("-w", "--show-warning", action="store_true", help="显示警告")
-    parser.add_argument("--4k", dest="is_4k", action="store_true", help="启用 4K 适配")
-    parser.add_argument("--debug", action="store_true", help="显示调试信息")
     args = parser.parse_args()
-    DEBUG = args.debug
-
     main(args)
