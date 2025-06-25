@@ -1,9 +1,7 @@
-DEFAULT_CONFIG = """
-{
-    "easinote_path": "auto",
-    "show_warning": false,
-    "4k_mode": false,
-    "login_directly": false,
-    "debug_mode": false
+DEFAULT_CONFIG = {
+    "easinote": {"path": "auto", "process_name": "EasiNote.exe", "args": ""},
+    "show_warning": False,
+    "4k_mode": False,
+    "login_directly": False,
+    "debug_mode": False,
 }
-"""

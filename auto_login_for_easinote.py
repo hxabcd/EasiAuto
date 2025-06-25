@@ -1,12 +1,13 @@
 """自动登录希沃白板"""
 
-import argparse
 import asyncio
 import json
 import os
 import subprocess
 import sys
 import time
+import winreg
+from argparse import ArgumentParser
 
 import pyautogui
 import win11toast
@@ -23,7 +24,7 @@ def logger(text: str):
         print(text)
 
 
-def get_resource(file):
+def get_resource(file: str):
     """获取资源路径"""
     if hasattr(sys, "frozen"):
         base_path = getattr(sys, "_MEIPASS")
@@ -32,12 +33,12 @@ def get_resource(file):
     return os.path.join(base_path, "resources", file)
 
 
-def load_config(path):
+def load_config(path: str):
     """加载配置文件"""
     if not os.path.exists(path):
         logger(f"配置文件 {path} 不存在，自动创建")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_CONFIG)
+            json.dump(DEFAULT_CONFIG, f, indent=4, ensure_ascii=False)
 
     with open(path, "r", encoding="utf-8") as f:
         logger(f"载入配置文件：{path}")
@@ -91,10 +92,29 @@ async def show_warning():
             logger(f"错误：任务 {task} 已取消")
 
 
-def restart_easinote(program_path, process_name="EasiNote.exe", args=""):
+def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
     """重启希沃进程"""
 
     logger("尝试重启希沃进程")
+
+    # 自动获取希沃白板安装路径
+    if path == "auto":
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
+            ) as key:
+                path = winreg.QueryValueEx(key, "ExePath")[0]
+                logger(f"自动获取到路径：{path}")
+        except Exception:
+            logger("自动获取路径失败，使用默认路径")
+            path = (
+                r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
+            )
+
+    # 添加额外参数
+    if args:
+        path = f'"{path}" {args}'
 
     command = f"taskkill /f /im {process_name}"
 
@@ -104,29 +124,30 @@ def restart_easinote(program_path, process_name="EasiNote.exe", args=""):
     time.sleep(1)  # 等待终止
 
     # 启动希沃白板
-    logger(f"启动程序：{program_path}")
-    subprocess.Popen([program_path], shell=True)
+    logger(f"启动程序：{path}")
+    subprocess.Popen(path, shell=True)
     time.sleep(8)  # 等待启动
 
 
-def login(account, password, is_4k=False, directly=False):
+def login(account: str, password: str, is_4k=False, directly=False):
     """自动登录"""
 
     logger("尝试自动登录")
 
-    # 4K 适配
+    # 直接登录与4K适配
+    path_suffix = ""
+    if directly:
+        path_suffix += "_direct"
     if is_4k:
-        logger("已启用 4K 适配")
-        scale = 2
-        account_login_img = get_resource("account_login_4k.png")
-        account_login_img_selected = get_resource("account_login_selected_4k.png")
-        agree_checkbox_img = get_resource("agree_checkbox_4k.png")
-    else:
-        logger("未启用 4K 适配")
-        scale = 1
-        account_login_img = get_resource("account_login.png")
-        account_login_img_selected = get_resource("account_login_selected.png")
-        agree_checkbox_img = get_resource("agree_checkbox.png")
+        path_suffix += "_4k"
+    scale = 2 if is_4k else 1
+
+    # 获取资源图片
+    account_login_img = get_resource("account_login%s.png" % path_suffix)
+    account_login_img_selected = get_resource(
+        "account_login_selected%s.png" % path_suffix
+    )
+    agree_checkbox_img = get_resource("agree_checkbox.png")
 
     # 进入登录界面
     if not directly:
@@ -140,18 +161,22 @@ def login(account, password, is_4k=False, directly=False):
     logger("尝试识别账号登录按钮")
     try:
         account_login_button = pyautogui.locateCenterOnScreen(
-            account_login_img, confidence=0.8
+            # account_login_img, confidence=0.8
+            account_login_img
         )
         assert account_login_button
         logger("识别到账号登录按钮，正在点击")
         pyautogui.click(account_login_button)
         time.sleep(1)
-    except (pyautogui.ImageNotFoundException, AssertionError) as e:
+    except (pyautogui.ImageNotFoundException, AssertionError):
         logger("未能识别到账号登录按钮，尝试识别已选中样式")
-        account_login_button = pyautogui.locateCenterOnScreen(
-            account_login_img_selected, confidence=0.8
-        )
-        if not account_login_button:
+        try:
+            account_login_button = pyautogui.locateCenterOnScreen(
+                # account_login_img_selected, confidence=0.8
+                account_login_img_selected
+            )
+            assert account_login_button
+        except (pyautogui.ImageNotFoundException, AssertionError) as e:
             logger("未能识别到已选中样式，正在退出")
             raise e
 
@@ -171,7 +196,8 @@ def login(account, password, is_4k=False, directly=False):
     logger("尝试识别用户协议复选框")
     try:
         agree_checkbox = pyautogui.locateCenterOnScreen(
-            agree_checkbox_img, confidence=0.8
+            # agree_checkbox_img, confidence=0.8
+            agree_checkbox_img
         )
         assert agree_checkbox
     except (pyautogui.ImageNotFoundException, AssertionError) as e:
@@ -207,10 +233,13 @@ def main(args):
 
     # 显示警告
     if config["show_warning"]:
-        asyncio.run(show_warning())
+        try:
+            asyncio.run(show_warning())
+        except Exception:
+            logger("显示警告通知时出错，跳过警告")
 
     # 执行操作
-    restart_easinote(*config["easinote"])
+    restart_easinote(**config["easinote"])
     login(
         args.account,
         args.password,
@@ -224,7 +253,7 @@ def main(args):
 
 if __name__ == "__main__":
     # 解析命令行参数
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument("-a", "--account", type=str, required=True, help="账号")
     parser.add_argument("-p", "--password", type=str, required=True, help="密码")
     args = parser.parse_args()
