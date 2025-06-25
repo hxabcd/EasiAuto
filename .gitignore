@@ -17,4 +17,4 @@ start.bat
 *.onefile-build/
 
 auto_login_for_easinote.exe
-config.json
+config.toml
