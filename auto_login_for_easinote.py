@@ -192,7 +192,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
             )
             assert button_button
         except (pyautogui.ImageNotFoundException, AssertionError) as e:
-            logging.exception("未能识别到账号登录按钮，正在退出")
+            logging.exception("未能识别到账号登录按钮")
             raise e
 
     # 输入账号
@@ -218,7 +218,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
         )
         assert agree_checkbox
     except (pyautogui.ImageNotFoundException, AssertionError) as e:
-        logging.exception("未能识别到用户协议复选框，正在退出")
+        logging.exception("未能识别到用户协议复选框")
         raise e
 
     logging.info("识别到用户协议复选框，正在点击")
@@ -277,4 +277,5 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--account", type=str, required=True, help="账号")
     parser.add_argument("-p", "--password", type=str, required=True, help="密码")
     args = parser.parse_args()
+
     main(args)
