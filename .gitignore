@@ -15,3 +15,5 @@ start.bat
 *.build/
 *.dist/
 *.onefile-build/
+
+auto_login_for_easinote.exe
