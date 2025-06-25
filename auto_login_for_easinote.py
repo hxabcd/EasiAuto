@@ -19,23 +19,25 @@ def logger(text: str):
     if DEBUG:
         print(text)
 
+
 def get_resource(file):
     """获取资源路径"""
-    if hasattr(sys, 'frozen'):
-        base_path = getattr(sys, '_MEIPASS')
+    if hasattr(sys, "frozen"):
+        base_path = getattr(sys, "_MEIPASS")
     else:
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, "resources", file)
 
-async def show_warning_toast():
+
+async def show_warning():
     """显示警告通知"""
+
     logger("尝试显示警告通知")
 
     def empty_func(*args):
         return args
 
     async def toast():
-        """显示警告通知"""
         return await win11toast.toast_async(
             "即将退出并重新登录希沃白板",
             buttons=["取消", "忽略"],
@@ -46,7 +48,6 @@ async def show_warning_toast():
         )
 
     async def sleep():
-        """等待超时"""
         await asyncio.sleep(15)
         return "Time out"
 
@@ -76,6 +77,7 @@ async def show_warning_toast():
 
 def restart_easinote():
     """重启希沃进程"""
+
     logger("尝试重启希沃进程")
 
     process_name = "EasiNote.exe"
@@ -98,6 +100,7 @@ def restart_easinote():
 
 def login(account, password, is_4k=False):
     """自动登录"""
+
     logger("尝试自动登录")
 
     # 4K 适配
@@ -144,13 +147,11 @@ def login(account, password, is_4k=False):
     pyautogui.hotkey("ctrl", "a")
     pyautogui.press("backspace")
     pyautogui.typewrite(account)
-    # time.sleep(1)
 
     # 输入密码
     logger(f"尝试输入密码：{password}")
     pyautogui.click(account_login_button.x, account_login_button.y + 134 * scale)
     pyautogui.typewrite(password)
-    # time.sleep(1)
 
     # 识别并勾选用户协议复选框
     logger("尝试识别用户协议复选框")
@@ -165,11 +166,11 @@ def login(account, password, is_4k=False):
 
     logger("识别到用户协议复选框，正在点击")
     pyautogui.click(agree_checkbox)
-    # time.sleep(1)
 
     # 点击登录按钮
     logger("点击登录按钮")
     pyautogui.click(account_login_button.x, account_login_button.y + 198 * scale)
+
 
 @retry(tries=2, delay=1)
 def main(args):
@@ -183,7 +184,7 @@ def main(args):
 
     # 显示警告
     if args.show_warning:
-        asyncio.run(show_warning_toast())
+        asyncio.run(show_warning())
 
     # 执行操作
     restart_easinote()
@@ -201,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("-w", "--show-warning", action="store_true", help="显示警告")
     parser.add_argument("--4k", dest="is_4k", action="store_true", help="启用 4K 适配")
     parser.add_argument("--debug", action="store_true", help="显示调试信息")
-    sys_args = parser.parse_args()
-    DEBUG = sys_args.debug
+    args = parser.parse_args()
+    DEBUG = args.debug
 
-    main(sys_args)
+    main(args)
