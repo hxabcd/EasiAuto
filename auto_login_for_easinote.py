@@ -149,6 +149,9 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
     os.system(command)
     time.sleep(1)  # 等待终止
 
+    if config["kill_seewo_agent"]:
+        os.system("taskkill /f /im EasiAgent.exe")
+
     # 启动希沃白板
     logging.info("启动程序")
     logging.debug(f"路径：{path}，参数：{args}")
