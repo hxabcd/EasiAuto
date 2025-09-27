@@ -28,14 +28,14 @@ def get_resource(file: str):
     return os.path.join(base_path, "resources", file)
 
 
-def load_config(path: str):
+def load_config(path: str) -> dict:
     """加载配置文件"""
     if not os.path.exists(path):
         logging.warning(f"配置文件 {path} 不存在，自动创建")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_CONFIG)
+            json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=4)
         time.sleep(1)
-        exit(0)
+        sys.exit(0)
 
     with open(path, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -242,7 +242,7 @@ def init():
     logging.info("当前日志级别：%s" % config["log_level"])
     logging.debug(
         "载入的配置：\n%s"
-        % "\n".join([f" - {key}: {value}" for key, value in config.items()])
+        % "\n".join([f" - {key}: {value}" for key, value in config])
     )
 
 
