@@ -47,6 +47,14 @@ def load_config(path: str):
         set_logger()
         logging.error(f"无效的日志级别：{config['log_level']}，使用默认级别")
 
+    # 若临时禁用，则退出程序
+    if config["disable_once"]:
+        logging.info("已通过配置文件禁用，正在退出")
+        config["disable_once"] = False
+    with open("config.json", "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
+    sys.exit()
+
     logging.info(f"成功载入配置文件：{path}")
     return config
 
