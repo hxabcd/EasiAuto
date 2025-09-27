@@ -250,7 +250,7 @@ init()
 
 
 @retry(
-    stop=stop_after_attempt(2),
+    stop=stop_after_attempt(config["max_retries"] + 1),
     wait=wait_fixed(2),
     before_sleep=before_sleep_log(logger, logging.ERROR),
 )
