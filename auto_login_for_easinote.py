@@ -1,6 +1,7 @@
 """自动登录希沃白板"""
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -10,7 +11,6 @@ import winreg
 from argparse import ArgumentParser
 
 import pyautogui
-import toml
 import win11toast
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
@@ -38,7 +38,7 @@ def load_config(path: str):
         exit(0)
 
     with open(path, "r", encoding="utf-8") as f:
-        config = toml.load(f)
+        config = json.load(f)
 
     # 初始化日志
     try:
@@ -222,6 +222,22 @@ def login(account: str, password: str, is_4k=False, directly=False):
     pyautogui.click(button_button.x, button_button.y + 198 * scale)
 
 
+def init():
+    """初始化"""
+    set_logger()
+    global config  # TODO: 屎山先写着 之后改
+    config = load_config("config.json")
+
+    logging.info("当前日志级别：%s" % config["log_level"])
+    logging.debug(
+        "载入的配置：\n%s"
+        % "\n".join([f" - {key}: {value}" for key, value in config.items()])
+    )
+
+
+init()
+
+
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_fixed(2),
@@ -230,18 +246,9 @@ def login(account: str, password: str, is_4k=False, directly=False):
 def main(args):
     """执行自动登录"""
 
-    # 初始化
-    set_logger()
-    config = load_config("config.toml")
-
-    logging.info("当前日志级别：%s" % config["log_level"])
     logging.debug(
         "传入的参数：\n%s"
         % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()])
-    )
-    logging.debug(
-        "载入的配置：\n%s"
-        % "\n".join([f" - {key}: {value}" for key, value in config.items()])
     )
 
     # 显示警告
