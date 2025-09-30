@@ -21,6 +21,15 @@ from default_config import DEFAULT_CONFIG
 logger = logging.getLogger(__name__)
 
 
+def set_logger(level=logging.WARNING):
+    logging.basicConfig(
+        level=level,
+        format="[%(asctime)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+        force=True,
+    )
+
+
 def get_resource(file: str):
     """获取资源路径"""
     if hasattr(sys, "frozen"):
@@ -48,6 +57,7 @@ def load_config(path: str) -> dict:
     except ValueError:
         set_logger()
         logging.error(f"无效的日志级别：{config['log_level']}，使用默认级别")
+    logging.info("当前日志级别：%s" % config["log_level"])
 
     # 若临时禁用，则退出程序
     if config["skip_once"]:
@@ -61,19 +71,25 @@ def load_config(path: str) -> dict:
     return config
 
 
-def set_logger(level=logging.WARNING):
-    logging.basicConfig(
-        level=level,
-        format="[%(asctime)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-        force=True,
-    )
+def init():
+    """初始化"""
+    set_logger()
+    global config, app
+    config = load_config("config.json")
+
+    # logging.debug(
+    #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
+    # )
+    # TODO: 嵌套格式无法正常打印
+
+    app = QApplication([])
+
+
+init()
 
 
 def show_warning():
     """显示警告弹窗"""
-    app = QApplication([])  # noqa: F841
-
     msg_box = QMessageBox()
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
     msg_box.setIcon(QMessageBox.Warning)
@@ -87,7 +103,7 @@ def show_warning():
 
     # 设置倒计时
     timeout: int = config["timeout"]
-    assert timeout >= 3
+    assert timeout > 0
 
     def update_text():
         nonlocal timeout
@@ -108,7 +124,7 @@ def show_warning():
         logging.info("用户取消操作，正在退出")
         sys.exit(0)
 
-    logging.info("用户确认继续操作")
+    logging.info("用户确认或超时，继续执行")
     return
 
 
@@ -249,22 +265,6 @@ def login(account: str, password: str, is_4k=False, directly=False):
     # 点击登录按钮
     logging.info("点击登录按钮")
     pyautogui.click(button_button.x, button_button.y + 198 * scale)
-
-
-def init():
-    """初始化"""
-    set_logger()
-    global config  # TODO: 先凑合用
-    config = load_config("config.json")
-
-    logging.info("当前日志级别：%s" % config["log_level"])
-    # logging.debug(
-    #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
-    # )
-    # TODO: 嵌套格式无法正常打印
-
-
-init()
 
 
 @retry(
