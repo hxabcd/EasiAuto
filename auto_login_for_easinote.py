@@ -103,20 +103,28 @@ def show_warning():
 
     # 设置倒计时
     timeout: int = config["timeout"]
-    assert timeout > 0
+    if timeout <= 0:
+        timeout = 15
 
+    # 更新倒计时文本
     def update_text():
         nonlocal timeout
         if timeout > 0:
             msg_box.setInformativeText(f"将在 {timeout} 秒后继续执行")
-            QTimer.singleShot(1000, update_text)
+            timeout -= 1
         else:
             logging.info("等待超时")
             msg_box.button(QMessageBox.Ok).click()
+            timer.stop()
             return
-        timeout -= 1
 
     update_text()
+
+    # 计时器
+    timer = QTimer()
+    timer.timeout.connect(update_text)
+    timer.setInterval(1000)
+    timer.start()
 
     result = msg_box.exec()
 
@@ -125,6 +133,7 @@ def show_warning():
         sys.exit(0)
 
     logging.info("用户确认或超时，继续执行")
+    timer.stop()
     return
 
 
