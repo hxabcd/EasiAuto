@@ -12,6 +12,8 @@ from argparse import ArgumentParser
 
 import pyautogui
 import win11toast
+import win32con
+import win32gui
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from default_config import DEFAULT_CONFIG
@@ -159,6 +161,26 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
     time.sleep(8)  # 等待启动
 
 
+def switch_window_by_title(title):
+    """通过窗口标题切换焦点"""
+
+    def callback(hwnd, extra):
+        if title in win32gui.GetWindowText(hwnd):
+            extra.append(hwnd)
+
+    hwnds = []
+    # 枚举所有顶层窗口
+    win32gui.EnumWindows(callback, hwnds)
+
+    if hwnds:
+        # 切换到找到的第一个窗口
+        win32gui.ShowWindow(hwnds[0], win32con.SW_RESTORE)  # 确保窗口不是最小化状态
+        win32gui.SetForegroundWindow(hwnds[0])  # 设置为前台窗口（获取焦点）
+        print(f"已切换到标题包含 '{title}' 的窗口")
+    else:
+        print(f"未找到标题包含 '{title}' 的窗口")
+
+
 def login(account: str, password: str, is_4k=False, directly=False):
     """自动登录"""
 
@@ -241,8 +263,7 @@ def init():
 
     logging.info("当前日志级别：%s" % config["log_level"])
     logging.debug(
-        "载入的配置：\n%s"
-        % "\n".join([f" - {key}: {value}" for key, value in config])
+        "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
     )
 
 
@@ -271,6 +292,7 @@ def main(args):
 
     # 执行操作
     restart_easinote(**config["easinote"])
+    switch_window_by_title("希沃白板")
     login(
         args.account,
         args.password,
