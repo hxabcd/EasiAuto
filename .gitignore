@@ -18,5 +18,6 @@ start.bat
 
 auto_login_for_easinote.exe
 config.json
+test*.py
 
 launcher/
