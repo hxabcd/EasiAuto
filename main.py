@@ -14,6 +14,7 @@ import win32gui
 from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from default_config import DEFAULT_CONFIG
 
@@ -357,11 +358,11 @@ def login(account: str, password: str, is_4k=False, directly=False):
     pyautogui.click(button_button.x, button_button.y + 198 * scale)
 
 
-# @retry(
-#     stop=stop_after_attempt(config["max_retries"] + 1),
-#     wait=wait_fixed(2),
-#     before_sleep=before_sleep_log(logger, logging.ERROR),
-# )
+@retry(
+    stop=stop_after_attempt(config["max_retries"] + 1),
+    wait=wait_fixed(2),
+    before_sleep=before_sleep_log(logger, logging.ERROR),
+)
 def action(args):
     """完整自动登录操作"""
     restart_easinote(**config["easinote"])
