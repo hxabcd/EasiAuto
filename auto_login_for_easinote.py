@@ -95,8 +95,8 @@ def show_warning():
             msg_box.setInformativeText(f"将在 {timeout} 秒后继续执行")
             QTimer.singleShot(1000, update_text)
         else:
-            logging.info("等待超时，继续执行")  # TODO: 这个函数的日志都无法正常打印
-            msg_box.close()
+            logging.info("等待超时")
+            msg_box.button(QMessageBox.Ok).click()
             return
         timeout -= 1
 
