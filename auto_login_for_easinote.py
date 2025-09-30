@@ -72,7 +72,7 @@ def set_logger(level=logging.WARNING):
 
 def show_warning():
     """显示警告弹窗"""
-    app = QApplication([])
+    app = QApplication([])  # noqa: F841
 
     msg_box = QMessageBox()
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
@@ -95,7 +95,7 @@ def show_warning():
             msg_box.setInformativeText(f"将在 {timeout} 秒后继续执行")
             QTimer.singleShot(1000, update_text)
         else:
-            logging.info("等待超时，继续执行")
+            logging.info("等待超时，继续执行")  # TODO: 这个函数的日志都无法正常打印
             msg_box.close()
             return
         timeout -= 1
@@ -254,13 +254,14 @@ def login(account: str, password: str, is_4k=False, directly=False):
 def init():
     """初始化"""
     set_logger()
-    global config  # TODO: 屎山先写着 之后改
+    global config  # TODO: 先凑合用
     config = load_config("config.json")
 
     logging.info("当前日志级别：%s" % config["log_level"])
-    logging.debug(
-        "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
-    )
+    # logging.debug(
+    #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
+    # )
+    # TODO: 嵌套格式无法正常打印
 
 
 init()
