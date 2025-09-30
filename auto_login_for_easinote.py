@@ -1,6 +1,5 @@
 """自动登录希沃白板"""
 
-import asyncio
 import json
 import logging
 import os
@@ -11,9 +10,10 @@ import winreg
 from argparse import ArgumentParser
 
 import pyautogui
-import win11toast
 import win32con
 import win32gui
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QApplication, QMessageBox
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from default_config import DEFAULT_CONFIG
@@ -70,50 +70,46 @@ def set_logger(level=logging.WARNING):
     )
 
 
-async def show_warning():
-    """显示警告通知"""
+def show_warning():
+    """显示警告弹窗"""
+    app = QApplication([])
 
-    logging.info("尝试显示警告通知")
-
-    async def empty_func(*args):
-        return args
-
-    async def toast():
-        return await win11toast.toast_async(
-            "即将退出并重新登录希沃白板",
-            buttons=["取消", "忽略"],
-            duration="long",
-            on_click=empty_func,
-            on_dismissed=empty_func,
-            on_failed=empty_func,
-        )
-
-    async def sleep():
-        await asyncio.sleep(15)
-        return "Time out"
-
-    # 创建异步任务，检测超时
-    task1 = asyncio.create_task(toast())
-    task2 = asyncio.create_task(sleep())
-
-    done, pending = await asyncio.wait(
-        [task1, task2], return_when=asyncio.FIRST_COMPLETED
+    msg_box = QMessageBox()
+    msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
+    msg_box.setIcon(QMessageBox.Warning)
+    msg_box.setWindowTitle("Auto Login for EasiNote")
+    msg_box.setText(
+        "<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>"
     )
+    msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+    msg_box.button(QMessageBox.Ok).setText("立即执行")
+    msg_box.button(QMessageBox.Cancel).setText("取消")
 
-    for task in pending:
-        task.cancel()
+    # 设置倒计时
+    timeout: int = config["timeout"]
+    assert timeout >= 3
 
-    for task in done:
-        try:
-            result = await task
-            if isinstance(result, dict) and result["arguments"] == "http:取消":
-                logging.info("用户取消执行，正在退出")
-                exit(0)
-            else:
-                logging.info("警告超时或忽略，继续执行")
-                win11toast.clear_toast()
-        except asyncio.CancelledError:
-            logging.warning(f"任务 {task} 已取消")
+    def update_text():
+        nonlocal timeout
+        if timeout > 0:
+            msg_box.setInformativeText(f"将在 {timeout} 秒后继续执行")
+            QTimer.singleShot(1000, update_text)
+        else:
+            logging.info("等待超时，继续执行")
+            msg_box.close()
+            return
+        timeout -= 1
+
+    update_text()
+
+    result = msg_box.exec()
+
+    if result == QMessageBox.Cancel:
+        logging.info("用户取消操作，正在退出")
+        sys.exit(0)
+
+    logging.info("用户确认继续操作")
+    return
 
 
 def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
@@ -286,7 +282,7 @@ def main(args):
     # 显示警告
     if config["show_warning"]:
         try:
-            asyncio.run(show_warning())
+            show_warning()
         except Exception:
             logging.exception("显示警告通知时出错，跳过警告")
 
