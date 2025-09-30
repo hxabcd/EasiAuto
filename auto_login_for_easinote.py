@@ -73,7 +73,7 @@ def load_config(path: str) -> dict:
 def init():
     """初始化"""
     set_logger()
-    global config, app
+    global config
     config = load_config("config.json")
 
     # logging.debug(
@@ -92,9 +92,7 @@ def show_warning():
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
     msg_box.setIcon(QMessageBox.Warning)
     msg_box.setWindowTitle("Auto Login for EasiNote")
-    msg_box.setText(
-        "<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>"
-    )
+    msg_box.setText("<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>")
     msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
     msg_box.button(QMessageBox.Ok).setText("立即执行")
     msg_box.button(QMessageBox.Cancel).setText("取消")
@@ -146,12 +144,7 @@ class WarningBanner(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         # 置顶、无边框、点击穿透
-        self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool
-            | Qt.WindowTransparentForInput
-        )
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
 
         # 滚动文字
         self.text = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
@@ -165,9 +158,7 @@ class WarningBanner(QWidget):
         painter = QPainter(self.stripe)
         painter.setBrush(QColor(255, 222, 89, 200))
         painter.setPen(Qt.NoPen)
-        painter.drawPolygon(
-            [QPoint(0, 32), QPoint(16, 0), QPoint(32, 0), QPoint(16, 32)]
-        )
+        painter.drawPolygon([QPoint(0, 32), QPoint(16, 0), QPoint(32, 0), QPoint(16, 32)])
         painter.end()
 
         self.offset = 0
@@ -249,17 +240,11 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
                 logging.info("自动获取到路径")
         except Exception:
             logging.warning("自动获取路径失败，使用默认路径")
-            path = (
-                r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
-            )
+            path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
         logging.debug(f"路径：{path}")
 
     # 配置终止指令
-    echo_flag = (
-        "@echo off\n"
-        if logging.getLogger().level not in [logging.DEBUG, logging.INFO]
-        else ""
-    )
+    echo_flag = "@echo off\n" if logging.getLogger().level not in [logging.DEBUG, logging.INFO] else ""
     command = f"{echo_flag}taskkill /f /im {process_name}"
 
     # 终止希沃进程
@@ -335,9 +320,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
     except (pyautogui.ImageNotFoundException, AssertionError):
         logging.warning("未能识别到账号登录按钮，尝试识别已选中样式")
         try:
-            button_button = pyautogui.locateCenterOnScreen(
-                button_img_selected, confidence=0.8
-            )
+            button_button = pyautogui.locateCenterOnScreen(button_img_selected, confidence=0.8)
             assert button_button
         except (pyautogui.ImageNotFoundException, AssertionError) as e:
             logging.exception("未能识别到账号登录按钮")
@@ -393,13 +376,10 @@ def action(args):
     logging.info("执行完毕")
 
 
-def main(args):
+def cmd_login(args):
     """执行自动登录"""
 
-    logging.debug(
-        "传入的参数：\n%s"
-        % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()])
-    )
+    logging.debug("传入的参数：\n%s" % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()]))
 
     # 显示警告
     if config["show_warning"]:
