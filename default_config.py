@@ -1,6 +1,7 @@
 DEFAULT_CONFIG = {
     "show_warning": False,
     "timeout": 15,
+    "show_banner": True,
     "4k_mode": False,
     "login_directly": False,
     "skip_once": False,
