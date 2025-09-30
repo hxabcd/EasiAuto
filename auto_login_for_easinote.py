@@ -54,10 +54,10 @@ def load_config(path: str) -> dict:
     # 初始化日志
     try:
         set_logger(config["log_level"].upper())
+        logging.info(f"当前日志级别：{config['log_level']}")
     except ValueError:
         set_logger()
-        logging.error(f"无效的日志级别：{config['log_level']}，使用默认级别")
-    logging.info("当前日志级别：%s" % config["log_level"])
+        logging.error(f"无效的日志级别：{config['log_level']}，使用默认级别 WARNING")
 
     # 若临时禁用，则退出程序
     if config["skip_once"]:
@@ -65,7 +65,7 @@ def load_config(path: str) -> dict:
         config["skip_once"] = False
         with open("config.json", "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
-        sys.exit()
+        sys.exit(0)
 
     logging.info(f"成功载入配置文件：{path}")
     return config
