@@ -1,5 +1,3 @@
-"""自动登录希沃白板"""
-
 import json
 import logging
 import multiprocessing
@@ -424,11 +422,46 @@ def main(args):
     sys.exit(0)
 
 
-if __name__ == "__main__":
+def cmd_setting(args):
+    """打开设置界面"""
+    ...  # 0.4 未实装内容
+
+
+def cmd_skip(args):
+    """跳过下一次登录"""
+    config["skip_once"] = True
+    with open("config.json", "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
+    logging.info("已更新配置文件，正在退出")
+    sys.exit(0)
+
+
+def main():
     # 解析命令行参数
-    parser = ArgumentParser(description=__doc__)
-    parser.add_argument("-a", "--account", type=str, required=True, help="账号")
-    parser.add_argument("-p", "--password", type=str, required=True, help="密码")
+    parser = ArgumentParser(prog="Auto Login for EasiNote", description="自动登录希沃白板的CLI工具")
+    subparsers = parser.add_subparsers(title="子命令", dest="command")
+
+    # login 子命令
+    login_parser = subparsers.add_parser("login", help="登录账号")
+    login_parser.add_argument("-a", "--account", required=True, help="账号")
+    login_parser.add_argument("-p", "--password", required=True, help="密码")
+    login_parser.set_defaults(func=cmd_login)
+
+    # # setting 子命令
+    # setting_parser = subparsers.add_parser("setting", help="打开设置界面")
+    # setting_parser.set_defaults(func=cmd_setting)
+
+    # skip 子命令
+    skip_parser = subparsers.add_parser("skip", help="跳过下一次登录")
+    skip_parser.set_defaults(func=cmd_skip)
+
     args = parser.parse_args()
 
-    main(args)
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
