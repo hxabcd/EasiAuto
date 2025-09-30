@@ -281,6 +281,20 @@ def login(account: str, password: str, is_4k=False, directly=False):
     wait=wait_fixed(2),
     before_sleep=before_sleep_log(logger, logging.ERROR),
 )
+def action(args):
+    """完整自动登录操作"""
+    restart_easinote(**config["easinote"])
+    switch_window_by_title("希沃白板")
+    login(
+        args.account,
+        args.password,
+        is_4k=config["4k_mode"],
+        directly=config["login_directly"],
+    )
+
+    logging.info("执行完毕")
+
+
 def main(args):
     """执行自动登录"""
 
@@ -296,18 +310,10 @@ def main(args):
         except Exception:
             logging.exception("显示警告通知时出错，跳过警告")
 
-    # 执行操作
-    restart_easinote(**config["easinote"])
-    switch_window_by_title("希沃白板")
-    login(
-        args.account,
-        args.password,
-        is_4k=config["4k_mode"],
-        directly=config["login_directly"],
-    )
+    # 执行登录
+    action(args)
 
-    logging.info("执行完毕")
-    return 0
+    sys.exit(0)
 
 
 if __name__ == "__main__":
