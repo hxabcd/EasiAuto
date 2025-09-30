@@ -2,6 +2,7 @@
 
 import json
 import logging
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -12,8 +13,9 @@ from argparse import ArgumentParser
 import pyautogui
 import win32con
 import win32gui
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from default_config import DEFAULT_CONFIG
@@ -82,14 +84,13 @@ def init():
     # )
     # TODO: 嵌套格式无法正常打印
 
-    app = QApplication([])
-
 
 init()
 
 
 def show_warning():
     """显示警告弹窗"""
+    app = QApplication(sys.argv)
     msg_box = QMessageBox()
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
     msg_box.setIcon(QMessageBox.Warning)
@@ -116,6 +117,7 @@ def show_warning():
             logging.info("等待超时")
             msg_box.button(QMessageBox.Ok).click()
             timer.stop()
+            app.quit()
             return
 
     update_text()
@@ -134,7 +136,104 @@ def show_warning():
 
     logging.info("用户确认或超时，继续执行")
     timer.stop()
+    app.quit()
     return
+
+
+class WarningBanner(QWidget):
+    """顶部警示横幅"""
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(140)  # 横幅高度
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
+        # 置顶、无边框、点击穿透
+        self.setWindowFlags(
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.WindowTransparentForInput
+        )
+
+        # 滚动文字
+        self.text = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
+        self.text_x = 0
+        self.text_speed = 3
+        self.text_font = QFont("HarmonyOS Sans SC", 36, QFont.Bold)
+
+        # 生成斜纹
+        self.stripe = QPixmap(40, 32)
+        self.stripe.fill(Qt.transparent)
+        painter = QPainter(self.stripe)
+        painter.setBrush(QColor(255, 222, 89, 200))
+        painter.setPen(Qt.NoPen)
+        painter.drawPolygon(
+            [QPoint(0, 32), QPoint(16, 0), QPoint(32, 0), QPoint(16, 32)]
+        )
+        painter.end()
+
+        self.offset = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.animate)
+        self.timer.start(16)
+
+    def animate(self):
+        # 条纹滚动
+        self.offset = (self.offset + 1) % self.stripe.width()
+
+        # 文字滚动
+        self.text_x -= self.text_speed
+        # 文字总长度
+        total_text_width = QFontMetrics(self.text_font).horizontalAdvance(self.text)
+        if self.text_x < -total_text_width:
+            self.text_x += total_text_width  # 循环滚动，不跳空
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+
+        # 背景橙色
+        painter.fillRect(self.rect(), QColor(228, 8, 10, 180))
+
+        # 顶部条纹
+        y = 0
+        x = -self.offset
+        while x < self.width():
+            painter.drawPixmap(x, y, self.stripe)
+            x += self.stripe.width()
+
+        # 分割线（条纹下边缘）
+        painter.setPen(QPen(QColor(255, 222, 89, 200), 4))
+        painter.drawLine(0, self.stripe.height(), self.width(), self.stripe.height())
+
+        # 底部条纹
+        y = self.height() - self.stripe.height()
+        x = -self.offset
+        while x < self.width():
+            painter.drawPixmap(x, y, self.stripe)
+            x += self.stripe.width()
+
+        # 分割线（条纹上边缘）
+        painter.drawLine(0, y, self.width(), y)
+
+        # 滚动文字（循环绘制多份）
+        painter.setFont(self.text_font)
+        painter.setPen(QColor(255, 222, 89))
+        text_width = painter.fontMetrics().horizontalAdvance(self.text)
+        x = self.text_x
+        while x < self.width():
+            painter.drawText(x, int(self.height() / 2 + 20), self.text)
+            x += text_width
+
+
+def show_banner():
+    app = QApplication(sys.argv)
+    screen = app.primaryScreen().geometry()
+    w = WarningBanner()
+    w.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
+    w.show()
+    app.exec()
 
 
 def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
@@ -309,6 +408,14 @@ def main(args):
             show_warning()
         except Exception:
             logging.exception("显示警告通知时出错，跳过警告")
+
+    # 显示横幅
+    if config["show_banner"]:
+        try:
+            p = multiprocessing.Process(target=show_banner, daemon=True)
+            p.start()
+        except Exception:
+            logging.exception("显示横幅时出错，跳过横幅")
 
     # 执行登录
     action(args)
