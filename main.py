@@ -74,8 +74,11 @@ def load_config(path: str) -> dict:
 def init():
     """初始化"""
     set_logger()
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, "config.json")
     global config
-    config = load_config("config.json")
+    config = load_config(config_path)
 
     # logging.debug(
     #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
