@@ -253,7 +253,7 @@ def restart_easinote(config: LoginConfig):
     os.system(command)
     time.sleep(config.timeout.terminate)  # 等待终止
 
-    if config.login.kill_agent:
+    if config.kill_agent:
         os.system("taskkill /f /im EasiAgent.exe")
 
     # 启动希沃白板
