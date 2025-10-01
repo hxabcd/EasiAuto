@@ -1,4 +1,3 @@
-import json
 import logging
 import multiprocessing
 import os
@@ -17,7 +16,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QP
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
-from default_config import DEFAULT_CONFIG
+from config import BannerConfig, Config, EasiNoteConfig, get_log_level
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ def get_resource(file: str):
     return os.path.join(base_path, "resources", file)
 
 
-def load_config(config_file="config.json") -> dict:
+def load_config(config_file="config.json") -> Config:
     """加载配置文件"""
     exe_dir = Path(sys.argv[0]).resolve().parent
     config_path = exe_dir / config_file
@@ -48,12 +47,11 @@ def load_config(config_file="config.json") -> dict:
     logging.debug(f"查找配置文件: {config_path}")
     # 若配置文件存在则加载，否则创建默认配置文件并退出
     if config_path.exists():
-        with open(config_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        return Config.load(str(config_path))
     else:
         logging.warning(f"配置文件 {config_path} 不存在，自动创建")
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=4)
+        config = Config.load(str(config_path))
+        config.save()
         time.sleep(3)
         sys.exit(0)
 
@@ -66,19 +64,11 @@ def init():
     config = load_config()
 
     try:
-        set_logger(config["log_level"].upper())
-        logging.info(f"当前日志级别：{config['log_level']}")
+        set_logger(get_log_level[config.app.log_level])
+        logging.info(f"当前日志级别：{config.app.log_level}")
     except ValueError:
         set_logger()
-        logging.error(f"无效的日志级别：{config['log_level']}，使用默认级别 WARNING")
-
-    # 若临时禁用，则退出程序
-    if config["skip_once"]:
-        logging.info("已通过配置文件禁用，正在退出")
-        config["skip_once"] = False
-        with open("config.json", "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=4)
-        sys.exit(0)
+        logging.error(f"无效的日志级别：{config.app.log_level}，使用默认级别 WARNING")
 
     logging.info("初始化完成")
 
@@ -93,7 +83,7 @@ init()
 
 def show_warning():
     """显示警告弹窗"""
-    app = QApplication(sys.argv)
+    app = QApplication()
     msg_box = QMessageBox()
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
     msg_box.setIcon(QMessageBox.Warning)
@@ -105,7 +95,7 @@ def show_warning():
     msg_box.button(QMessageBox.Cancel).setText("取消")
 
     # 设置倒计时
-    timeout: int = config["timeout"]
+    timeout: int = config.warning.timeout
     if timeout <= 0:
         timeout = 15
 
@@ -145,7 +135,7 @@ def show_warning():
 class WarningBanner(QWidget):
     """顶部警示横幅"""
 
-    def __init__(self):
+    def __init__(self, config: BannerConfig):
         super().__init__()
         self.setFixedHeight(140)  # 横幅高度
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -154,9 +144,10 @@ class WarningBanner(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
 
         # 滚动文字
-        self.text = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
+        self.text = config.text
         self.text_x = 0
         self.text_speed = 3
+        self.text_y_offset = config.y_offset
 
         font = QFont(["HarmonyOS Sans SC", "Microsoft YaHei UI", "sans-serif"], pointSize=36, weight=QFont.Bold)
         self.text_font = font
@@ -220,26 +211,26 @@ class WarningBanner(QWidget):
         text_width = painter.fontMetrics().horizontalAdvance(self.text)
         x = self.text_x
         while x < self.width():
-            painter.drawText(x, int(self.height() / 2 + 20), self.text)
+            painter.drawText(x, int(self.height() / 2 + self.text_y_offset), self.text)
             x += text_width
 
 
 def show_banner():
     app = QApplication(sys.argv)
     screen = app.primaryScreen().geometry()
-    w = WarningBanner()
+    w = WarningBanner(config.banner)
     w.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
     w.show()
     app.exec()
 
 
-def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
+def restart_easinote(easinote: EasiNoteConfig):
     """重启希沃进程"""
 
     logging.info("尝试重启希沃进程")
 
     # 自动获取希沃白板安装路径
-    if path == "auto":
+    if easinote.path == "auto":
         try:
             with winreg.OpenKey(
                 winreg.HKEY_LOCAL_MACHINE,
@@ -254,7 +245,7 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
 
     # 配置终止指令
     echo_flag = "@echo off\n" if logging.getLogger().level not in [logging.DEBUG, logging.INFO] else ""
-    command = f"{echo_flag}taskkill /f /im {process_name}"
+    command = f"{echo_flag}taskkill /f /im {easinote.process_name}"
 
     # 终止希沃进程
     logging.info("终止进程")
@@ -262,13 +253,13 @@ def restart_easinote(path="auto", process_name="EasiNote.exe", args=""):
     os.system(command)
     time.sleep(1)  # 等待终止
 
-    if config["kill_seewo_agent"]:
+    if config.login.kill_agent:
         os.system("taskkill /f /im EasiAgent.exe")
 
     # 启动希沃白板
     logging.info("启动程序")
-    logging.debug(f"路径：{path}，参数：{args}")
-    subprocess.Popen(f'"{path}" {args}', shell=True)
+    logging.debug(f"路径：{path}，参数：{easinote.args}")
+    subprocess.Popen(f'"{path}" {easinote.args}', shell=True)
     time.sleep(8)  # 等待启动
 
 
@@ -287,9 +278,9 @@ def switch_window_by_title(title):
         # 切换到找到的第一个窗口
         win32gui.ShowWindow(hwnds[0], win32con.SW_RESTORE)  # 确保窗口不是最小化状态
         win32gui.SetForegroundWindow(hwnds[0])  # 设置为前台窗口（获取焦点）
-        print(f"已切换到标题包含 '{title}' 的窗口")
+        logging.info(f"已切换到标题包含 '{title}' 的窗口")
     else:
-        print(f"未找到标题包含 '{title}' 的窗口")
+        logging.warning(f"未找到标题包含 '{title}' 的窗口")
 
 
 def login(account: str, password: str, is_4k=False, directly=False):
@@ -367,19 +358,19 @@ def login(account: str, password: str, is_4k=False, directly=False):
 
 
 @retry(
-    stop=stop_after_attempt(config["max_retries"] + 1),
+    stop=stop_after_attempt(config.app.max_retries + 1),
     wait=wait_fixed(2),
     before_sleep=before_sleep_log(logger, logging.ERROR),
 )
 def action(args):
     """完整自动登录操作"""
-    restart_easinote(**config["easinote"])
+    restart_easinote(config.login.easinote)
     switch_window_by_title("希沃白板")
     login(
         args.account,
         args.password,
-        is_4k=config["4k_mode"],
-        directly=config["login_directly"],
+        is_4k=config.app.is_4k,
+        directly=config.login.directly,
     )
 
     logging.info("执行完毕")
@@ -388,17 +379,23 @@ def action(args):
 def cmd_login(args):
     """执行自动登录"""
 
+    # 若临时禁用，则退出程序
+    if config.login.skip_once:
+        logging.info("已通过配置文件禁用，正在退出")
+        config.login.skip_once = False
+        sys.exit(0)
+
     logging.debug("传入的参数：\n%s" % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()]))
 
     # 显示警告
-    if config["show_warning"]:
+    if config.warning.enabled:
         try:
             show_warning()
         except Exception:
             logging.exception("显示警告通知时出错，跳过警告")
 
     # 显示横幅
-    if config["show_banner"]:
+    if config.banner.enabled:
         try:
             p = multiprocessing.Process(target=show_banner, daemon=True)
             p.start()
@@ -418,9 +415,7 @@ def cmd_setting(args):
 
 def cmd_skip(args):
     """跳过下一次登录"""
-    config["skip_once"] = True
-    with open("config.json", "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=4)
+    config.login.skip_once = True
     logging.info("已更新配置文件，正在退出")
     sys.exit(0)
 
