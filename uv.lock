@@ -3,7 +3,7 @@ revision = 2
 requires-python = ">=3.13"
 
 [[package]]
-name = "auto-login-for-easinote"
+name = "easiauto"
 version = "0.3.0"
 source = { virtual = "." }
 dependencies = [

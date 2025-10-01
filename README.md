@@ -1,57 +1,111 @@
 
-# Auto Login for EasiNote
+# EasiAuto
 
-## 概述
+![EasiAuto 图标](docs/EasiAuto_128.png)
 
 一个使用 Python 编写的 CLI 工具，可以用于自动登录希沃白板。通过 PyAutoGUI 实现自动识别并点击来模拟登录。
 
-程序具有自动重试，会在运行错误时重试至多两次，避免登录过程中被异常打断
-
 推荐与 [ClassIsland](https://github.com/ClassIsland/ClassIsland/) 的 **「自动化」** 功能结合使用，可实现在指定课程开始时自动登录至任课老师的希沃账号。具体自动化配置方案，详见 [【自动化】上课自动登录希沃白板 - 智教联盟论坛](https://forum.smart-teach.cn/d/385)
 
-系统需求：Windows 10 及以上版本
+系统需求：Windows 10 及以上版本 | [下载](https://github.com/hxabcd/easiauto/releases/latest)
+
+## 亮点
+
+* 醒目的横幅警示
+
+![醒目的横幅警告](docs/banner.webp)
+
+* 单次跳过
+
+![单次跳过](docs/skip_once.webp)
+
+* 运行前显示警告
+
+![运行前警告](docs/warning.png)
+
+* 自动错误重试
 
 ## 使用
 
 使用已预先打包的可执行文件，直接通过命令行进行调用。
 
-```pwsh
+```shell
+# 首次运行，创建配置文件
+easiauto
+
 # 查看使用说明
-auto_login_for_easinote.exe -h
+easiauto -h
+
+# 登录
+easiauto login -a ACCOUNT -p PASSWORD
+
+# 跳过下一次登录
+easiauto skip
+
 ```
 
-### 指定配置
+## 配置
 
-在第一次运行程序时，会在目录下创建配置文件 `config.toml`，随后程序自动退出
+在第一次运行程序时，会在目录下创建配置文件 `config.json`，随后程序自动退出
 
-此时需按照配置文件中的注释，配置好自动登录选项，之后即可正常运行
+此时按照下方配置好自动登录选项，之后即可正常运行
 
 可用的选项：
 
-* 在自动登录前通过系统通知弹出警告
-* 启用 4K 兼容模式
-* 直接登录，跳过点击进入登录界面
-* 日志级别
-* 希沃白板程序路径
-* 希沃白板进程名
-* 希沃白板启动参数
+### `show_warning`
 
-关于各配置项的详情，见配置文件内注释
+是否在自动登录前弹出警告弹窗，默认禁用
 
-### 传入参数
+### `timeout`
 
-* 通过 `-a` 或 `--account` 参数指定账号
+警告弹窗的超时时长，值为正整数，默认为 15 秒
 
-* 通过 `-p` 或 `--password` 参数指定密码
+### `show_banner`
 
-```pwsh
-auto_login_for_easinote.exe -a {手机号} -p {密码}
-```
+是否在登录期间启用警示横幅，默认启用
+
+### `4k_mode`
+
+启用 4K 兼容模式（可能存在部分适配不完全）
+
+### `login_directly`
+
+跳过点击进入登录界面，适用于不进入白板界面的情况
+
+### `skip_once`
+
+跳过下一次自动登录，随后自动重置
+
+### `kill_seewo_agent`
+
+干掉 SeewoAgent，避免快捷登录导致冲突，默认启用
+
+### `max_retries`
+
+错误重试次数，默认为 2
+
+### `{easinote}`
+
+#### `path`
+
+希沃白板程序路径，指向`swenlauncher.exe`，用于启动希沃白板。默认为 `auto`，即自动查找
+
+#### `process_name`
+
+希沃白板进程名，用于终止进程。默认为 `EasiNote.exe`
+
+#### `args`
+
+希沃白板启动参数，默认为空。设置为 `-m Display iwb` 时可以使非希沃设备跳过登录，直接进入白板界面
+
+### `log_level`
+
+日志级别，选项有 `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`，默认为 `WARNING`
 
 ## 开发
 
-使用 **Python 3.12.9** 开发
+使用 **Python 3.13** 开发
 
-使用 **uv** 管理项目
+使用 **uv** 管理项目环境
 
 使用 **Nuitka** 构建
