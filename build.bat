@@ -1,1 +1,0 @@
-nuitka --standalone --onefile --enable-plugin=pyside6 --include-data-dir=resources=resources --output-dir=build --windows-icon-from-ico=resources/easiauto.ico --windows-product-name="EasiAuto" --windows-product-version="0.3.1" --output-filename="easiauto.exe" main.py
