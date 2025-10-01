@@ -67,15 +67,23 @@ class EasiNoteConfig(AutoSaveModel):
     args: str = ""
 
 
+class TimeoutConfig(AutoSaveModel):
+    terminate: int = Field(1, gt=0, le=30)
+    launch: int = Field(8, gt=0, le=30)
+    enter_login_ui: int = Field(3, gt=0, le=30)
+    switch_tab: int = Field(1, gt=0, le=30)
+
+
 class LoginConfig(AutoSaveModel):
     skip_once: bool = False
     kill_agent: bool = True
-    easinote: EasiNoteConfig = Field(default_factory=EasiNoteConfig)
+    is_4k: bool = False
     directly: bool = False
+    easinote: EasiNoteConfig = Field(default_factory=EasiNoteConfig)
+    timeout: TimeoutConfig = Field(default_factory=TimeoutConfig)  # type: ignore
 
 
 class AppConfig(AutoSaveModel):
-    is_4k: bool = False
     max_retries: int = Field(3, ge=1, le=10)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
 
