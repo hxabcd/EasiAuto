@@ -155,7 +155,11 @@ class WarningBanner(QWidget):
         self.text = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
         self.text_x = 0
         self.text_speed = 3
-        self.text_font = QFont("HarmonyOS Sans SC", 36, QFont.Bold)
+
+        font = QFont()
+        font_families = ["HarmonyOS Sans SC", "Microsoft YaHei", "sans-serif"]
+        font.setFamilies(font_families)
+        self.text_font = font
 
         # 生成斜纹
         self.stripe = QPixmap(40, 32)
