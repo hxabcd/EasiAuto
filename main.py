@@ -45,7 +45,7 @@ def load_config(path: str) -> dict:
         logging.warning(f"配置文件 {path} 不存在，自动创建")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=4)
-        time.sleep(1)
+        time.sleep(3)
         sys.exit(0)
 
     with open(path, "r", encoding="utf-8") as f:
