@@ -51,7 +51,7 @@ class AutoSaveModel(BaseModel):
 
 
 class WarningConfig(AutoSaveModel):
-    enabled: bool = True
+    enabled: bool = False
     timeout: int = Field(15, ge=5, le=300)
 
 
@@ -84,7 +84,7 @@ class LoginConfig(AutoSaveModel):
 
 
 class AppConfig(AutoSaveModel):
-    max_retries: int = Field(3, ge=1, le=10)
+    max_retries: int = Field(2, ge=0, le=10)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
 
 
