@@ -12,7 +12,7 @@ import pyautogui
 import win32con
 import win32gui
 from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
@@ -92,7 +92,8 @@ def show_warning():
     msg_box = QMessageBox()
     msg_box.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
     msg_box.setIcon(QMessageBox.Warning)
-    msg_box.setWindowTitle("Auto Login for EasiNote")
+    msg_box.setWindowTitle("EasiAuto")
+    msg_box.setWindowIcon(QIcon(get_resource("easiauto.ico")))
     msg_box.setText("<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>")
     msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
     msg_box.button(QMessageBox.Ok).setText("立即执行")
@@ -419,7 +420,7 @@ def cmd_skip(args):
 
 def main():
     # 解析命令行参数
-    parser = ArgumentParser(prog="Auto Login for EasiNote", description="自动登录希沃白板的CLI工具")
+    parser = ArgumentParser(prog="EasiAuto", description="自动登录希沃白板的CLI工具")
     subparsers = parser.add_subparsers(title="子命令", dest="command")
 
     # login 子命令
