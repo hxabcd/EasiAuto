@@ -1,7 +1,7 @@
 
 # EasiAuto
 
-![EasiAuto 图标](docs/EasiAuto_128.png)
+![EasiAuto 宣传图](docs/EasiAutoPoster.PNG)
 
 一个使用 Python 编写的 CLI 工具，可以用于自动登录希沃白板。通过 PyAutoGUI 实现自动识别并点击来模拟登录。
 
