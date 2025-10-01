@@ -158,9 +158,7 @@ class WarningBanner(QWidget):
         self.text_x = 0
         self.text_speed = 3
 
-        font = QFont()
-        font_families = ["HarmonyOS Sans SC", "Microsoft YaHei", "sans-serif"]
-        font.setFamilies(font_families)
+        font = QFont(["HarmonyOS Sans SC", "Microsoft YaHei UI", "sans-serif"], pointSize=36, weight=QFont.Bold)
         self.text_font = font
 
         # 生成斜纹
