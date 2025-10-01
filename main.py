@@ -7,6 +7,7 @@ import sys
 import time
 import winreg
 from argparse import ArgumentParser
+from pathlib import Path
 
 import pyautogui
 import win32con
@@ -39,19 +40,31 @@ def get_resource(file: str):
     return os.path.join(base_path, "resources", file)
 
 
-def load_config(path: str) -> dict:
+def load_config(config_file="config.json") -> dict:
     """加载配置文件"""
-    if not os.path.exists(path):
-        logging.warning(f"配置文件 {path} 不存在，自动创建")
-        with open(path, "w", encoding="utf-8") as f:
+    exe_dir = Path(sys.argv[0]).resolve().parent
+    config_path = exe_dir / config_file
+
+    logging.debug(f"查找配置文件: {config_path}")
+    # 若配置文件存在则加载，否则创建默认配置文件并退出
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    else:
+        logging.warning(f"配置文件 {config_path} 不存在，自动创建")
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=4)
         time.sleep(3)
         sys.exit(0)
 
-    with open(path, "r", encoding="utf-8") as f:
-        config = json.load(f)
 
-    # 初始化日志
+def init():
+    """初始化"""
+    set_logger()
+
+    global config
+    config = load_config()
+
     try:
         set_logger(config["log_level"].upper())
         logging.info(f"当前日志级别：{config['log_level']}")
@@ -67,18 +80,7 @@ def load_config(path: str) -> dict:
             json.dump(config, f, ensure_ascii=False, indent=4)
         sys.exit(0)
 
-    logging.info(f"成功载入配置文件：{path}")
-    return config
-
-
-def init():
-    """初始化"""
-    set_logger()
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(current_dir, "config.json")
-    global config
-    config = load_config(config_path)
+    logging.info("初始化完成")
 
     # logging.debug(
     #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
