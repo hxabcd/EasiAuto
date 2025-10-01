@@ -16,7 +16,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QP
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
-from config import BannerConfig, Config, EasiNoteConfig, get_log_level
+from config import BannerConfig, Config, LoginConfig, get_log_level
 
 logger = logging.getLogger(__name__)
 
@@ -224,13 +224,13 @@ def show_banner():
     app.exec()
 
 
-def restart_easinote(easinote: EasiNoteConfig):
+def restart_easinote(config: LoginConfig):
     """重启希沃进程"""
 
     logging.info("尝试重启希沃进程")
 
     # 自动获取希沃白板安装路径
-    if easinote.path == "auto":
+    if (path := config.easinote.path) == "auto":
         try:
             with winreg.OpenKey(
                 winreg.HKEY_LOCAL_MACHINE,
@@ -241,26 +241,26 @@ def restart_easinote(easinote: EasiNoteConfig):
         except Exception:
             logging.warning("自动获取路径失败，使用默认路径")
             path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
-        logging.debug(f"路径：{path}")
+    logging.debug(f"路径：{path}")
 
     # 配置终止指令
     echo_flag = "@echo off\n" if logging.getLogger().level not in [logging.DEBUG, logging.INFO] else ""
-    command = f"{echo_flag}taskkill /f /im {easinote.process_name}"
+    command = f"{echo_flag}taskkill /f /im {config.easinote.process_name}"
 
     # 终止希沃进程
     logging.info("终止进程")
     logging.debug(f"命令：{command}")
     os.system(command)
-    time.sleep(1)  # 等待终止
+    time.sleep(config.timeout.terminate)  # 等待终止
 
     if config.login.kill_agent:
         os.system("taskkill /f /im EasiAgent.exe")
 
     # 启动希沃白板
     logging.info("启动程序")
-    logging.debug(f"路径：{path}，参数：{easinote.args}")
-    subprocess.Popen(f'"{path}" {easinote.args}', shell=True)
-    time.sleep(8)  # 等待启动
+    logging.debug(f"路径：{path}，参数：{config.easinote.args}")
+    subprocess.Popen(f'"{path}" {config.easinote.args}', shell=True)
+    time.sleep(config.timeout.launch)  # 等待启动
 
 
 def switch_window_by_title(title):
@@ -283,18 +283,18 @@ def switch_window_by_title(title):
         logging.warning(f"未找到标题包含 '{title}' 的窗口")
 
 
-def login(account: str, password: str, is_4k=False, directly=False):
+def login(account: str, password: str, config: LoginConfig):
     """自动登录"""
 
     logging.info("尝试自动登录")
 
     # 直接登录与4K适配
     path_suffix = ""
-    if directly:
+    if config.directly:
         path_suffix += "_direct"
-    if is_4k:
+    if config.is_4k:
         path_suffix += "_4k"
-    scale = 2 if is_4k else 1
+    scale = 2 if config.is_4k else 1
 
     # 获取资源图片
     button_img = get_resource("button%s.png" % path_suffix)
@@ -302,10 +302,10 @@ def login(account: str, password: str, is_4k=False, directly=False):
     checkbox_img = get_resource("checkbox%s.png" % path_suffix)
 
     # 进入登录界面
-    if not directly:
+    if not config.directly:
         logging.info("点击进入登录界面")
         pyautogui.click(172 * scale, 1044 * scale)
-        time.sleep(3)
+        time.sleep(config.timeout.enter_login_ui)
     else:
         logging.info("直接进入登录界面")
 
@@ -316,7 +316,7 @@ def login(account: str, password: str, is_4k=False, directly=False):
         assert button_button
         logging.info("识别到账号登录按钮，正在点击")
         pyautogui.click(button_button)
-        time.sleep(1)
+        time.sleep(config.timeout.switch_tab)
     except (pyautogui.ImageNotFoundException, AssertionError):
         logging.warning("未能识别到账号登录按钮，尝试识别已选中样式")
         try:
@@ -364,14 +364,9 @@ def login(account: str, password: str, is_4k=False, directly=False):
 )
 def action(args):
     """完整自动登录操作"""
-    restart_easinote(config.login.easinote)
+    restart_easinote(config.login)
     switch_window_by_title("希沃白板")
-    login(
-        args.account,
-        args.password,
-        is_4k=config.app.is_4k,
-        directly=config.login.directly,
-    )
+    login(args.account, args.password, config.login)
 
     logging.info("执行完毕")
 
