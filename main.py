@@ -162,8 +162,14 @@ def restart_easinote(config: LoginConfig):
     logging.debug(f"路径：{path}")
 
     # 配置终止指令
-    echo_flag = "@echo off\n" if logging.getLogger().level not in [logging.DEBUG, logging.INFO] else ""
-    command = f"{echo_flag}taskkill /f /im {config.easinote.process_name}"
+    cmd_list = []
+    if logging.getLogger().level not in [logging.DEBUG, logging.INFO]:
+        cmd_list.append("@echo off")
+    if config.kill_agent:
+        cmd_list.append("taskkill /f /im EasiAgent.exe")
+    cmd_list.append(f"taskkill /f /im {config.easinote.process_name}")
+    
+    command = "\n".join(cmd_list)
 
     # 终止希沃进程
     logging.info("终止进程")
