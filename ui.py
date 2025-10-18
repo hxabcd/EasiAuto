@@ -1,8 +1,55 @@
 from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from config import BannerConfig
+from utils import get_resource
+
+
+class WarningPopupWindow(QMessageBox):
+    """运行前的警告弹窗"""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
+        self.setIcon(QMessageBox.Warning)
+        self.setWindowTitle("EasiAuto")
+        self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
+        self.setText("<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>")
+        self.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        self.button(QMessageBox.Ok).setText("立即执行")
+        self.button(QMessageBox.Cancel).setText("取消")
+
+    def countdown(self, timeout: int = 15):
+        # 设置倒计时
+        if timeout <= 0:
+            timeout = 15
+
+        # 更新倒计时文本
+        def update_text():
+            nonlocal timeout
+            if timeout > 0:
+                self.setInformativeText(f"将在 {timeout} 秒后继续执行")
+                timeout -= 1
+            else:
+                self.button(QMessageBox.Ok).click()
+                timer.stop()
+
+        update_text()
+
+        # 计时器
+        timer = QTimer()
+        timer.timeout.connect(update_text)
+        timer.setInterval(1000)
+        timer.start()
+
+        result = self.exec()
+
+        timer.stop()
+
+        if result == QMessageBox.Cancel:
+            return 0  # 手动取消
+        return 1  # 确认/超时继续
 
 
 class WarningBanner(QWidget):
