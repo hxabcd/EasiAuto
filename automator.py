@@ -4,9 +4,10 @@ import time
 import winreg
 
 import pyautogui
+import win32gui
 
 from config import LoginConfig
-from utils import get_resource, switch_window_by_title
+from utils import get_resource, switch_window
 
 
 class Automator:
@@ -35,8 +36,7 @@ class Automator:
         logging.debug(f"路径：{path}")
 
         # 配置终止指令
-        cmd_list = []
-        cmd_list.append(["taskkill", "/f", "/im", self.config.easinote.process_name])
+        cmd_list = [["taskkill", "/f", "/im", self.config.easinote.process_name]]
         if self.config.kill_agent:
             cmd_list.append(["taskkill", "/f", "/im", "EasiAgent.exe"])
 
@@ -51,11 +51,29 @@ class Automator:
         logging.info("启动程序")
         logging.debug(f"路径：{path}，参数：{self.config.easinote.args}")
         args = self.config.easinote.args
-        if args != "":
-            subprocess.Popen([path, *args.split(" ")])
+        subprocess.Popen([path, *args.split(" ")] if args != "" else path)
+
+        # 轮询窗口是否打开
+        window_title = self.config.easinote.window_title  # 需要提前配置窗口标题
+        timeout = self.config.timeout.launch_polling_timeout  # 最长等待时间
+        interval = self.config.timeout.launch_polling_interval  # 轮询间隔秒
+
+        elapsed = 0
+        hwnd = None
+        logging.info(f"等待窗口 {window_title} 打开...")
+
+        while elapsed < timeout:
+            hwnd = win32gui.FindWindow(None, window_title)
+            if hwnd:
+                logging.info(f"窗口已打开：{window_title}")
+                time.sleep(self.config.timeout.after_launch)
+                switch_window(hwnd)
+                break
+            time.sleep(interval)
+            elapsed += interval
         else:
-            subprocess.Popen(path)
-        time.sleep(self.config.timeout.launch)  # 等待启动
+            logging.error(f"窗口在 {timeout} 秒内未打开：{window_title}")
+            raise TimeoutError(f"窗口在 {timeout} 秒内未打开：{window_title}")
 
     def login(self):
         """自动登录"""
@@ -132,6 +150,4 @@ class Automator:
 
     def run(self):
         self.restart_easinote()
-        switch_window_by_title("希沃白板")
         self.login()
-        logging.info("执行完毕")

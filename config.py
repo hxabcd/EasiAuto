@@ -64,14 +64,17 @@ class BannerConfig(AutoSaveModel):
 class EasiNoteConfig(AutoSaveModel):
     path: str = "auto"
     process_name: str = "EasiNote.exe"
+    window_title: str = "希沃白板"
     args: str = ""
 
 
 class TimeoutConfig(AutoSaveModel):
     terminate: int = Field(1, gt=0, le=30)
-    launch: int = Field(8, gt=0, le=30)
-    enter_login_ui: int = Field(3, gt=0, le=30)
-    switch_tab: int = Field(1, gt=0, le=30)
+    launch_polling_timeout: int = Field(15, gt=0, le=30)
+    launch_polling_interval: float = Field(0.5, gt=0, le=5)
+    after_launch: int = Field(1, ge=0, le=5)
+    enter_login_ui: int = Field(3, ge=0, le=30)
+    switch_tab: int = Field(1, ge=0, le=30)
 
 
 class LoginConfig(AutoSaveModel):

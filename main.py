@@ -13,6 +13,9 @@ from utils import init
 config = init()
 
 
+# -------- 自动登录相关 --------
+
+
 # 显示警告弹窗
 def show_warning():
     app = QApplication.instance() or QApplication([])  # noqa: F841
@@ -46,9 +49,7 @@ def run_login(automator: Automator):
     automator.run()
 
 
-#######
-# CMD #
-#######
+# -------- 命令解析 --------
 
 
 def cmd_login(args):
@@ -81,6 +82,7 @@ def cmd_login(args):
     automator = Automator(args.account, args.password, config.login)
     run_login(automator)
 
+    logging.info("执行完毕")
     sys.exit(0)
 
 

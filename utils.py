@@ -71,8 +71,14 @@ def init():
     return config
 
 
-def switch_window_by_title(title):
-    """通过窗口标题切换焦点"""
+def switch_window(hwnd: int):
+    """通过句柄切换焦点"""
+    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)  # 确保窗口不是最小化状态
+    win32gui.SetForegroundWindow(hwnd)  # 设置为前台窗口（获取焦点）
+
+
+def get_window_by_title(title: str):
+    """通过标题获取窗口"""
 
     def callback(hwnd, extra):
         if title in win32gui.GetWindowText(hwnd):
@@ -83,9 +89,25 @@ def switch_window_by_title(title):
     win32gui.EnumWindows(callback, hwnds)
 
     if hwnds:
-        # 切换到找到的第一个窗口
-        win32gui.ShowWindow(hwnds[0], win32con.SW_RESTORE)  # 确保窗口不是最小化状态
-        win32gui.SetForegroundWindow(hwnds[0])  # 设置为前台窗口（获取焦点）
-        logging.info(f"已切换到标题包含 '{title}' 的窗口")
+        logging.info(f"已找到标题包含 '{title}' 的窗口")
+        return hwnds
     else:
         logging.warning(f"未找到标题包含 '{title}' 的窗口")
+
+
+def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int | None:
+    """根据进程 PID 查找窗口句柄，支持部分标题匹配。"""
+    hwnd_found = None
+
+    def callback(hwnd, _):
+        nonlocal hwnd_found
+        _, window_pid = win32gui.GetWindowThreadProcessId(hwnd)
+        if window_pid == pid:
+            window_title = win32gui.GetWindowText(hwnd)
+            if (target_title == window_title) if strict else (target_title in window_title):
+                hwnd_found = hwnd
+                return False  # 找到就停止枚举
+        return True
+
+    win32gui.EnumWindows(callback, None)
+    return hwnd_found
