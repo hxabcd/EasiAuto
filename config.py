@@ -34,7 +34,7 @@ class AutoSaveModel(BaseModel):
             root = root._parent
         if root._file is not None:
             data = root.model_dump(exclude_none=True)
-            root._file.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding="utf-8")
+            root._file.write_text(json.dumps(data), encoding="utf-8")
 
     def __setattr__(self, name: str, value) -> None:
         super().__setattr__(name, value)
