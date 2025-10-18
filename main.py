@@ -13,40 +13,46 @@ from utils import init
 config = init()
 
 
+# 显示警告弹窗
+def show_warning():
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    msgbox = WarningPopupWindow()
+
+    if msgbox.countdown(config.warning.timeout) == 0:
+        logging.info("用户取消操作，正在退出")
+        sys.exit(0)
+    logging.info("用户确认或超时，继续执行")
+
+    app.quit()
+
+
+# 显示警告横幅
+def show_banner():
+    app = QApplication.instance() or QApplication([])
+    screen = app.primaryScreen().geometry()
+    w = WarningBanner(config.banner)
+    w.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
+    w.show()
+    app.exec()
+
+
+# 带重试的登录
+@retry(
+    stop=stop_after_attempt(config.app.max_retries + 1),
+    wait=wait_fixed(2),
+    before_sleep=before_sleep_log(logging.getLogger(), logging.ERROR),
+)
+def run_login(automator: Automator):
+    automator.run()
+
+
+#######
+# CMD #
+#######
+
+
 def cmd_login(args):
     """login 子命令 - 执行自动登录"""
-
-    # 显示警告弹窗
-    def show_warning():
-        app = QApplication.instance() or QApplication([])  # noqa: F841
-        msgbox = WarningPopupWindow()
-
-        if msgbox.countdown(config.warning.timeout) == 0:
-            logging.info("用户取消操作，正在退出")
-            sys.exit(0)
-        logging.info("用户确认或超时，继续执行")
-
-    # 显示警告横幅
-    def show_banner():
-        app = QApplication.instance() or QApplication([])
-        screen = app.primaryScreen().geometry()
-        w = WarningBanner(config.banner)
-        w.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
-        w.show()
-        app.exec()
-
-    # 带重试的登录
-    @retry(
-        stop=stop_after_attempt(config.app.max_retries + 1),
-        wait=wait_fixed(2),
-        before_sleep=before_sleep_log(logging.getLogger(), logging.ERROR),
-    )
-    def run_login(automator: Automator):
-        automator.run()
-
-    ##############
-    # 从下面开始登录
-    ##############
 
     # 若临时禁用，则退出程序
     if config.login.skip_once:

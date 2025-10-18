@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess
 import time
 import winreg
@@ -37,24 +36,25 @@ class Automator:
 
         # 配置终止指令
         cmd_list = []
-        if logging.getLogger().level not in [logging.DEBUG, logging.INFO]:
-            cmd_list.append("@echo off")
+        cmd_list.append(["taskkill", "/f", "/im", self.config.easinote.process_name])
         if self.config.kill_agent:
-            cmd_list.append("taskkill /f /im EasiAgent.exe")
-        cmd_list.append(f"taskkill /f /im {self.config.easinote.process_name}")
-
-        command = "\n".join(cmd_list)
+            cmd_list.append(["taskkill", "/f", "/im", "EasiAgent.exe"])
 
         # 终止希沃进程
         logging.info("终止进程")
-        logging.debug(f"命令：{command}")
-        os.system(command)
+        for command in cmd_list:
+            logging.debug(f"命令：{' '.join(command)}")
+            subprocess.run(command, shell=True)
         time.sleep(self.config.timeout.terminate)  # 等待终止
 
         # 启动希沃白板
         logging.info("启动程序")
         logging.debug(f"路径：{path}，参数：{self.config.easinote.args}")
-        subprocess.Popen(f'"{path}" {self.config.easinote.args}', shell=True)
+        args = self.config.easinote.args
+        if args != "":
+            subprocess.Popen([path, *args.split(" ")])
+        else:
+            subprocess.Popen(path)
         time.sleep(self.config.timeout.launch)  # 等待启动
 
     def login(self):
