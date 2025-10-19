@@ -78,6 +78,7 @@ class TimeoutConfig(AutoSaveModel):
 
 
 class LoginConfig(AutoSaveModel):
+    method: Literal["UIAutomation", "OpenCV", "FixedPosition"] = "UIAutomation"
     skip_once: bool = False
     kill_agent: bool = True
     is_4k: bool = False

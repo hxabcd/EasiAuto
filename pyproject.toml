@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.11.9",
     "pyside6>=6.9.3",
     "pywin32>=311",
+    "pywinauto>=0.6.9",
     "tenacity>=9.1.2",
 ]
 
