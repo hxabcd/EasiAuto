@@ -2,15 +2,17 @@ import logging
 import subprocess
 import time
 import winreg
+from abc import ABC, abstractmethod
 
 import pyautogui
 import win32gui
+from pywinauto import Application, Desktop
 
 from config import LoginConfig
 from utils import get_resource, switch_window
 
 
-class Automator:
+class BaseAutomator(ABC):
     def __init__(self, account: str, password: str, config: LoginConfig) -> None:
         self.account = account
         self.password = password
@@ -68,16 +70,27 @@ class Automator:
                 logging.info(f"窗口已打开：{window_title}")
                 time.sleep(self.config.timeout.after_launch)
                 switch_window(hwnd)
-                break
+                return
             time.sleep(interval)
             elapsed += interval
         else:
             logging.error(f"窗口在 {timeout} 秒内未打开：{window_title}")
             raise TimeoutError(f"窗口在 {timeout} 秒内未打开：{window_title}")
 
+    @abstractmethod
     def login(self):
         """自动登录"""
+        ...
 
+    def run(self):
+        self.restart_easinote()
+        self.login()
+
+
+class CVAutomator(BaseAutomator):
+    """使用 OpenCV 识别图像来登录"""
+
+    def login(self):
         logging.info("尝试自动登录")
 
         # 直接登录与4K适配
@@ -148,6 +161,72 @@ class Automator:
         logging.info("点击登录按钮")
         pyautogui.click(button_button.x, button_button.y + 198 * scale)
 
-    def run(self):
-        self.restart_easinote()
-        self.login()
+
+class FixedAutomator(BaseAutomator):
+    """通过固定位置来登录"""
+
+    # def __init__(self, account: str, password: str, config: LoginConfig, position: PositionConfig) -> None:
+    #     super().__init__(account, password, config)
+    #     self.position = position
+
+    def login(self): ...  # 待实现/移除
+
+
+class UIAAutomator(BaseAutomator):
+    """通过 UI Automation 自动定位组件位置来登录"""
+
+    def login(self):
+        # 连接至希沃白板
+        logging.info("连接 UI Automation 后端至希沃白板")
+        app = Application(backend="uia").connect(title="希沃白板")
+        dlg = app.window(title="希沃白板")
+        dlg.set_focus()
+
+        # 如果启动进入白板 (iwb)
+        is_iwb = not self.config.directly
+        if is_iwb:
+            # 先进入登录界面
+            logging.info("点击进入登录界面")
+            iwb_login_button = dlg.child_window(auto_id="ProfileButton", control_type="Button")
+            iwb_login_button.click()
+            time.sleep(self.config.timeout.enter_login_ui)
+            # 切换操作窗口为弹出的 IWBLogin
+            logging.info("切换到登录界面")
+            dlg = Desktop(backend="uia").window(auto_id="IWBLogin")
+
+        # 切换至账号登录
+        logging.info("定位并点击账号登录按钮")
+        account_login_button = dlg.child_window(
+            auto_id="AccountRadioButton" if is_iwb else "AccountLoginRadioButton", control_type="RadioButton"
+        )
+        account_login_button.click()
+        time.sleep(self.config.timeout.switch_tab)
+
+        # 定位登录控件
+        logging.info("定位登录控件")
+        account_login_page = dlg.child_window(
+            auto_id="IwbAccountControl" if is_iwb else "PasswordLoginControl", control_type="Custom"
+        )
+
+        # 输入账号
+        logging.info("定位输入框并填入账号")
+        logging.debug(f"账号：{self.account}")
+        account_input = account_login_page.ComboBox.Edit
+        account_input.set_edit_text(self.account)
+
+        # 输入密码
+        logging.info("定位输入框并填入密码")
+        logging.debug(f"密码：{self.password}")
+        password_input = account_login_page.child_window(auto_id="PasswordBox", control_type="Edit")
+        password_input.set_edit_text(self.password)
+
+        # 勾选同意用户协议
+        logging.info("定位用户协议复选框并勾选")
+        agreement_button = account_login_page.child_window(auto_id="AgreementCheckBox", control_type="CheckBox")
+        if not agreement_button.get_toggle_state():
+            agreement_button.toggle()
+
+        # 登录
+        logging.info("点击登录按钮")
+        login_button = account_login_page.child_window(auto_id="LoginButton", control_type="Button")
+        login_button.click()

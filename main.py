@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from PySide6.QtWidgets import QApplication
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
-from automator import Automator
+from automator import BaseAutomator, CVAutomator, FixedAutomator, UIAAutomator
 from ui import WarningBanner, WarningPopupWindow
 from utils import init
 
@@ -45,7 +45,7 @@ def show_banner():
     wait=wait_fixed(2),
     before_sleep=before_sleep_log(logging.getLogger(), logging.ERROR),
 )
-def run_login(automator: Automator):
+def run_login(automator: BaseAutomator):
     automator.run()
 
 
@@ -79,7 +79,18 @@ def cmd_login(args):
             logging.exception("显示横幅时出错，跳过横幅")
 
     # 执行登录
-    automator = Automator(args.account, args.password, config.login)
+    logging.debug(f"当前设置的登录方案: {config.login.method}")
+    match config.login.method:  # 选择登录方案
+        case "UIAutomation":
+            automator = UIAAutomator(args.account, args.password, config.login)
+        case "OpenCV":
+            automator = CVAutomator(args.account, args.password, config.login)
+        case "FixedPosition":
+            automator = FixedAutomator(args.account, args.password, config.login)
+        case _:
+            logging.warning("未知方案，已回滚至默认值 (UI Automation)")
+            automator = UIAAutomator(args.account, args.password, config.login)
+
     run_login(automator)
 
     logging.info("执行完毕")
