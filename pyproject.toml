@@ -1,6 +1,6 @@
 [project]
 name = "easiauto"
-version = "0.3.2"
+version = "1.0.0"
 description = "自动登录希沃白板的CLI工具"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,6 +11,7 @@ dependencies = [
     "pyautogui>=0.9.54",
     "pydantic>=2.11.9",
     "pyside6>=6.9.3",
+    "pyside6-fluent-widgets>=1.9.1",
     "pywin32>=311",
     "pywinauto>=0.6.9",
     "tenacity>=9.1.2",
