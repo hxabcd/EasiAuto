@@ -1,11 +1,13 @@
+import json
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 
 import win32con
 import win32gui
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from config import Config, get_log_level
 
@@ -37,15 +39,8 @@ def load_config(config_file="config.json") -> Config:
     config_path = get_executable_dir() / config_file
 
     logging.debug(f"查找配置文件: {config_path}")
-    # 若配置文件存在则加载，否则创建默认配置文件并退出
-    if config_path.exists():
-        return Config.load(str(config_path))
-    else:
-        logging.warning(f"配置文件 {config_path} 不存在，自动创建")
-        config = Config.load(str(config_path))
-        config.save()
-        time.sleep(3)
-        sys.exit(0)
+
+    return Config.load(str(config_path))
 
 
 def init():
@@ -55,12 +50,11 @@ def init():
     config = load_config()
 
     try:
-        set_logger(get_log_level[config.app.log_level])
-        logging.info(f"当前日志级别：{config.app.log_level}")
+        set_logger(get_log_level[config.App.LogLevel])
+        logging.info(f"当前日志级别：{config.App.LogLevel}")
     except ValueError:
         set_logger()
-        logging.error(f"无效的日志级别：{config.app.log_level}，使用默认级别 WARNING")
-
+        logging.error(f"无效的日志级别：{config.App.LogLevel}，使用默认级别 WARNING")
     logging.info("初始化完成")
 
     # logging.debug(
@@ -68,7 +62,21 @@ def init():
     # )
     # TODO: 嵌套格式无法正常打印
 
+    # 启用DPI缩放
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+
     return config
+
+
+def turn_skip_off(config: Config, file="config.json"):
+    config.Login.SkipOnce = False
+    path = get_executable_dir() / file
+    with path.open("w", encoding="utf-8") as f:
+        data = config.model_dump(exclude_none=True)
+        f.write(json.dumps(data, ensure_ascii=False, indent=4))
 
 
 def switch_window(hwnd: int):

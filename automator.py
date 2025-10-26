@@ -8,15 +8,24 @@ import pyautogui
 import win32gui
 from pywinauto import Application, Desktop
 
-from config import LoginConfig
+from config import EasiNoteConfig, LoginConfig, TimeoutConfig
 from utils import get_resource, switch_window
 
 
 class BaseAutomator(ABC):
-    def __init__(self, account: str, password: str, config: LoginConfig) -> None:
+    def __init__(
+        self,
+        account: str,
+        password: str,
+        login_config: LoginConfig,
+        easinote_config: EasiNoteConfig,
+        timeout_config: TimeoutConfig,
+    ) -> None:
         self.account = account
         self.password = password
-        self.config = config
+        self.login_cfg = login_config
+        self.easinote_cfg = easinote_config
+        self.timeout_cfg = timeout_config
 
     def restart_easinote(self):
         """重启希沃进程"""
@@ -24,7 +33,7 @@ class BaseAutomator(ABC):
         logging.info("尝试重启希沃进程")
 
         # 自动获取希沃白板安装路径
-        if (path := self.config.easinote.path) == "auto":
+        if self.easinote_cfg.AutoPath:
             try:
                 with winreg.OpenKey(
                     winreg.HKEY_LOCAL_MACHINE,
@@ -34,12 +43,14 @@ class BaseAutomator(ABC):
                     logging.info("自动获取到路径")
             except Exception:
                 logging.warning("自动获取路径失败，使用默认路径")
-                path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
+                path = self.easinote_cfg.Path
+        else:
+            path = self.easinote_cfg.Path
         logging.debug(f"路径：{path}")
 
         # 配置终止指令
-        cmd_list = [["taskkill", "/f", "/im", self.config.easinote.process_name]]
-        if self.config.kill_agent:
+        cmd_list = [["taskkill", "/f", "/im", self.easinote_cfg.ProcessName]]
+        if self.login_cfg.KillAgent:
             cmd_list.append(["taskkill", "/f", "/im", "EasiAgent.exe"])
 
         # 终止希沃进程
@@ -47,18 +58,18 @@ class BaseAutomator(ABC):
         for command in cmd_list:
             logging.debug(f"命令：{' '.join(command)}")
             subprocess.run(command, shell=True)
-        time.sleep(self.config.timeout.terminate)  # 等待终止
+        time.sleep(self.timeout_cfg.Terminate)  # 等待终止
 
         # 启动希沃白板
         logging.info("启动程序")
-        logging.debug(f"路径：{path}，参数：{self.config.easinote.args}")
-        args = self.config.easinote.args
+        logging.debug(f"路径：{path}，参数：{self.easinote_cfg.Args}")
+        args = self.easinote_cfg.Args
         subprocess.Popen([path, *args.split(" ")] if args != "" else path)
 
         # 轮询窗口是否打开
-        window_title = self.config.easinote.window_title  # 需要提前配置窗口标题
-        timeout = self.config.timeout.launch_polling_timeout  # 最长等待时间
-        interval = self.config.timeout.launch_polling_interval  # 轮询间隔秒
+        window_title = self.easinote_cfg.WindowTitle  # 需要提前配置窗口标题
+        timeout = self.timeout_cfg.LaunchPollingTimeout  # 最长等待时间
+        interval = self.timeout_cfg.LaunchPollingInterval  # 轮询间隔秒
 
         elapsed = 0
         hwnd = None
@@ -68,7 +79,7 @@ class BaseAutomator(ABC):
             hwnd = win32gui.FindWindow(None, window_title)
             if hwnd:
                 logging.info(f"窗口已打开：{window_title}")
-                time.sleep(self.config.timeout.after_launch)
+                time.sleep(self.timeout_cfg.AfterLaunch)
                 switch_window(hwnd)
                 return
             time.sleep(interval)
@@ -95,11 +106,11 @@ class CVAutomator(BaseAutomator):
 
         # 直接登录与4K适配
         path_suffix = ""
-        if self.config.directly:
+        if self.login_cfg.Directly:
             path_suffix += "_direct"
-        if self.config.is_4k:
+        if self.login_cfg.Is4K:
             path_suffix += "_4k"
-        scale = 2 if self.config.is_4k else 1
+        scale = 2 if self.login_cfg.Is4K else 1
 
         # 获取资源图片
         button_img = get_resource("button%s.png" % path_suffix)
@@ -107,10 +118,10 @@ class CVAutomator(BaseAutomator):
         checkbox_img = get_resource("checkbox%s.png" % path_suffix)
 
         # 进入登录界面
-        if not self.config.directly:
+        if not self.login_cfg.Directly:
             logging.info("点击进入登录界面")
             pyautogui.click(172 * scale, 1044 * scale)
-            time.sleep(self.config.timeout.enter_login_ui)
+            time.sleep(self.timeout_cfg.EnterLoginUI)
         else:
             logging.info("直接进入登录界面")
 
@@ -121,7 +132,7 @@ class CVAutomator(BaseAutomator):
             assert button_button
             logging.info("识别到账号登录按钮，正在点击")
             pyautogui.click(button_button)
-            time.sleep(self.config.timeout.switch_tab)
+            time.sleep(self.timeout_cfg.SwitchTab)
         except (pyautogui.ImageNotFoundException, AssertionError):
             logging.warning("未能识别到账号登录按钮，尝试识别已选中样式")
             try:
@@ -183,13 +194,13 @@ class UIAAutomator(BaseAutomator):
         dlg.set_focus()
 
         # 如果启动进入白板 (iwb)
-        is_iwb = not self.config.directly
+        is_iwb = not self.login_cfg.Directly
         if is_iwb:
             # 先进入登录界面
             logging.info("点击进入登录界面")
             iwb_login_button = dlg.child_window(auto_id="ProfileButton", control_type="Button")
             iwb_login_button.click()
-            time.sleep(self.config.timeout.enter_login_ui)
+            time.sleep(self.timeout_cfg.EnterLoginUI)
             # 切换操作窗口为弹出的 IWBLogin
             logging.info("切换到登录界面")
             dlg = Desktop(backend="uia").window(auto_id="IWBLogin")
@@ -200,7 +211,7 @@ class UIAAutomator(BaseAutomator):
             auto_id="AccountRadioButton" if is_iwb else "AccountLoginRadioButton", control_type="RadioButton"
         )
         account_login_button.click()
-        time.sleep(self.config.timeout.switch_tab)
+        time.sleep(self.timeout_cfg.SwitchTab)
 
         # 定位登录控件
         logging.info("定位登录控件")

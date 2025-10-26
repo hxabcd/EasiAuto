@@ -1,135 +1,449 @@
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QMessageBox, QWidget
+import sys
 
-from config import BannerConfig
-from utils import get_resource
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QLayout,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import (
+    BodyLabel,
+    CardWidget,
+    ComboBoxSettingCard,
+    ExpandGroupSettingCard,
+    FluentTranslator,
+    FluentWindow,
+    HyperlinkLabel,
+    ImageLabel,
+    InfoBar,
+    InfoBarPosition,
+    MessageBox,
+    NavigationItemPosition,
+    PushSettingCard,
+    RangeSettingCard,
+    ScrollArea,
+    SettingCardGroup,
+    SubtitleLabel,
+    SwitchSettingCard,
+    Theme,
+    TitleLabel,
+    qconfig,
+    setTheme,
+)
+from qfluentwidgets import FluentIcon as FIF
+
+from components import ColorSettingCard, EditSettingCard, SpinSettingCard
+from config import QfwEasiautoConfig
+from utils import get_executable_dir
 
 
-class WarningPopupWindow(QMessageBox):
-    """运行前的警告弹窗"""
+class EasinoteSettingCard(ExpandGroupSettingCard):
+    def __init__(self, config: QfwEasiautoConfig, parent=None):
+        super().__init__(FIF.APPLICATION, "希沃白板", "配置希沃白板的路径、进程名、窗口标题和启动参数", parent)
+
+        self.autoPathSwitch = SwitchSettingCard(
+            FIF.SPEED_HIGH, "自动获取路径", "启用后，将忽略自定义路径", configItem=config.easinoteAutoPath
+        )
+
+        self.pathEdit = EditSettingCard(FIF.FOLDER, "自定义路径", configItem=config.easinotePath)
+        self.pathEdit.lineEdit.setFixedWidth(400)
+
+        self.processNameEdit = EditSettingCard(FIF.ALIGNMENT, "进程名", configItem=config.easinoteProcessName)
+        self.processNameEdit.lineEdit.setFixedWidth(400)
+
+        self.windowTitleEdit = EditSettingCard(FIF.ALIGNMENT, "窗口标题", configItem=config.easinoteWindowTitle)
+        self.windowTitleEdit.lineEdit.setFixedWidth(400)
+
+        self.argsEdit = EditSettingCard(FIF.COMMAND_PROMPT, "参数", configItem=config.easinoteArgs)
+        self.argsEdit.lineEdit.setClearButtonEnabled(True)
+        self.argsEdit.lineEdit.setFixedWidth(400)
+
+        # 调整内部布局
+        self.viewLayout.setContentsMargins(0, 0, 0, 0)
+        self.viewLayout.setSpacing(0)
+
+        # 添加各组到设置卡中
+        self.addGroupWidget(self.autoPathSwitch)
+        self.addGroupWidget(self.pathEdit)
+        self.addGroupWidget(self.processNameEdit)
+        self.addGroupWidget(self.windowTitleEdit)
+        self.addGroupWidget(self.argsEdit)
+
+
+class TimeoutSettingCard(ExpandGroupSettingCard):
+    def __init__(self, config: QfwEasiautoConfig, parent=None):
+        super().__init__(FIF.STOP_WATCH, "等待时长", "配置自动登录过程中的等待时长", parent)
+
+        self.pathEdit = SpinSettingCard(
+            FIF.POWER_BUTTON, "终止进程等待时间", configItem=config.timeoutTerminate, min_width=160
+        )
+        self.launchPollingTimeoutEdit = SpinSettingCard(
+            FIF.REMOVE_FROM, "等待启动超时时间", configItem=config.timeoutLaunchPollingTimeout, min_width=160
+        )
+        self.launchPollingIntervalEdit = SpinSettingCard(
+            FIF.SYNC, "等待启动轮询间隔", configItem=config.timeoutLaunchPollingInterval, double=True, min_width=160
+        )
+        self.afterLaunchEdit = SpinSettingCard(
+            FIF.COMPLETED, "启动后等待时间", configItem=config.timeoutAfterLaunch, min_width=160
+        )
+        self.enterLoginUiEdit = SpinSettingCard(
+            FIF.PEOPLE, "进入登录界面等待时间", configItem=config.timeoutEnterLoginUI, min_width=160
+        )
+        self.switchTabEdit = SpinSettingCard(
+            FIF.TILES, "切换标签等待时间", configItem=config.timeoutSwitchTab, min_width=160
+        )
+
+        # 调整内部布局
+        self.viewLayout.setContentsMargins(0, 0, 0, 0)
+        self.viewLayout.setSpacing(0)
+
+        # 添加各组到设置卡中
+        self.addGroupWidget(self.pathEdit)
+        self.addGroupWidget(self.launchPollingTimeoutEdit)
+        self.addGroupWidget(self.launchPollingIntervalEdit)
+        self.addGroupWidget(self.afterLaunchEdit)
+        self.addGroupWidget(self.enterLoginUiEdit)
+        self.addGroupWidget(self.switchTabEdit)
+
+
+class ConfigPage(ScrollArea):
+    """设置 - 配置页"""
 
     def __init__(self):
         super().__init__()
-        self.setWindowFlag(Qt.WindowStaysOnTopHint)  # 窗口置顶
-        self.setIcon(QMessageBox.Warning)
-        self.setWindowTitle("EasiAuto")
-        self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
-        self.setText("<span style='font-size: 20px; font-weight: bold;'>即将运行希沃白板自动登录</span>")
-        self.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        self.button(QMessageBox.Ok).setText("立即执行")
-        self.button(QMessageBox.Cancel).setText("取消")
 
-    def countdown(self, timeout: int = 15):
-        # 设置倒计时
-        if timeout <= 0:
-            timeout = 15
+        config_path = get_executable_dir() / "config.json"
+        self.config = QfwEasiautoConfig()
+        qconfig.load(config_path, self.config)
 
-        # 更新倒计时文本
-        def update_text():
-            nonlocal timeout
-            if timeout > 0:
-                self.setInformativeText(f"将在 {timeout} 秒后继续执行")
-                timeout -= 1
-            else:
-                self.button(QMessageBox.Ok).click()
-                timer.stop()
+        self.init_ui()
 
-        update_text()
+    def reset_config(self):
+        """重置配置为默认值"""
+        title = "确认要重置配置吗？"
+        content = "所有已编辑的设置将丢失，是否继续？"
+        w = MessageBox(title, content, self)
 
-        # 计时器
-        timer = QTimer()
-        timer.timeout.connect(update_text)
-        timer.setInterval(1000)
-        timer.start()
+        w.setClosableOnMaskClicked(True)
 
-        result = self.exec()
+        if w.exec():
+            InfoBar.success(
+                title="设置已重置",
+                content="重启以应用更改",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                # position='Custom',   # NOTE: use custom info bar manager
+                duration=2000,
+                parent=self,
+            )
 
-        timer.stop()
+    def init_ui(self):
+        self.setObjectName("ConfigPage")
+        self.setStyleSheet("border: none; background-color: transparent;")
 
-        if result == QMessageBox.Cancel:
-            return 0  # 手动取消
-        return 1  # 确认/超时继续
+        # 创建滚动区域
+        self.setWidgetResizable(True)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setMinimumSize(750, 480)
+
+        # 创建内容容器
+        content_widget = QWidget(self)
+        self.setWidget(content_widget)
+
+        # 内容布局
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(40, 20, 40, 20)
+        content_layout.setSpacing(32)
+
+        # 添加设置组
+        self.add_login_settings(content_layout)
+        self.add_warning_settings(content_layout)
+        self.add_banner_settings(content_layout)
+        self.add_app_settings(content_layout)
+
+    # 登录相关选项
+    def add_login_settings(self, layout: QLayout):
+        card_group = SettingCardGroup("登录")
+
+        # 登录方式
+        self.method_select = ComboBoxSettingCard(
+            configItem=self.config.loginMethod,
+            icon=FIF.DEVELOPER_TOOLS,
+            title="登录方式",
+            content="选择用于进行自动登录的方式\n可选项：UI Automation - 定位页面元素（推荐，最稳定）、OpenCV - 图像识别、Fixed - 固定位置",
+            texts=["UI Automation", "OpenCV", "Fixed"],
+        )
+        self.method_select.comboBox.setMinimumWidth(140)
+        card_group.addSettingCard(self.method_select)
+
+        # 跳过一次
+        self.warning_switch = SwitchSettingCard(
+            icon=FIF.SEND,
+            title="跳过一次",
+            content="下次运行时跳过自动登录，适用于公开课等需临时禁用的场景",
+            configItem=self.config.loginSkipOnce,
+        )
+        card_group.addSettingCard(self.warning_switch)
+
+        # 终止 SeewoAgent 服务
+        self.kill_agent_switch = SwitchSettingCard(
+            icon=FIF.POWER_BUTTON,
+            title="终止 SeewoAgent 服务",
+            content="可避免某些情况下自动登录被希沃的快捷登录打断",
+            configItem=self.config.loginKillAgent,
+        )
+        card_group.addSettingCard(self.kill_agent_switch)
+
+        # 直接登录
+        self.directly_switch = SwitchSettingCard(
+            icon=FIF.PEOPLE,
+            title="跳过点击进入登录界面",
+            content="适用于打开希沃时不进入白板界面（iwb）的情况",
+            configItem=self.config.loginDirectly,
+        )
+        card_group.addSettingCard(self.directly_switch)
+
+        # 希沃白板设置卡
+        self.easinote_card = EasinoteSettingCard(self.config)
+        card_group.addSettingCard(self.easinote_card)
+
+        # 超时设置卡
+        self.timeout_card = TimeoutSettingCard(self.config)
+        card_group.addSettingCard(self.timeout_card)
+
+        layout.addWidget(card_group)
+
+    # 警告弹窗相关选项
+    def add_warning_settings(self, layout: QLayout):
+        card_group = SettingCardGroup("警告弹窗")
+
+        self.warning_switch = SwitchSettingCard(
+            icon=FIF.COMPLETED,
+            title="启用警告弹窗",
+            content="在运行自动登录前显示警告弹窗，在超时时长内可手动取消登录",
+            configItem=self.config.warningEnabled,
+        )
+        card_group.addSettingCard(self.warning_switch)
+
+        self.timeout_edit = SpinSettingCard(
+            icon=FIF.REMOVE_FROM,
+            title="超时时长",
+            content="设置要等待的超时时长",
+            configItem=self.config.warningTimeout,
+            min_width=160,
+        )
+        card_group.addSettingCard(self.timeout_edit)
+
+        layout.addWidget(card_group)
+
+    # 警示横幅相关选项
+    def add_banner_settings(self, layout: QLayout):
+        card_group = SettingCardGroup("警示横幅")
+
+        self.banner_switch = SwitchSettingCard(
+            icon=FIF.FLAG,
+            title="启用警示横幅",
+            content="运行自动运行时在屏幕顶部显示一个醒目的警示横幅",
+            configItem=self.config.bannerEnabled,
+        )
+        card_group.addSettingCard(self.banner_switch)
+
+        self.banner_text_edit = EditSettingCard(
+            icon=FIF.LABEL, title="文本", content="设置警示横幅中滚动的文本内容", configItem=self.config.bannerText
+        )
+        self.banner_text_edit.lineEdit.setFixedWidth(420)
+        card_group.addSettingCard(self.banner_text_edit)
+
+        self.fps_edit = RangeSettingCard(
+            icon=FIF.SPEED_HIGH, title="帧率", content="设置警示横幅的刷新帧率", configItem=self.config.bannerFps
+        )
+        card_group.addSettingCard(self.fps_edit)
+
+        self.color_bg_edit = ColorSettingCard(
+            icon=FIF.PALETTE,
+            title="背景颜色",
+            content="设置警示横幅的背景颜色",
+            configItem=self.config.bannerBgColor,
+            enable_alpha=True,
+        )
+        card_group.addSettingCard(self.color_bg_edit)
+
+        self.color_fg_edit = ColorSettingCard(
+            icon=FIF.PALETTE,
+            title="前景颜色",
+            content="设置警示横幅的前景颜色",
+            configItem=self.config.bannerFgColor,
+            enable_alpha=True,
+        )
+        card_group.addSettingCard(self.color_fg_edit)
+
+        self.color_text_edit = ColorSettingCard(
+            icon=FIF.PALETTE,
+            title="文本颜色",
+            content="设置警示横幅的文本颜色",
+            configItem=self.config.bannerTextColor,
+            enable_alpha=True,
+        )
+        card_group.addSettingCard(self.color_text_edit)
+
+        self.text_speed_edit = SpinSettingCard(
+            icon=FIF.SPEED_HIGH,
+            title="文本速度",
+            content="设置警示横幅中文本的滚动速度",
+            configItem=self.config.bannerTextSpeed,
+            min_width=160,
+        )
+        card_group.addSettingCard(self.color_text_edit)
+
+        layout.addWidget(card_group)
+
+    def add_app_settings(self, layout: QLayout):
+        card_group = SettingCardGroup("应用")
+
+        self.max_retries_edit = SpinSettingCard(
+            icon=FIF.SYNC,
+            title="最大重试次数",
+            content="设置自动登录失败时的最大重试次数",
+            configItem=self.config.appMaxRetries,
+            min_width=160,
+        )
+        card_group.addSettingCard(self.max_retries_edit)
+
+        self.log_level_select = ComboBoxSettingCard(
+            configItem=self.config.appLogLevel,
+            icon=FIF.DEVELOPER_TOOLS,
+            title="日志级别",
+            content="设置应用的日志记录级别",
+            texts=["调试", "信息", "警告", "错误", "严重"],
+        )
+        card_group.addSettingCard(self.log_level_select)
+
+        self.reset_button = PushSettingCard(
+            text="重置",
+            icon=FIF.CANCEL,
+            title="重置配置",
+            content="将所有配置项重置为默认值",
+        )
+        self.reset_button.clicked.connect(self.reset_config)
+        card_group.addSettingCard(self.reset_button)
+
+        layout.addWidget(card_group)
 
 
-class WarningBanner(QWidget):
-    """顶部警示横幅"""
+class AboutPage(ScrollArea):
+    """设置 - 关于页"""
 
-    def __init__(self, config: BannerConfig):
+    def __init__(self):
         super().__init__()
-        self.setFixedHeight(140)  # 横幅高度
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setObjectName("AboutPage")
+        self.setStyleSheet("border: none; background-color: transparent;")
 
-        # 置顶、无边框、点击穿透
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
+        # 创建滚动区域
+        self.setWidgetResizable(True)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-        # 滚动文字
-        self.text = config.text
-        self.text_x = 0
-        self.text_speed = 3
-        self.text_y_offset = config.y_offset
+        # 创建内容容器
+        content_widget = QWidget(self)
+        content_widget.setMaximumWidth(700)
+        self.setAlignment(Qt.AlignHCenter)
+        self.setWidget(content_widget)
 
-        font = QFont(["HarmonyOS Sans SC", "Microsoft YaHei UI", "sans-serif"], pointSize=36, weight=QFont.Bold)
-        self.text_font = font
+        layout = QVBoxLayout(content_widget)
+        layout.setContentsMargins(40, 20, 40, 20)
+        layout.setSpacing(20)
 
-        # 生成斜纹
-        self.stripe = QPixmap(40, 32)
-        self.stripe.fill(Qt.transparent)
-        painter = QPainter(self.stripe)
-        painter.setBrush(QColor(255, 222, 89, 200))
-        painter.setPen(Qt.NoPen)
-        painter.drawPolygon([QPoint(0, 32), QPoint(16, 0), QPoint(32, 0), QPoint(16, 32)])
-        painter.end()
+        # Banner
+        self.banner_area = CardWidget()
+        banner_layout = QVBoxLayout(self.banner_area)
+        banner_layout.setAlignment(Qt.AlignTop)
+        banner_layout.setContentsMargins(24, 16, 24, 16)
 
-        self.offset = 0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.animate)
-        self.timer.start(16)
+        self._banner_img_orig = QPixmap("resources/banner.png")
+        self.banner_image = ImageLabel(self._banner_img_orig)
+        self.banner_image.setBorderRadius(8, 8, 8, 8)
+        self.banner_image.scaledToWidth(560)
+        self.banner_image.setStyleSheet("border-radius: 8px;")
 
-    def animate(self):
-        # 条纹滚动
-        self.offset = (self.offset + 1) % self.stripe.width()
+        title = TitleLabel("EasiAuto", self)
+        subtitle = SubtitleLabel("版本 1.0.0", self)
 
-        # 文字滚动
-        self.text_x -= self.text_speed
-        # 文字总长度
-        total_text_width = QFontMetrics(self.text_font).horizontalAdvance(self.text)
-        if self.text_x < -total_text_width:
-            self.text_x += total_text_width  # 循环滚动，不跳空
-        self.update()
+        banner_layout.addWidget(self.banner_image)
+        banner_layout.addWidget(title)
+        banner_layout.addWidget(subtitle)
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
+        layout.addWidget(self.banner_area)
 
-        # 背景橙色
-        painter.fillRect(self.rect(), QColor(228, 8, 10, 180))
+        # Product Info
+        self.product_info_area = CardWidget()
+        product_info_layout = QVBoxLayout(self.product_info_area)
+        product_info_layout.setAlignment(Qt.AlignTop)
+        product_info_layout.setContentsMargins(24, 16, 24, 16)
 
-        # 顶部条纹
-        y = 0
-        x = -self.offset
-        while x < self.width():
-            painter.drawPixmap(x, y, self.stripe)
-            x += self.stripe.width()
+        product_text = BodyLabel("一个用于自动登录希沃白板的小工具")
+        product_info_layout.addWidget(product_text)
 
-        # 分割线（条纹下边缘）
-        painter.setPen(QPen(QColor(255, 222, 89, 200), 4))
-        painter.drawLine(0, self.stripe.height(), self.width(), self.stripe.height())
+        github_link = HyperlinkLabel(QUrl("https://github.com/hxabcd/easiauto"), "GitHub 仓库")
+        product_info_layout.addWidget(github_link)
 
-        # 底部条纹
-        y = self.height() - self.stripe.height()
-        x = -self.offset
-        while x < self.width():
-            painter.drawPixmap(x, y, self.stripe)
-            x += self.stripe.width()
+        layout.addWidget(self.product_info_area)
 
-        # 分割线（条纹上边缘）
-        painter.drawLine(0, y, self.width(), y)
+        # Author Info
+        self.info_area = CardWidget()
+        author_info_layout = QVBoxLayout(self.info_area)
+        author_info_layout.setAlignment(Qt.AlignTop)
+        author_info_layout.setContentsMargins(24, 16, 24, 16)
 
-        # 滚动文字（循环绘制多份）
-        painter.setFont(self.text_font)
-        painter.setPen(QColor(255, 222, 89))
-        text_width = painter.fontMetrics().horizontalAdvance(self.text)
-        x = self.text_x
-        while x < self.width():
-            painter.drawText(x, int(self.height() / 2 + self.text_y_offset), self.text)
-            x += text_width
+        author_text = BodyLabel("作者：HxAbCd")
+        author_link1 = HyperlinkLabel(QUrl("https://0xabcd.dev"), "Website")
+        author_link2 = HyperlinkLabel(QUrl("https://space.bilibili.com/336325343"), "Bilibili")
+        author_link3 = HyperlinkLabel(QUrl("https://github.com/hxabcd"), "Github")
+
+        author_info_layout.addWidget(author_text)
+        author_info_layout.addWidget(author_link1)
+        author_info_layout.addWidget(author_link2)
+        author_info_layout.addWidget(author_link3)
+
+        layout.addWidget(self.info_area)
+        layout.addStretch()
+
+
+class MainSettingsWindow(FluentWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.config_page = ConfigPage()
+        # self.automation_page = SettingsUI("2")
+        # self.overlay_page = SettingsUI("3")
+        self.about_page = AboutPage()
+
+        self.initNavigation()
+        self.initWindow()
+
+    def initNavigation(self):
+        self.addSubInterface(self.config_page, FIF.SETTING, "配置")
+        # self.addSubInterface(self.automation_page, FIF.AIRPLANE, "自动化")
+        # self.addSubInterface(self.overlay_page, FIF.ZOOM, "浮窗")
+        self.addSubInterface(self.about_page, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        # self.navigationInterface.addSeparator()
+
+        self.navigationInterface.setExpandWidth(180)
+
+    def initWindow(self):
+        self.resize(960, 640)
+        self.setWindowIcon(QIcon("resources/easiauto.ico"))
+        self.setWindowTitle("EasiAuto")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    translator = FluentTranslator()
+    app.installTranslator(translator)
+    setTheme(Theme.AUTO)
+
+    window = MainSettingsWindow()
+    window.show()
+    sys.exit(app.exec())
