@@ -295,14 +295,13 @@ class ConfigPage(SmoothScrollArea):
         )
         card_group.addSettingCard(self.color_text_edit)
 
-        self.text_speed_edit = SpinSettingCard(
+        self.text_speed_edit = RangeSettingCard(
             icon=FIF.SPEED_HIGH,
             title="文本速度",
-            content="设置警示横幅中文本的滚动速度",
+            content="设置警示横幅中文本的滚动速度，增大以抵消低帧率下滚动缓慢",
             configItem=self.config.bannerTextSpeed,
-            min_width=160,
         )
-        card_group.addSettingCard(self.color_text_edit)
+        card_group.addSettingCard(self.text_speed_edit)
 
         layout.addWidget(card_group)
 
