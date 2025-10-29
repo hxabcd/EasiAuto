@@ -153,7 +153,7 @@ class ConfigPage(SmoothScrollArea):
         self.setWidgetResizable(True)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setMinimumSize(750, 480)
-        QScroller.grabGesture(self.viewport(), QScroller.TouchGesture)  # 触摸适配
+        QScroller.grabGesture(self.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
 
         # 创建内容容器
         content_widget = QWidget(self)
@@ -350,7 +350,7 @@ class AboutPage(SmoothScrollArea):
         # 创建滚动区域
         self.setWidgetResizable(True)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(self.viewport(), QScroller.TouchGesture)
+        QScroller.grabGesture(self.viewport(), QScroller.LeftMouseButtonGesture)
 
         # 创建内容容器
         content_widget = QWidget(self)
