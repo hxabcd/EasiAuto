@@ -115,7 +115,7 @@ class QfwEasiautoConfig(QConfig):
     bannerBgColor = ColorConfigItem("Banner", "BgColor", "#B4E4080A")
     bannerFgColor = ColorConfigItem("Banner", "FgColor", "#C8FFDE59")
     bannerTextColor = ColorConfigItem("Banner", "TextColor", "#FFFFDE59")
-    bannerTextSpeed = RangeConfigItem("Banner", "TextSpeed", 3, RangeValidator(1, 5))
+    bannerTextSpeed = RangeConfigItem("Banner", "TextSpeed", 3, RangeValidator(1, 12))
 
     # 希沃白板配置
     easinoteAutoPath = ConfigItem("EasiNote", "AutoPath", True, BoolValidator())
