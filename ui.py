@@ -27,7 +27,6 @@ from qfluentwidgets import (
     SettingCardGroup,
     SmoothScrollArea,
     SubtitleLabel,
-    SwitchSettingCard,
     Theme,
     TitleLabel,
     qconfig,
@@ -35,7 +34,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from components import ColorSettingCard, EditSettingCard, SpinSettingCard
+from components import ColorSettingCard, EditSettingCard, SpinSettingCard, SwitchSettingCard
 from config import QfwEasiautoConfig
 from utils import get_executable_dir
 
@@ -45,19 +44,19 @@ class EasinoteSettingCard(ExpandGroupSettingCard):
         super().__init__(FIF.APPLICATION, "希沃白板", "配置希沃白板的路径、进程名、窗口标题和启动参数", parent)
 
         self.autoPathSwitch = SwitchSettingCard(
-            FIF.SPEED_HIGH, "自动获取路径", "启用后，将忽略自定义路径", configItem=config.easinoteAutoPath
+            FIF.SPEED_HIGH, "自动获取路径", "启用后，将忽略自定义路径", configItem=config.easinoteAutoPath, is_item=True
         )
 
-        self.pathEdit = EditSettingCard(FIF.FOLDER, "自定义路径", configItem=config.easinotePath)
+        self.pathEdit = EditSettingCard(None, "自定义路径", configItem=config.easinotePath, is_item=True)
         self.pathEdit.lineEdit.setFixedWidth(400)
 
-        self.processNameEdit = EditSettingCard(FIF.ALIGNMENT, "进程名", configItem=config.easinoteProcessName)
+        self.processNameEdit = EditSettingCard(None, "进程名", configItem=config.easinoteProcessName, is_item=True)
         self.processNameEdit.lineEdit.setFixedWidth(400)
 
-        self.windowTitleEdit = EditSettingCard(FIF.ALIGNMENT, "窗口标题", configItem=config.easinoteWindowTitle)
+        self.windowTitleEdit = EditSettingCard(None, "窗口标题", configItem=config.easinoteWindowTitle, is_item=True)
         self.windowTitleEdit.lineEdit.setFixedWidth(400)
 
-        self.argsEdit = EditSettingCard(FIF.COMMAND_PROMPT, "参数", configItem=config.easinoteArgs)
+        self.argsEdit = EditSettingCard(None, "参数", configItem=config.easinoteArgs, is_item=True)
         self.argsEdit.lineEdit.setClearButtonEnabled(True)
         self.argsEdit.lineEdit.setFixedWidth(400)
 
@@ -78,22 +77,27 @@ class TimeoutSettingCard(ExpandGroupSettingCard):
         super().__init__(FIF.STOP_WATCH, "等待时长", "配置自动登录过程中的等待时长", parent)
 
         self.pathEdit = SpinSettingCard(
-            FIF.POWER_BUTTON, "终止进程等待时间", configItem=config.timeoutTerminate, min_width=160
+            None, "终止进程等待时间", configItem=config.timeoutTerminate, min_width=160, is_item=True
         )
         self.launchPollingTimeoutEdit = SpinSettingCard(
-            FIF.REMOVE_FROM, "等待启动超时时间", configItem=config.timeoutLaunchPollingTimeout, min_width=160
+            None, "等待启动超时时间", configItem=config.timeoutLaunchPollingTimeout, min_width=160, is_item=True
         )
         self.launchPollingIntervalEdit = SpinSettingCard(
-            FIF.SYNC, "等待启动轮询间隔", configItem=config.timeoutLaunchPollingInterval, double=True, min_width=160
+            None,
+            "等待启动轮询间隔",
+            configItem=config.timeoutLaunchPollingInterval,
+            double=True,
+            min_width=160,
+            is_item=True,
         )
         self.afterLaunchEdit = SpinSettingCard(
-            FIF.COMPLETED, "启动后等待时间", configItem=config.timeoutAfterLaunch, min_width=160
+            None, "启动后等待时间", configItem=config.timeoutAfterLaunch, min_width=160, is_item=True
         )
         self.enterLoginUiEdit = SpinSettingCard(
-            FIF.PEOPLE, "进入登录界面等待时间", configItem=config.timeoutEnterLoginUI, min_width=160
+            None, "进入登录界面等待时间", configItem=config.timeoutEnterLoginUI, min_width=160, is_item=True
         )
         self.switchTabEdit = SpinSettingCard(
-            FIF.TILES, "切换标签等待时间", configItem=config.timeoutSwitchTab, min_width=160
+            None, "切换标签等待时间", configItem=config.timeoutSwitchTab, min_width=160, is_item=True
         )
 
         # 调整内部布局

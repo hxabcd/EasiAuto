@@ -3,16 +3,25 @@ from typing import Union
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
     QMessageBox,
+    QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
     ColorPickerButton,
     ConfigItem,
     FluentIconBase,
+    FluentStyleSheet,
+    IconWidget,
+    IndicatorPosition,
     LineEdit,
-    SettingCard,
     SpinBox,
+    SwitchButton,
+    drawIcon,
+    isDarkTheme,
     qconfig,
 )
 
@@ -150,19 +159,186 @@ class WarningBanner(QWidget):
             x += text_width
 
 
-class SpinSettingCard(SettingCard):
+class SettingIconWidget(IconWidget):
+    def paintEvent(self, e):
+        painter = QPainter(self)
+
+        if not self.isEnabled():
+            painter.setOpacity(0.36)
+
+        painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
+        drawIcon(self._icon, painter, self.rect())
+
+
+class BetterSettingCard(QFrame):
+    """Setting card"""
+
+    def __init__(self, icon: Union[str, QIcon, FluentIconBase] | None, title, is_item=False, content=None, parent=None):
+        """
+        Parameters
+        ----------
+        icon: str | QIcon | FluentIconBase
+            the icon to be drawn
+
+        title: str
+            the title of card
+
+        content: str
+            the content of card
+
+        parent: QWidget
+            parent widget
+        """
+        super().__init__(parent=parent)
+        self.has_icon = icon is not None
+        if self.has_icon:
+            self.iconLabel = SettingIconWidget(icon, self)
+        self.titleLabel = QLabel(title, self)
+        self.contentLabel = QLabel(content or "", self)
+        self.hBoxLayout = QHBoxLayout(self)
+        self.vBoxLayout = QVBoxLayout()
+        self.is_item = is_item
+
+        if not content:
+            self.contentLabel.hide()
+
+        self.setFixedHeight(70 if content else 50)
+        if not is_item:
+            self.iconLabel.setFixedSize(16, 16)
+
+        # initialize layout
+        self.hBoxLayout.setSpacing(0)
+        self.hBoxLayout.setContentsMargins(16, 0, 0, 0)
+        self.hBoxLayout.setAlignment(Qt.AlignVCenter)
+        self.vBoxLayout.setSpacing(0)
+        self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
+        self.vBoxLayout.setAlignment(Qt.AlignVCenter)
+
+        if self.has_icon:
+            self.hBoxLayout.addWidget(self.iconLabel, 0, Qt.AlignLeft)
+            self.hBoxLayout.addSpacing(16)
+
+        self.hBoxLayout.addLayout(self.vBoxLayout)
+        self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignLeft)
+        self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignLeft)
+
+        self.hBoxLayout.addSpacing(16)
+        self.hBoxLayout.addStretch(1)
+
+        self.contentLabel.setObjectName("contentLabel")
+        FluentStyleSheet.SETTING_CARD.apply(self)
+
+    def setTitle(self, title: str):
+        """set the title of card"""
+        self.titleLabel.setText(title)
+
+    def setContent(self, content: str):
+        """set the content of card"""
+        self.contentLabel.setText(content)
+        self.contentLabel.setVisible(bool(content))
+
+    def setValue(self, value):
+        """set the value of config item"""
+        pass
+
+    def setIconSize(self, width: int, height: int):
+        """set the icon fixed size"""
+        self.iconLabel.setFixedSize(width, height)
+
+    def paintEvent(self, e):
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.Antialiasing)
+
+        if isDarkTheme():
+            painter.setBrush(QColor(255, 255, 255, 13))
+            painter.setPen(QColor(0, 0, 0, 50))
+        else:
+            painter.setBrush(QColor(255, 255, 255, 170))
+            painter.setPen(QColor(0, 0, 0, 19))
+
+        if not self.is_item:
+            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
+
+
+class SwitchSettingCard(BetterSettingCard):
+    """Setting card with switch button"""
+
+    checkedChanged = Signal(bool)
+
+    def __init__(
+        self,
+        icon: Union[str, QIcon, FluentIconBase] | None,
+        title,
+        content=None,
+        configItem: ConfigItem | None = None,
+        is_item: bool = False,
+        parent=None,
+    ):
+        """
+        Parameters
+        ----------
+        icon: str | QIcon | FluentIconBase
+            the icon to be drawn
+
+        title: str
+            the title of card
+
+        content: str
+            the content of card
+
+        configItem: ConfigItem
+            configuration item operated by the card
+
+        parent: QWidget
+            parent widget
+        """
+        super().__init__(icon, title, is_item, content, parent)
+        self.configItem = configItem
+        self.switchButton = SwitchButton(self.tr("Off"), self, IndicatorPosition.RIGHT)
+
+        if configItem:
+            self.setValue(qconfig.get(configItem))
+            configItem.valueChanged.connect(self.setValue)
+
+        # add switch button to layout
+        self.hBoxLayout.addWidget(self.switchButton, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+        self.switchButton.checkedChanged.connect(self.__onCheckedChanged)
+
+    def __onCheckedChanged(self, isChecked: bool):
+        """switch button checked state changed slot"""
+        self.setValue(isChecked)
+        self.checkedChanged.emit(isChecked)
+
+    def setValue(self, isChecked: bool):
+        if self.configItem:
+            qconfig.set(self.configItem, isChecked)
+
+        self.switchButton.setChecked(isChecked)
+        self.switchButton.setText(self.tr("On") if isChecked else self.tr("Off"))
+
+    def setChecked(self, isChecked: bool):
+        self.setValue(isChecked)
+
+    def isChecked(self):
+        return self.switchButton.isChecked()
+
+
+class SpinSettingCard(BetterSettingCard):
     """Setting card with spin box"""
 
     valueChanged = Signal(object)
 
     def __init__(
         self,
-        icon: Union[str, QIcon, FluentIconBase],
+        icon: Union[str, QIcon, FluentIconBase] | None,
         title,
         content=None,
         double: bool = False,
         range: tuple[float, float] | tuple[int, int] | None = None,
         configItem: ConfigItem | None = None,
+        is_item: bool = False,
         min_width: int | None = None,
         parent=None,
     ):
@@ -184,7 +360,7 @@ class SpinSettingCard(SettingCard):
         parent: QWidget
             parent widget
         """
-        super().__init__(icon, title, content, parent)
+        super().__init__(icon, title, is_item, content, parent)
         self.configItem = configItem
         if double:
             from qfluentwidgets import DoubleSpinBox
@@ -221,18 +397,19 @@ class SpinSettingCard(SettingCard):
         self.spinBox.setValue(value)  # type: ignore
 
 
-class EditSettingCard(SettingCard):
+class EditSettingCard(BetterSettingCard):
     """Setting card with line edit"""
 
     valueChanged = Signal(bool)
 
     def __init__(
         self,
-        icon: Union[str, QIcon, FluentIconBase],
+        icon: Union[str, QIcon, FluentIconBase] | None,
         title,
         content=None,
         placeholder_text: str | None = None,
         configItem: ConfigItem | None = None,
+        is_item: bool = False,
         parent=None,
     ):
         """
@@ -253,7 +430,7 @@ class EditSettingCard(SettingCard):
         parent: QWidget
             parent widget
         """
-        super().__init__(icon, title, content, parent)
+        super().__init__(icon, title, is_item, content, parent)
         self.configItem = configItem
         self.lineEdit = LineEdit(self)
         if placeholder_text:
@@ -281,7 +458,7 @@ class EditSettingCard(SettingCard):
         self.lineEdit.setText(text)
 
 
-class ColorSettingCard(SettingCard):
+class ColorSettingCard(BetterSettingCard):
     """Setting card with color picker button"""
 
     valueChanged = Signal(QColor)
@@ -294,6 +471,7 @@ class ColorSettingCard(SettingCard):
         default_color: QColor | None = None,
         enable_alpha: bool = False,
         configItem: ConfigItem | None = None,
+        is_item: bool = False,
         parent=None,
     ):
         """
@@ -314,7 +492,7 @@ class ColorSettingCard(SettingCard):
         parent: QWidget
             parent widget
         """
-        super().__init__(icon, title, content, parent)
+        super().__init__(icon, title, is_item, content, parent)
         self.configItem = configItem
 
         if default_color is None:
