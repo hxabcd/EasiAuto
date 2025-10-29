@@ -5,6 +5,7 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QLayout,
+    QScroller,
     QVBoxLayout,
     QWidget,
 )
@@ -23,8 +24,8 @@ from qfluentwidgets import (
     NavigationItemPosition,
     PushSettingCard,
     RangeSettingCard,
-    ScrollArea,
     SettingCardGroup,
+    SmoothScrollArea,
     SubtitleLabel,
     SwitchSettingCard,
     Theme,
@@ -108,7 +109,7 @@ class TimeoutSettingCard(ExpandGroupSettingCard):
         self.addGroupWidget(self.switchTabEdit)
 
 
-class ConfigPage(ScrollArea):
+class ConfigPage(SmoothScrollArea):
     """设置 - 配置页"""
 
     def __init__(self):
@@ -148,6 +149,7 @@ class ConfigPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setMinimumSize(750, 480)
+        QScroller.grabGesture(self.viewport(), QScroller.TouchGesture)  # 触摸适配
 
         # 创建内容容器
         content_widget = QWidget(self)
@@ -333,7 +335,7 @@ class ConfigPage(ScrollArea):
         layout.addWidget(card_group)
 
 
-class AboutPage(ScrollArea):
+class AboutPage(SmoothScrollArea):
     """设置 - 关于页"""
 
     def __init__(self):
@@ -344,6 +346,7 @@ class AboutPage(ScrollArea):
         # 创建滚动区域
         self.setWidgetResizable(True)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(self.viewport(), QScroller.TouchGesture)
 
         # 创建内容容器
         content_widget = QWidget(self)
