@@ -1,17 +1,16 @@
 import logging
-import multiprocessing
 import sys
 from argparse import ArgumentParser
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentTranslator,
     Theme,
     setTheme,
 )
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
-from automator import BaseAutomator, CVAutomator, FixedAutomator, UIAAutomator
+from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import WarningBanner, WarningPopupWindow
 from ui import MainSettingsWindow
 from utils import init, toggle_skip
@@ -19,48 +18,15 @@ from utils import init, toggle_skip
 config = init()
 
 
-# -------- 自动登录相关 --------
-
-
-# 显示警告弹窗
-def show_warning():
-    app = QApplication.instance() or QApplication([])  # noqa: F841
-    msgbox = WarningPopupWindow()
-
-    if msgbox.countdown(config.Warning.Timeout) == 0:
-        logging.info("用户取消操作，正在退出")
-        sys.exit(0)
-    logging.info("用户确认或超时，继续执行")
-
-    app.quit()
-
-
-# 显示警告横幅
-def show_banner():
-    app = QApplication.instance() or QApplication([])
-    screen = app.primaryScreen().geometry()
-    w = WarningBanner(config.Banner)
-    w.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
-    w.show()
-
-    app.exec()
-
-
-# 带重试的登录
-@retry(
-    stop=stop_after_attempt(config.App.MaxRetries + 1),
-    wait=wait_fixed(2),
-    before_sleep=before_sleep_log(logging.getLogger(), logging.ERROR),
-)
-def run_login(automator: BaseAutomator):
-    automator.run()
-
-
 # -------- 命令解析 --------
 
 
 def cmd_login(args):
     """login 子命令 - 执行自动登录"""
+
+    # 启用DPI缩放并创建 QApplication
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    app = QApplication([])
 
     # 若临时禁用，则退出程序
     if config.Login.SkipOnce:
@@ -71,18 +37,24 @@ def cmd_login(args):
 
     logging.debug("传入的参数：\n%s" % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()]))
 
-    # 显示警告
+    # 显示警告弹窗
     if config.Warning.Enabled:
         try:
-            show_warning()
+            msgbox = WarningPopupWindow()
+            if msgbox.countdown(config.Warning.Timeout) == 0:
+                logging.info("用户取消操作，正在退出")
+                sys.exit(0)
+            logging.info("用户确认或超时，继续执行")
         except Exception:
             logging.exception("显示警告通知时出错，跳过警告")
 
-    # 显示横幅
+    # 显示警示横幅
     if config.Banner.Enabled:
         try:
-            p = multiprocessing.Process(target=show_banner, daemon=True)
-            p.start()
+            screen = app.primaryScreen().geometry()
+            banner = WarningBanner(config.Banner)
+            banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
+            banner.show()
         except Exception:
             logging.exception("显示横幅时出错，跳过横幅")
 
@@ -90,19 +62,21 @@ def cmd_login(args):
     logging.debug(f"当前设置的登录方案: {config.Login.Method}")
     match config.Login.Method:  # 选择登录方案
         case "UIAutomation":
-            automator = UIAAutomator(args.account, args.password, config.Login, config.EasiNote, config.Timeout)
+            automatorType = UIAAutomator
         case "OpenCV":
-            automator = CVAutomator(args.account, args.password, config.Login, config.EasiNote, config.Timeout)
+            automatorType = CVAutomator
         case "FixedPosition":
-            automator = FixedAutomator(args.account, args.password, config.Login, config.EasiNote, config.Timeout)
+            automatorType = FixedAutomator
         case _:
             logging.warning("未知方案，已回滚至默认值 (UI Automation)")
-            automator = UIAAutomator(args.account, args.password, config.Login, config.EasiNote, config.Timeout)
+            automatorType = UIAAutomator
 
-    run_login(automator)
+    automator = automatorType(args.account, args.password, config, config.App.MaxRetries)
 
-    logging.info("执行完毕")
-    sys.exit(0)
+    automator.start()
+    automator.finished.connect(app.quit)
+
+    sys.exit(app.exec())
 
 
 def cmd_settings(args):

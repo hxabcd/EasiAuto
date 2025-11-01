@@ -62,12 +62,6 @@ def init():
     # )
     # TODO: 嵌套格式无法正常打印
 
-    # 启用DPI缩放
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-
     return config
 
 
