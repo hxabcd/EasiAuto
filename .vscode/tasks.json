@@ -22,7 +22,7 @@
                 "--file-description=\"自动登录希沃白板的小工具\"",
                 "--enable-plugins=\"pyside6\"",
                 "--main=\"main.py\"",
-                // "--include-data-dir=resources=resources",
+                "--include-data-dir=resources=resources",
                 "--output-filename=\"EasiAuto.exe\"",
             ],
             "group": {

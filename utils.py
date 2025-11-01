@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -30,10 +29,10 @@ def set_logger(level=logging.WARNING):
 def get_resource(file: str):
     """获取资源路径"""
     if hasattr(sys, "frozen"):
-        base_path = getattr(sys, "_MEIPASS")
+        base_path = Path(getattr(sys, "_MEIPASS"))
     else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, "resources", file)
+        base_path = Path(__file__).resolve().parent
+    return str(base_path / "resources" / file)
 
 
 def get_executable_dir():

@@ -37,7 +37,7 @@ from qfluentwidgets import FluentIcon as FIF
 
 from components import ColorSettingCard, EditSettingCard, RangeSettingCard, SpinSettingCard, SwitchSettingCard
 from config import QfwEasiautoConfig
-from utils import get_executable_dir
+from utils import get_executable_dir, get_resource
 
 
 class EasinoteSettingCard(ExpandGroupSettingCard):
@@ -420,7 +420,7 @@ class AboutPage(SmoothScrollArea):
         banner_layout.setAlignment(Qt.AlignTop)
         banner_layout.setContentsMargins(24, 16, 24, 16)
 
-        self._banner_img_orig = QPixmap("resources/banner.png")
+        self._banner_img_orig = QPixmap(get_resource("banner.png"))
         self.banner_image = ImageLabel(self._banner_img_orig)
         self.banner_image.setBorderRadius(8, 8, 8, 8)
         self.banner_image.scaledToWidth(560)
@@ -492,7 +492,7 @@ class MainSettingsWindow(FluentWindow):
 
     def initWindow(self):
         self.resize(960, 640)
-        self.setWindowIcon(QIcon("resources/easiauto.ico"))
+        self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
         self.setWindowTitle("EasiAuto")
 
 
