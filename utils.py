@@ -71,12 +71,12 @@ def init():
     return config
 
 
-def turn_skip_off(config: Config, file="config.json"):
-    config.Login.SkipOnce = False
+def toggle_skip(config: Config, status: bool, file="config.json"):
+    config.Login.SkipOnce = status
     path = get_executable_dir() / file
     with path.open("w", encoding="utf-8") as f:
-        data = config.model_dump(exclude_none=True)
-        f.write(json.dumps(data, ensure_ascii=False, indent=4))
+        data = config.model_dump_json(indent=4)
+        f.write(data)
 
 
 def switch_window(hwnd: int):

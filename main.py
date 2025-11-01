@@ -14,7 +14,7 @@ from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 from automator import BaseAutomator, CVAutomator, FixedAutomator, UIAAutomator
 from components import WarningBanner, WarningPopupWindow
 from ui import MainSettingsWindow
-from utils import init, turn_skip_off
+from utils import init, toggle_skip
 
 config = init()
 
@@ -65,7 +65,7 @@ def cmd_login(args):
     # 若临时禁用，则退出程序
     if config.Login.SkipOnce:
         logging.info("已通过配置文件禁用，正在退出")
-        turn_skip_off(config)
+        toggle_skip(config, False)
 
         sys.exit(0)
 
@@ -120,7 +120,7 @@ def cmd_settings(args):
 
 def cmd_skip(args):
     """skip 子命令 - 跳过下一次登录"""
-    config.Login.SkipOnce = True
+    toggle_skip(config, True)
     logging.info("已更新配置文件，正在退出")
     sys.exit(0)
 
