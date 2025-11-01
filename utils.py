@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -6,19 +5,26 @@ from pathlib import Path
 
 import win32con
 import win32gui
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from config import Config, get_log_level
 
 
 def set_logger(level=logging.WARNING):
-    logging.basicConfig(
-        level=level,
-        format="[%(asctime)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-        force=True,
-    )
+    try:  # 使用彩色日志
+        import coloredlogs
+
+        coloredlogs.install(
+            level=level,
+            fmt="[%(asctime)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    except Exception:  # 回退基本日志
+        logging.basicConfig(
+            level=level,
+            format="[%(asctime)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+            force=True,
+        )
 
 
 def get_resource(file: str):
@@ -45,6 +51,7 @@ def load_config(config_file="config.json") -> Config:
 
 def init():
     """初始化"""
+
     set_logger()  # 预初始化
 
     config = load_config()

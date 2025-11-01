@@ -273,7 +273,7 @@ class ConfigPage(SmoothScrollArea):
             title="背景颜色",
             content="设置警示横幅的背景颜色",
             configItem=self.config.bannerBgColor,
-            enable_alpha=True,
+            enableAlpha=True,
         )
         card_group.addSettingCard(self.color_bg_edit)
 
@@ -282,7 +282,7 @@ class ConfigPage(SmoothScrollArea):
             title="前景颜色",
             content="设置警示横幅的前景颜色",
             configItem=self.config.bannerFgColor,
-            enable_alpha=True,
+            enableAlpha=True,
         )
         card_group.addSettingCard(self.color_fg_edit)
 
@@ -291,7 +291,7 @@ class ConfigPage(SmoothScrollArea):
             title="文本颜色",
             content="设置警示横幅的文本颜色",
             configItem=self.config.bannerTextColor,
-            enable_alpha=True,
+            enableAlpha=True,
         )
         card_group.addSettingCard(self.color_text_edit)
 

@@ -459,24 +459,24 @@ class EditSettingCard(BetterSettingCard):
 
 
 class ColorSettingCard(BetterSettingCard):
-    """Setting card with color picker button"""
-
-    valueChanged = Signal(QColor)
+    colorChanged = Signal(QColor)
 
     def __init__(
         self,
-        icon: Union[str, QIcon, FluentIconBase],
-        title,
-        content=None,
-        default_color: QColor | None = None,
-        enable_alpha: bool = False,
-        configItem: ConfigItem | None = None,
+        configItem,
+        icon: Union[str, QIcon, FluentIconBase] | None,
+        title: str,
+        content: str | None = None,
         is_item: bool = False,
         parent=None,
+        enableAlpha=False,
     ):
         """
         Parameters
         ----------
+        configItem: RangeConfigItem
+            configuration item operated by the card
+
         icon: str | QIcon | FluentIconBase
             the icon to be drawn
 
@@ -486,35 +486,24 @@ class ColorSettingCard(BetterSettingCard):
         content: str
             the content of card
 
-        configItem: ConfigItem
-            configuration item operated by the card
-
         parent: QWidget
             parent widget
+
+        enableAlpha: bool
+            whether to enable the alpha channel
         """
         super().__init__(icon, title, is_item, content, parent)
         self.configItem = configItem
-
-        if default_color is None:
-            default_color = configItem.name if configItem else QColor(255, 255, 255)
-        self.colorEdit = ColorPickerButton(default_color, title, self, enableAlpha=enable_alpha)
-
-        if configItem:
-            self.setColor(qconfig.get(configItem))
-            configItem.valueChanged.connect(self.setColor)
-
-        self.hBoxLayout.addWidget(self.colorEdit, 0, Qt.AlignRight)
+        self.colorPicker = ColorPickerButton(qconfig.get(configItem), title, self, enableAlpha)
+        self.hBoxLayout.addWidget(self.colorPicker, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
-
-        self.colorEdit.colorChanged.connect(self.__onColorChanged)
+        self.colorPicker.colorChanged.connect(self.__onColorChanged)
+        configItem.valueChanged.connect(self.setValue)
 
     def __onColorChanged(self, color: QColor):
-        """switch line edit value changed slot"""
-        self.setColor(color)
-        self.valueChanged.emit(color)
+        qconfig.set(self.configItem, color)
+        self.colorChanged.emit(color)
 
-    def setColor(self, color: QColor):
-        if self.configItem:
-            qconfig.set(self.configItem, color)
-
-        self.colorEdit.setColor(color)
+    def setValue(self, color: QColor):
+        self.colorPicker.setColor(color)
+        qconfig.set(self.configItem, color)
