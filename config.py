@@ -36,10 +36,11 @@ class BannerConfig(BaseModel):
     Enabled: bool = True
     Text: str = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
     YOffset: int = 20
-    Fps: int = Field(30, ge=1, le=165)
+    Fps: int = Field(30, ge=1, le=120)
     BgColor: str = "#B4E4080A"
     FgColor: str = "#C8FFDE59"
     TextColor: str = "#FFFFDE59"
+    TextFont: str = ""
     TextSpeed: int = 3
 
 
@@ -52,12 +53,12 @@ class EasiNoteConfig(BaseModel):
 
 
 class TimeoutConfig(BaseModel):
-    Terminate: int = Field(1, ge=1, le=30)
-    LaunchPollingTimeout: int = Field(15, ge=1, le=30)
-    LaunchPollingInterval: float = 0.5
+    Terminate: int = Field(1, ge=0, le=5)
+    LaunchPollingTimeout: int = Field(15, ge=0, le=20)
+    LaunchPollingInterval: float = Field(0.5, ge=0.5, le=2)
     AfterLaunch: int = Field(1, ge=0, le=5)
-    EnterLoginUI: int = Field(3, ge=0, le=30)
-    SwitchTab: int = Field(1, ge=0, le=30)
+    EnterLoginUI: int = Field(3, ge=0, le=5)
+    SwitchTab: int = Field(1, ge=0, le=5)
 
 
 class LoginConfig(BaseModel):
@@ -69,7 +70,7 @@ class LoginConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    MaxRetries: int = Field(2, ge=0, le=10)
+    MaxRetries: int = Field(2, ge=0, le=5)
     LogLevel: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
 
 
@@ -111,10 +112,11 @@ class QfwEasiautoConfig(QConfig):
     bannerEnabled = ConfigItem("Banner", "Enabled", True, BoolValidator())
     bannerText = ConfigItem("Banner", "Text", "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机")
     bannerYOffset = RangeConfigItem("Banner", "YOffset", 20)
-    bannerFps = RangeConfigItem("Banner", "Fps", 30, RangeValidator(1, 165))
+    bannerFps = RangeConfigItem("Banner", "Fps", 30, RangeValidator(1, 120))
     bannerBgColor = ColorConfigItem("Banner", "BgColor", "#B4E4080A")
     bannerFgColor = ColorConfigItem("Banner", "FgColor", "#C8FFDE59")
     bannerTextColor = ColorConfigItem("Banner", "TextColor", "#FFFFDE59")
+    bannerTextFont = ConfigItem("Banner", "TextFont", "")
     bannerTextSpeed = RangeConfigItem("Banner", "TextSpeed", 3, RangeValidator(1, 12))
 
     # 希沃白板配置
@@ -127,12 +129,12 @@ class QfwEasiautoConfig(QConfig):
     easinoteArgs = ConfigItem("EasiNote", "Args", "")
 
     # 超时配置
-    timeoutTerminate = RangeConfigItem("Timeout", "Terminate", 1, RangeValidator(1, 30))
-    timeoutLaunchPollingTimeout = RangeConfigItem("Timeout", "LaunchPollingTimeout", 15, RangeValidator(1, 30))
-    timeoutLaunchPollingInterval = ConfigItem("Timeout", "LaunchPollingInterval", 0.5)
+    timeoutTerminate = RangeConfigItem("Timeout", "Terminate", 1, RangeValidator(0, 5))
+    timeoutLaunchPollingTimeout = RangeConfigItem("Timeout", "LaunchPollingTimeout", 15, RangeValidator(0, 20))
+    timeoutLaunchPollingInterval = RangeConfigItem("Timeout", "LaunchPollingInterval", 0.5, RangeValidator(0.5, 2))
     timeoutAfterLaunch = RangeConfigItem("Timeout", "AfterLaunch", 1, RangeValidator(0, 5))
-    timeoutEnterLoginUI = RangeConfigItem("Timeout", "EnterLoginUI", 3, RangeValidator(0, 30))
-    timeoutSwitchTab = RangeConfigItem("Timeout", "SwitchTab", 1, RangeValidator(0, 30))
+    timeoutEnterLoginUI = RangeConfigItem("Timeout", "EnterLoginUI", 3, RangeValidator(0, 5))
+    timeoutSwitchTab = RangeConfigItem("Timeout", "SwitchTab", 1, RangeValidator(0, 5))
 
     # 登录配置
     loginMethod = OptionsConfigItem(
@@ -144,7 +146,7 @@ class QfwEasiautoConfig(QConfig):
     loginDirectly = ConfigItem("Login", "Directly", False, BoolValidator())
 
     # 应用配置
-    appMaxRetries = RangeConfigItem("App", "MaxRetries", 2, RangeValidator(0, 10))
+    appMaxRetries = RangeConfigItem("App", "MaxRetries", 2, RangeValidator(0, 5))
     appLogLevel = OptionsConfigItem(
         "App", "LogLevel", "WARNING", OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     )

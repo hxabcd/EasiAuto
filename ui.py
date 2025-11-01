@@ -23,7 +23,6 @@ from qfluentwidgets import (
     MessageBox,
     NavigationItemPosition,
     PushSettingCard,
-    RangeSettingCard,
     SettingCardGroup,
     SmoothScrollArea,
     SubtitleLabel,
@@ -34,7 +33,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from components import ColorSettingCard, EditSettingCard, SpinSettingCard, SwitchSettingCard
+from components import ColorSettingCard, EditSettingCard, RangeSettingCard, SpinSettingCard, SwitchSettingCard
 from config import QfwEasiautoConfig
 from utils import get_executable_dir
 
@@ -44,11 +43,19 @@ class EasinoteSettingCard(ExpandGroupSettingCard):
         super().__init__(FIF.APPLICATION, "希沃白板", "配置希沃白板的路径、进程名、窗口标题和启动参数", parent)
 
         self.autoPathSwitch = SwitchSettingCard(
-            FIF.SPEED_HIGH, "自动获取路径", "启用后，将忽略自定义路径", configItem=config.easinoteAutoPath, is_item=True
+            None, "自动获取路径", "启用后，将忽略自定义路径", configItem=config.easinoteAutoPath, is_item=True
         )
 
         self.pathEdit = EditSettingCard(None, "自定义路径", configItem=config.easinotePath, is_item=True)
         self.pathEdit.lineEdit.setFixedWidth(400)
+
+        # 当自动获取启用时，禁用自定义路径
+        self.pathEdit.setDisabled(self.autoPathSwitch.switchButton.checked)  # type: ignore
+
+        def handle_autopath_toggle(status: bool):
+            self.pathEdit.setDisabled(status)
+
+        self.autoPathSwitch.switchButton.checkedChanged.connect(handle_autopath_toggle)
 
         self.processNameEdit = EditSettingCard(None, "进程名", configItem=config.easinoteProcessName, is_item=True)
         self.processNameEdit.lineEdit.setFixedWidth(400)
@@ -113,37 +120,97 @@ class TimeoutSettingCard(ExpandGroupSettingCard):
         self.addGroupWidget(self.switchTabEdit)
 
 
+class BannerStyleSettingCard(ExpandGroupSettingCard):
+    def __init__(self, config: QfwEasiautoConfig, parent=None):
+        super().__init__(FIF.PALETTE, "横幅样式", "定制警示横幅的样式与外观", parent)
+
+        self.banner_text_edit = EditSettingCard(
+            icon=None,
+            title="文本",
+            content="设置警示横幅中滚动的文本内容",
+            configItem=config.bannerText,
+            is_item=True,
+        )
+        self.banner_text_edit.lineEdit.setFixedWidth(420)
+
+        self.bg_color_edit = ColorSettingCard(
+            icon=None,
+            title="背景颜色",
+            content="设置警示横幅的背景颜色",
+            configItem=config.bannerBgColor,
+            enableAlpha=True,
+            is_item=True,
+        )
+
+        self.fg_color_edit = ColorSettingCard(
+            icon=None,
+            title="前景颜色",
+            content="设置警示横幅的前景颜色",
+            configItem=config.bannerFgColor,
+            enableAlpha=True,
+            is_item=True,
+        )
+
+        self.text_color_edit = ColorSettingCard(
+            icon=None,
+            title="文本颜色",
+            content="设置警示横幅的文本颜色",
+            configItem=config.bannerTextColor,
+            enableAlpha=True,
+            is_item=True,
+        )
+
+        self.text_font_edit = EditSettingCard(
+            icon=None,
+            title="文本字体",
+            content="设置警示横幅的文本字体",
+            configItem=config.bannerTextFont,
+            is_item=True,
+        )
+        self.text_font_edit.lineEdit.setClearButtonEnabled(True)
+        self.text_font_edit.lineEdit.setMinimumWidth(200)
+
+        self.fps_edit = RangeSettingCard(
+            icon=None,
+            title="帧率",
+            content="设置警示横幅的刷新帧率",
+            configItem=config.bannerFps,
+            is_item=True,
+        )
+
+        self.text_speed_edit = RangeSettingCard(
+            icon=None,
+            title="文本速度",
+            content="设置警示横幅中文本的滚动速度，增大以抵消低帧率下滚动缓慢",
+            configItem=config.bannerTextSpeed,
+            is_item=True,
+        )
+
+        # 调整内部布局
+        self.viewLayout.setContentsMargins(0, 0, 0, 0)
+        self.viewLayout.setSpacing(0)
+
+        # 添加各组到设置卡中
+        self.addGroupWidget(self.banner_text_edit)
+        self.addGroupWidget(self.bg_color_edit)
+        self.addGroupWidget(self.fg_color_edit)
+        self.addGroupWidget(self.text_color_edit)
+        self.addGroupWidget(self.text_font_edit)
+        self.addGroupWidget(self.fps_edit)
+        self.addGroupWidget(self.text_speed_edit)
+
+
 class ConfigPage(SmoothScrollArea):
     """设置 - 配置页"""
 
     def __init__(self):
         super().__init__()
 
-        config_path = get_executable_dir() / "config.json"
+        config_file = get_executable_dir() / "config.json"
         self.config = QfwEasiautoConfig()
-        qconfig.load(config_path, self.config)
+        qconfig.load(config_file, self.config)
 
         self.init_ui()
-
-    def reset_config(self):
-        """重置配置为默认值"""
-        title = "确认要重置配置吗？"
-        content = "所有已编辑的设置将丢失，是否继续？"
-        w = MessageBox(title, content, self)
-
-        w.setClosableOnMaskClicked(True)
-
-        if w.exec():
-            InfoBar.success(
-                title="设置已重置",
-                content="重启以应用更改",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                # position='Custom',   # NOTE: use custom info bar manager
-                duration=2000,
-                parent=self,
-            )
 
     def init_ui(self):
         self.setObjectName("ConfigPage")
@@ -156,11 +223,11 @@ class ConfigPage(SmoothScrollArea):
         QScroller.grabGesture(self.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
 
         # 创建内容容器
-        content_widget = QWidget(self)
-        self.setWidget(content_widget)
+        self.content_widget = QWidget(self)
+        self.setWidget(self.content_widget)
 
         # 内容布局
-        content_layout = QVBoxLayout(content_widget)
+        content_layout = QVBoxLayout(self.content_widget)
         content_layout.setContentsMargins(40, 20, 40, 20)
         content_layout.setSpacing(32)
 
@@ -169,6 +236,7 @@ class ConfigPage(SmoothScrollArea):
         self.add_warning_settings(content_layout)
         self.add_banner_settings(content_layout)
         self.add_app_settings(content_layout)
+        content_layout.addStretch()  # 可防止展开卡片时抽搐
 
     # 登录相关选项
     def add_login_settings(self, layout: QLayout):
@@ -226,6 +294,7 @@ class ConfigPage(SmoothScrollArea):
     def add_warning_settings(self, layout: QLayout):
         card_group = SettingCardGroup("警告弹窗")
 
+        # 启用
         self.warning_switch = SwitchSettingCard(
             icon=FIF.COMPLETED,
             title="启用警告弹窗",
@@ -234,6 +303,7 @@ class ConfigPage(SmoothScrollArea):
         )
         card_group.addSettingCard(self.warning_switch)
 
+        # 超时时长
         self.timeout_edit = SpinSettingCard(
             icon=FIF.REMOVE_FROM,
             title="超时时长",
@@ -249,6 +319,7 @@ class ConfigPage(SmoothScrollArea):
     def add_banner_settings(self, layout: QLayout):
         card_group = SettingCardGroup("警示横幅")
 
+        # 启用
         self.banner_switch = SwitchSettingCard(
             icon=FIF.FLAG,
             title="启用警示横幅",
@@ -257,54 +328,13 @@ class ConfigPage(SmoothScrollArea):
         )
         card_group.addSettingCard(self.banner_switch)
 
-        self.banner_text_edit = EditSettingCard(
-            icon=FIF.LABEL, title="文本", content="设置警示横幅中滚动的文本内容", configItem=self.config.bannerText
-        )
-        self.banner_text_edit.lineEdit.setFixedWidth(420)
-        card_group.addSettingCard(self.banner_text_edit)
-
-        self.fps_edit = RangeSettingCard(
-            icon=FIF.SPEED_HIGH, title="帧率", content="设置警示横幅的刷新帧率", configItem=self.config.bannerFps
-        )
-        card_group.addSettingCard(self.fps_edit)
-
-        self.color_bg_edit = ColorSettingCard(
-            icon=FIF.PALETTE,
-            title="背景颜色",
-            content="设置警示横幅的背景颜色",
-            configItem=self.config.bannerBgColor,
-            enableAlpha=True,
-        )
-        card_group.addSettingCard(self.color_bg_edit)
-
-        self.color_fg_edit = ColorSettingCard(
-            icon=FIF.PALETTE,
-            title="前景颜色",
-            content="设置警示横幅的前景颜色",
-            configItem=self.config.bannerFgColor,
-            enableAlpha=True,
-        )
-        card_group.addSettingCard(self.color_fg_edit)
-
-        self.color_text_edit = ColorSettingCard(
-            icon=FIF.PALETTE,
-            title="文本颜色",
-            content="设置警示横幅的文本颜色",
-            configItem=self.config.bannerTextColor,
-            enableAlpha=True,
-        )
-        card_group.addSettingCard(self.color_text_edit)
-
-        self.text_speed_edit = RangeSettingCard(
-            icon=FIF.SPEED_HIGH,
-            title="文本速度",
-            content="设置警示横幅中文本的滚动速度，增大以抵消低帧率下滚动缓慢",
-            configItem=self.config.bannerTextSpeed,
-        )
-        card_group.addSettingCard(self.text_speed_edit)
+        # 个性化设置卡
+        self.banner_style_card = BannerStyleSettingCard(self.config)
+        card_group.addSettingCard(self.banner_style_card)
 
         layout.addWidget(card_group)
 
+    # 应用相关选项
     def add_app_settings(self, layout: QLayout):
         card_group = SettingCardGroup("应用")
 
@@ -336,6 +366,30 @@ class ConfigPage(SmoothScrollArea):
         card_group.addSettingCard(self.reset_button)
 
         layout.addWidget(card_group)
+
+    def reset_config(self):
+        """重置配置为默认值"""
+        title = "确认要重置配置吗？"
+        content = "所有已编辑的设置将丢失，是否继续？"
+        w = MessageBox(title, content, self)
+
+        w.setClosableOnMaskClicked(True)
+
+        if w.exec():
+            # 重置设置
+            config_file = get_executable_dir() / "config.json"
+            config_file.write_text("", encoding="utf-8")
+
+            # 弹出提示
+            InfoBar.success(
+                title="设置已重置",
+                content="重启后生效",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
+            )
 
 
 class AboutPage(SmoothScrollArea):
