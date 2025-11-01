@@ -96,7 +96,7 @@ class WarningBanner(QWidget):
         self.text_speed = self.config.TextSpeed
         self.text_y_offset = self.config.YOffset
 
-        font_families = ["HarmonyOS Sans SC", "Microsoft YaHei UI", "sans-serif"]
+        font_families = ["Microsoft YaHei UI", "sans-serif"]
         if self.config.TextFont != "":
             font_families.insert(0, self.config.TextFont)
         font = QFont(font_families, pointSize=36, weight=QFont.Bold)
@@ -372,6 +372,7 @@ class EditSettingCard(BetterSettingCard):
         title,
         content=None,
         configItem: ConfigItem | None = None,
+        placeholder_text: str | None = None,
         is_item: bool = False,
         parent=None,
     ):
@@ -382,6 +383,10 @@ class EditSettingCard(BetterSettingCard):
         if configItem:
             self.setText(qconfig.get(configItem))
             configItem.valueChanged.connect(self.setText)
+
+        if placeholder_text:
+            self.lineEdit.setPlaceholderText(placeholder_text)
+        elif configItem:
             self.lineEdit.setPlaceholderText(configItem.defaultValue)
 
         # add switch button to layout

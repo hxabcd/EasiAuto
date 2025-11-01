@@ -40,7 +40,7 @@ class BannerConfig(BaseModel):
     BgColor: str = "#B4E4080A"
     FgColor: str = "#C8FFDE59"
     TextColor: str = "#FFFFDE59"
-    TextFont: str = ""
+    TextFont: str = "HarmonyOS Sans SC"
     TextSpeed: int = 3
 
 
@@ -116,7 +116,7 @@ class QfwEasiautoConfig(QConfig):
     bannerBgColor = ColorConfigItem("Banner", "BgColor", "#B4E4080A")
     bannerFgColor = ColorConfigItem("Banner", "FgColor", "#C8FFDE59")
     bannerTextColor = ColorConfigItem("Banner", "TextColor", "#FFFFDE59")
-    bannerTextFont = ConfigItem("Banner", "TextFont", "")
+    bannerTextFont = ConfigItem("Banner", "TextFont", "HarmonyOS Sans SC")
     bannerTextSpeed = RangeConfigItem("Banner", "TextSpeed", 3, RangeValidator(1, 12))
 
     # 希沃白板配置

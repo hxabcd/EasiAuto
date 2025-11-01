@@ -118,7 +118,7 @@ class TimeoutSettingCard(ExpandGroupSettingCard):
 
 class BannerStyleSettingCard(ExpandGroupSettingCard):
     def __init__(self, config: QfwEasiautoConfig, parent=None):
-        super().__init__(FIF.PALETTE, "横幅样式", "定制警示横幅的样式与外观", parent)
+        super().__init__(FIF.BRUSH, "横幅样式", "定制警示横幅的样式与外观", parent)
 
         self.banner_text_edit = EditSettingCard(
             icon=None,
@@ -128,6 +128,26 @@ class BannerStyleSettingCard(ExpandGroupSettingCard):
             is_item=True,
         )
         self.banner_text_edit.lineEdit.setFixedWidth(420)
+
+        self.text_font_edit = EditSettingCard(
+            icon=None,
+            title="文本字体",
+            content="设置警示横幅的文本字体",
+            configItem=config.bannerTextFont,
+            placeholder_text="输入字体名称",
+            is_item=True,
+        )
+        self.text_font_edit.lineEdit.setClearButtonEnabled(True)
+        self.text_font_edit.lineEdit.setMinimumWidth(200)
+
+        self.text_color_edit = ColorSettingCard(
+            icon=None,
+            title="文本颜色",
+            content="设置警示横幅的文本颜色",
+            configItem=config.bannerTextColor,
+            enableAlpha=True,
+            is_item=True,
+        )
 
         self.bg_color_edit = ColorSettingCard(
             icon=None,
@@ -146,25 +166,6 @@ class BannerStyleSettingCard(ExpandGroupSettingCard):
             enableAlpha=True,
             is_item=True,
         )
-
-        self.text_color_edit = ColorSettingCard(
-            icon=None,
-            title="文本颜色",
-            content="设置警示横幅的文本颜色",
-            configItem=config.bannerTextColor,
-            enableAlpha=True,
-            is_item=True,
-        )
-
-        self.text_font_edit = EditSettingCard(
-            icon=None,
-            title="文本字体",
-            content="设置警示横幅的文本字体",
-            configItem=config.bannerTextFont,
-            is_item=True,
-        )
-        self.text_font_edit.lineEdit.setClearButtonEnabled(True)
-        self.text_font_edit.lineEdit.setMinimumWidth(200)
 
         self.fps_edit = RangeSettingCard(
             icon=None,
@@ -188,10 +189,10 @@ class BannerStyleSettingCard(ExpandGroupSettingCard):
 
         # 添加各组到设置卡中
         self.addGroupWidget(self.banner_text_edit)
+        self.addGroupWidget(self.text_font_edit)
+        self.addGroupWidget(self.text_color_edit)
         self.addGroupWidget(self.bg_color_edit)
         self.addGroupWidget(self.fg_color_edit)
-        self.addGroupWidget(self.text_color_edit)
-        self.addGroupWidget(self.text_font_edit)
         self.addGroupWidget(self.fps_edit)
         self.addGroupWidget(self.text_speed_edit)
 
