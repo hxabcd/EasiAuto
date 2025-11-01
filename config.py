@@ -36,7 +36,7 @@ class BannerConfig(BaseModel):
     Enabled: bool = True
     Text: str = "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机"
     YOffset: int = 20
-    Fps: int = Field(30, ge=1, le=120)
+    Fps: int = Field(60, ge=1, le=120)
     BgColor: str = "#B4E4080A"
     FgColor: str = "#C8FFDE59"
     TextColor: str = "#FFFFDE59"
@@ -112,7 +112,7 @@ class QfwEasiautoConfig(QConfig):
     bannerEnabled = ConfigItem("Banner", "Enabled", True, BoolValidator())
     bannerText = ConfigItem("Banner", "Text", "  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机")
     bannerYOffset = RangeConfigItem("Banner", "YOffset", 20)
-    bannerFps = RangeConfigItem("Banner", "Fps", 30, RangeValidator(1, 120))
+    bannerFps = RangeConfigItem("Banner", "Fps", 60, RangeValidator(1, 120))
     bannerBgColor = ColorConfigItem("Banner", "BgColor", "#B4E4080A")
     bannerFgColor = ColorConfigItem("Banner", "FgColor", "#C8FFDE59")
     bannerTextColor = ColorConfigItem("Banner", "TextColor", "#FFFFDE59")
