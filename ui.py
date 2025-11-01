@@ -508,7 +508,13 @@ def set_enable_by(switch: SwitchButton, widget: QWidget, reverse: bool = False):
         switch.checkedChanged.connect(handle_check_change)
     else:
         widget.setDisabled(switch.checked)  # type: ignore
-        switch.checkedChanged.connect(lambda s: widget.setDisabled(s))
+
+        def handle_check_change(checked: bool):
+            widget.setDisabled(checked)
+            if checked and isinstance(widget, ExpandSettingCard):
+                widget.setExpand(False)
+
+        switch.checkedChanged.connect(handle_check_change)
 
 
 if __name__ == "__main__":
