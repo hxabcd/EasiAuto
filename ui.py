@@ -14,6 +14,7 @@ from qfluentwidgets import (
     CardWidget,
     ComboBoxSettingCard,
     ExpandGroupSettingCard,
+    ExpandSettingCard,
     FluentTranslator,
     FluentWindow,
     HyperlinkLabel,
@@ -26,6 +27,7 @@ from qfluentwidgets import (
     SettingCardGroup,
     SmoothScrollArea,
     SubtitleLabel,
+    SwitchButton,
     Theme,
     TitleLabel,
     qconfig,
@@ -49,13 +51,7 @@ class EasinoteSettingCard(ExpandGroupSettingCard):
         self.pathEdit = EditSettingCard(None, "自定义路径", configItem=config.easinotePath, is_item=True)
         self.pathEdit.lineEdit.setFixedWidth(400)
 
-        # 当自动获取启用时，禁用自定义路径
-        self.pathEdit.setDisabled(self.autoPathSwitch.switchButton.checked)  # type: ignore
-
-        def handle_autopath_toggle(status: bool):
-            self.pathEdit.setDisabled(status)
-
-        self.autoPathSwitch.switchButton.checkedChanged.connect(handle_autopath_toggle)
+        set_enable_by(self.autoPathSwitch.switchButton, self.pathEdit, reverse=True)
 
         self.processNameEdit = EditSettingCard(None, "进程名", configItem=config.easinoteProcessName, is_item=True)
         self.processNameEdit.lineEdit.setFixedWidth(400)
@@ -312,6 +308,7 @@ class ConfigPage(SmoothScrollArea):
             min_width=160,
         )
         card_group.addSettingCard(self.timeout_edit)
+        set_enable_by(self.warning_switch.switchButton, self.timeout_edit)
 
         layout.addWidget(card_group)
 
@@ -331,6 +328,7 @@ class ConfigPage(SmoothScrollArea):
         # 个性化设置卡
         self.banner_style_card = BannerStyleSettingCard(self.config)
         card_group.addSettingCard(self.banner_style_card)
+        set_enable_by(self.banner_switch.switchButton, self.banner_style_card)
 
         layout.addWidget(card_group)
 
@@ -495,6 +493,22 @@ class MainSettingsWindow(FluentWindow):
         self.resize(960, 640)
         self.setWindowIcon(QIcon("resources/easiauto.ico"))
         self.setWindowTitle("EasiAuto")
+
+
+def set_enable_by(switch: SwitchButton, widget: QWidget, reverse: bool = False):
+    """通过开关启用组件"""
+    if not reverse:
+        widget.setEnabled(switch.checked)  # type: ignore
+
+        def handle_check_change(checked: bool):
+            widget.setEnabled(checked)
+            if not checked and isinstance(widget, ExpandSettingCard):
+                widget.setExpand(False)
+
+        switch.checkedChanged.connect(handle_check_change)
+    else:
+        widget.setDisabled(switch.checked)  # type: ignore
+        switch.checkedChanged.connect(lambda s: widget.setDisabled(s))
 
 
 if __name__ == "__main__":
