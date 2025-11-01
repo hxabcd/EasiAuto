@@ -427,7 +427,7 @@ class AboutPage(SmoothScrollArea):
         self.banner_image.setStyleSheet("border-radius: 8px;")
 
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel("版本 1.0.0", self)
+        subtitle = SubtitleLabel("版本 1.0.1", self)
 
         banner_layout.addWidget(self.banner_image)
         banner_layout.addWidget(title)
