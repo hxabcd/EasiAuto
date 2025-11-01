@@ -43,7 +43,7 @@ class BaseAutomator(ABC):
                     logging.info("自动获取到路径")
             except Exception:
                 logging.warning("自动获取路径失败，使用默认路径")
-                path = self.easinote_cfg.Path
+                path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
         else:
             path = self.easinote_cfg.Path
         logging.debug(f"路径：{path}")
