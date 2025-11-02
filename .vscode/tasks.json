@@ -13,8 +13,9 @@
                 "--python-flag=\"-S\"",
                 "--include-module=\"comtypes.stream\"",
                 "--follow-imports",
+                "--nofollow-import-to=\"scipy\"",
                 "--output-dir=\"build\"",
-                "--windows-console-mode=\"attach\"",
+                "--windows-console-mode=\"disable\"",
                 "--windows-icon-from-ico=\"resources/easiauto.ico\"",
                 "--company-name=\"HxAbCd\"",
                 "--product-name=\"EasiAuto\"",
@@ -27,7 +28,7 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
-            }
+            },
         }
     ]
 }
