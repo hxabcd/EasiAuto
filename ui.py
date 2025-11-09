@@ -1,18 +1,22 @@
 import sys
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QHBoxLayout,
     QLayout,
+    QListWidgetItem,
     QScroller,
     QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
+    Action,
     BodyLabel,
     CardWidget,
     ComboBoxSettingCard,
+    CommandBar,
     ExpandGroupSettingCard,
     ExpandSettingCard,
     FluentTranslator,
@@ -21,6 +25,7 @@ from qfluentwidgets import (
     ImageLabel,
     InfoBar,
     InfoBarPosition,
+    ListWidget,
     MessageBox,
     NavigationItemPosition,
     PushSettingCard,
@@ -469,12 +474,145 @@ class AboutPage(SmoothScrollArea):
         layout.addStretch()
 
 
+class AutomationCard(CardWidget):
+    itemClicked = Signal(QListWidgetItem)
+    switchToggled = Signal(bool)
+
+    def __init__(self, item):
+        super().__init__()
+        self.title = "自动化"
+        self.enabled = False
+        self.list_item = item
+
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+
+        # 信息栏
+        self.info_bar = QWidget()
+        info_layout = QHBoxLayout(self.info_bar)
+
+        self.descrption_label = BodyLabel(self.title)
+        self.switch = SwitchButton()
+        self.switch.setChecked(self.enabled)
+        self.switch.checkedChanged.connect(self.on_switch_toggled)
+
+        info_layout.addWidget(self.descrption_label)
+        info_layout.addStretch(1)
+        info_layout.addWidget(self.switch)
+
+        # 操作栏
+        self.command_bar = CommandBar()
+        self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self.command_bar.addAction(Action(FIF.PLAY, "运行", triggered=lambda: print("运行")))
+        self.command_bar.addAction(Action(FIF.SHARE, "导出", triggered=lambda: print("导出")))
+        self.command_bar.addAction(Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: print("删除")))
+
+        layout.addWidget(self.info_bar)
+        layout.addWidget(self.command_bar)
+
+        # 设置鼠标事件
+        self.setMouseTracking(True)
+
+    def on_switch_toggled(self, checked: bool):
+        self.enabled = checked
+        self.switchToggled.emit(checked)
+
+    def setData(self, title: str, enabled: bool):
+        """设置列表项数据"""
+        self.title = title
+        self.enabled = enabled
+
+        self.descrption_label.setText(title)
+        self.switch.setChecked(enabled)
+
+    def mousePressEvent(self, event):
+        """鼠标点击事件"""
+        if event.button() == Qt.LeftButton:
+            self.itemClicked.emit(self.list_item)
+        super().mousePressEvent(event)
+
+
+class AutomationSelector(ListWidget):
+    def __init__(self):
+        super().__init__()
+        self.current_item_widget = None
+
+        items = [
+            {"title": "项目 A", "enabled": True},
+            {"title": "项目 B", "enabled": False},
+            {"title": "项目 C", "enabled": True},
+            {"title": "项目 D", "enabled": True},
+        ]
+
+        for item in items:
+            self.add_automation_item(**item)
+
+    def add_automation_item(self, title: str, enabled: bool):
+        # 创建 QListWidgetItem
+        item = QListWidgetItem(self)
+        item.setSizeHint(QSize(270, 90))
+
+        # 创建自定义组件
+        item_widget = AutomationCard(item)
+        item_widget.setData(title, enabled)
+        item_widget.itemClicked.connect(self.on_item_clicked)
+
+        # 将组件设置到列表项
+        self.setItemWidget(item, item_widget)
+
+        # 保存数据到 item
+        item.setData(Qt.UserRole, {"title": title, "enabled": enabled})
+
+        # 切换开关时保存数据
+        item_widget.switchToggled.connect(
+            lambda checked: item.setData(Qt.UserRole, {"title": item_widget.title, "enabled": checked})
+        )
+
+    def on_item_clicked(self, item):
+        """列表项点击事件"""
+
+        # 更新当前选中项
+        self.current_item_widget = self.itemWidget(item)
+        self.current_list_item = item
+
+        # 获取数据并显示在右侧
+        data = item.data(Qt.UserRole)
+        print(data)
+        # if data:
+        #     self.title_edit.setText(data["title"])
+        #     self.desc_edit.setText(data["description"])
+        #     self.status_combo.setCurrentText(data["status"])
+
+
+class AutomationEditor(QWidget): ...  # TODO
+
+
+class AutomationPage(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("AutomationPage")
+        self.setStyleSheet("border: none; background-color: transparent;")
+
+        # 创建分栏布局
+        layout = QHBoxLayout(self)
+        layout.setSpacing(8)
+
+        self.selector = AutomationSelector()
+        self.editor = AutomationEditor()
+
+        layout.addWidget(self.selector, 1)
+        layout.addWidget(self.editor, 1)
+
+
 class MainSettingsWindow(FluentWindow):
     def __init__(self):
         super().__init__()
 
         self.config_page = ConfigPage()
-        # self.automation_page = SettingsUI("2")
+        self.automation_page = AutomationPage()
         # self.overlay_page = SettingsUI("3")
         self.about_page = AboutPage()
 
@@ -483,7 +621,7 @@ class MainSettingsWindow(FluentWindow):
 
     def initNavigation(self):
         self.addSubInterface(self.config_page, FIF.SETTING, "配置")
-        # self.addSubInterface(self.automation_page, FIF.AIRPLANE, "自动化")
+        self.addSubInterface(self.automation_page, FIF.AIRPLANE, "自动化")
         # self.addSubInterface(self.overlay_page, FIF.ZOOM, "浮窗")
         self.addSubInterface(self.about_page, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
         # self.navigationInterface.addSeparator()
