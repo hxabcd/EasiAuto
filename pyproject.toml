@@ -10,7 +10,7 @@ dependencies = [
     "pyautogui>=0.9.54",
     "pydantic>=2.11.9",
     "pyside6>=6.9.3",
-    "pyside6-fluent-widgets[full]>=1.9.1",
+    "pyside6-fluent-widgets>=1.9.2",
     "pywin32>=311",
     "pywinauto>=0.6.9",
 ]
@@ -23,7 +23,4 @@ default = true
 line-length = 120
 
 [dependency-groups]
-dev = [
-    "coloredlogs>=15.0.1",
-    "nuitka>=2.8.4",
-]
+dev = ["coloredlogs>=15.0.1", "nuitka>=2.8.4"]
