@@ -1,7 +1,9 @@
 import logging
+import os
 import sys
 from pathlib import Path
 
+import win32com.client
 import win32con
 import win32gui
 
@@ -35,13 +37,13 @@ def get_resource(file: str):
     return str(base_path / "resources" / file)
 
 
-def get_executable_dir():
+def get_executable_path():
     return Path(sys.argv[0]).resolve().parent
 
 
 def load_config(config_file="config.json") -> Config:
     """加载配置文件"""
-    config_path = get_executable_dir() / config_file
+    config_path = get_executable_path() / config_file
 
     logging.debug(f"查找配置文件: {config_path}")
 
@@ -73,7 +75,7 @@ def init():
 
 def toggle_skip(config: Config, status: bool, file="config.json"):
     config.Login.SkipOnce = status
-    path = get_executable_dir() / file
+    path = get_executable_path() / file
     with path.open("w", encoding="utf-8") as f:
         data = config.model_dump_json(indent=4)
         f.write(data)
@@ -119,3 +121,24 @@ def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int |
 
     win32gui.EnumWindows(callback, None)
     return hwnd_found
+
+
+def get_ci_executable_path() -> Path | None:
+    """获取 ClassIsland 可执行文件位置"""
+    try:
+        lnk_path = Path(
+            os.path.expandvars(
+                r"%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ClassIsland.lnk"
+            )
+        ).resolve()
+
+        # 解析快捷方式
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortcut(str(lnk_path))
+        target = shortcut.TargetPath
+
+        return Path(target).resolve()
+
+    except Exception as e:
+        logging.error(f"获取 ClassIsland 路径时出错: {e}")
+        return None

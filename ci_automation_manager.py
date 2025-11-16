@@ -5,9 +5,11 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import psutil
+import win32api
 from pydantic import BaseModel, Field, field_validator
 
-from utils import get_executable_dir
+from utils import get_executable_path
 
 # ClassIsland 联动相关配置
 
@@ -21,16 +23,17 @@ class CiSubject(BaseModel):
 
 
 class EasiAutomation(BaseModel):
-    subject_id: str
     account: str
     password: str
-    start_before: int = 300
+    subject_id: str
+    pretime: int = 300
     guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
     display_name: str = "自动登录希沃白板"
     teacher_name: Optional[str] = None
+    enabled: bool = True
 
-    @field_validator("start_before")
-    def validate_start_before(cls, v):
+    @field_validator("pretime")
+    def validate_pretime(cls, v):
         if v < 0:
             raise ValueError("提前时间不能为负数")
         return v
@@ -41,32 +44,72 @@ class EasiAutomation(BaseModel):
             return f"[EasiAuto] {self.display_name} - {self.teacher_name}"
         return f"[EasiAuto] {self.display_name}"
 
+    @property
+    def item_display_name(self) -> str:
+        if self.teacher_name:
+            return f"{self.display_name} - {self.teacher_name}"
+        return self.display_name
+
 
 class CiAutomationManager:
     """ClassIsland自动化管理器"""
 
-    def __init__(self, ci_root: Path):
-        self.ci_root = Path(ci_root)
+    def __init__(self, path: Path | str):
         self.subjects: Dict[str, CiSubject] = {}
         self.automations: Dict[str, EasiAutomation] = {}
         self.ci_settings: dict = {}
         self.ci_profile: dict = {}
         self.ci_automations: List[dict] = []
 
-        # 验证CI目录结构
+        self.init_ci(path)
+
+    @property
+    def is_ci_running(self) -> bool:
+        for p in psutil.process_iter(["pid", "exe"]):
+            try:
+                if p.info["exe"] and Path(p.info["exe"]).resolve() == self.ci_executable_path:
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return False
+
+    def open_ci(self):
+        os.startfile(self.ci_executable_path)
+
+    def close_ci(self):
+        os.system(f"taskkill /f /im {self.ci_executable_path.name}")
+
+    def init_ci(self, exe_path: Path | str):
+        """获取CI版本，定位数据目录并初始化"""
+        exe_path = Path(exe_path)
+        self.ci_executable_path = exe_path
+
+        info = win32api.GetFileVersionInfo(str(exe_path), "\\")
+        ms, ls = info["FileVersionMS"], info["FileVersionLS"]
+        version = (ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF)
+
+        root = exe_path.parent
+        if version > (1, 7, 100, 0):  # v2
+            # ClassIsland / app-[version]-0 / ClassIsland.Desktop.exe
+            # ClassIsland / data
+            self.ci_data_path = root.parent / "data"
+            self.is_v2 = True
+        else:  # v1
+            self.ci_data_path = root
+            self.is_v2 = False
+
         self._validate_ci_structure()
-        # 加载配置
         self.reload_config()
 
     def _validate_ci_structure(self):
         """验证ClassIsland目录结构"""
-        if not self.ci_root.exists():
-            raise FileNotFoundError(f"CI 程序目录 {self.ci_root} 不存在")
+        if not self.ci_data_path.exists():
+            raise FileNotFoundError(f"CI 程序目录 {self.ci_data_path} 不存在")
 
         required_paths = [
-            self.ci_root / "Settings.json",
-            self.ci_root / "Profiles",
-            self.ci_root / "Config" / "Automations",
+            self.ci_data_path / "Settings.json",
+            self.ci_data_path / "Profiles",
+            self.ci_data_path / "Config" / "Automations",
         ]
 
         for path in required_paths:
@@ -82,14 +125,14 @@ class CiAutomationManager:
 
     def _load_settings(self):
         """加载CI设置"""
-        ci_setting_path = self.ci_root / "Settings.json"
+        ci_setting_path = self.ci_data_path / "Settings.json"
         with ci_setting_path.open(encoding="utf-8") as f:
             self.ci_settings = json.load(f)
 
     def _load_profile(self):
         """加载当前档案"""
         ci_profile_name = self.ci_settings["SelectedProfile"]
-        ci_profile_path = self.ci_root / "Profiles" / ci_profile_name
+        ci_profile_path = self.ci_data_path / "Profiles" / ci_profile_name
 
         if not ci_profile_path.exists():
             raise FileNotFoundError(f"档案 {ci_profile_name} 不存在")
@@ -100,7 +143,7 @@ class CiAutomationManager:
     def _load_automations(self):
         """加载自动化配置"""
         ci_automation_name = self.ci_settings["CurrentAutomationConfig"]
-        ci_automations_path = self.ci_root / "Config" / "Automations" / f"{ci_automation_name}.json"
+        ci_automations_path = self.ci_data_path / "Config" / "Automations" / f"{ci_automation_name}.json"
 
         if not ci_automations_path.exists():
             raise FileNotFoundError(f"自动化配置 {ci_automation_name} 不存在")
@@ -137,8 +180,9 @@ class CiAutomationManager:
             name: str = automation["ActionSet"]["Name"]
             args: str = automation["ActionSet"]["Actions"][0]["Settings"]["Args"]
             subject_id: str = automation["Ruleset"]["Groups"][0]["Rules"][0]["Settings"]["SubjectId"]
-            start_before: int = automation["Triggers"][0]["Settings"]["TimeSeconds"]
+            pretime: int = automation["Triggers"][0]["Settings"]["TimeSeconds"]
             guid: str = automation["ActionSet"]["Guid"]
+            enabled: bool = automation["ActionSet"]["IsEnabled"]
 
             # 匹配账号密码
             account_match = re.search(r"(?:-a|--account)\s+(\S+)", args)
@@ -169,9 +213,10 @@ class CiAutomationManager:
                 account=account,
                 password=password,
                 subject_id=subject_id,
-                start_before=start_before,
+                pretime=pretime,
                 display_name=display_name,
                 teacher_name=teacher_name,
+                enabled=enabled,
             )
         except (KeyError, IndexError, AttributeError) as e:
             print(f"解析自动化配置时出错: {e}")
@@ -209,23 +254,23 @@ class CiAutomationManager:
             return True
         return False
 
-    def update_automation(self, guid: str, **updates) -> bool:
+    def update_automation(self, _guid: str, **updates) -> bool:
         """更新自动化配置
 
         Args:
             guid: 自动化GUID
-            **updates: 要更新的字段，如 account, password, subject_id, start_before, display_name, teacher_name
+            **updates: 要更新的字段，如 account, password, subject_id, pretime, display_name, teacher_name
 
         Returns:
             bool: 更新是否成功
         """
-        if guid not in self.automations:
-            raise ValueError(f"自动化GUID {guid} 不存在")
+        if _guid not in self.automations:
+            raise ValueError(f"自动化GUID {_guid} 不存在")
 
-        original_automation = self.automations[guid]
+        original_automation = self.automations[_guid]
 
         # 构建更新后的自动化对象
-        update_data = original_automation.dict()
+        update_data = original_automation.model_dump()
         update_data.update(updates)
 
         # 验证科目是否存在（如果更新了subject_id）
@@ -235,7 +280,7 @@ class CiAutomationManager:
         updated_automation = EasiAutomation(**update_data)
 
         # 从CI自动化列表中移除旧的
-        self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != guid]
+        self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != _guid]
 
         # 添加更新后的
         ci_automation = self._build_ci_automation(updated_automation)
@@ -243,7 +288,7 @@ class CiAutomationManager:
 
         # 保存到文件
         if self._save_automations():
-            self.automations[guid] = updated_automation
+            self.automations[_guid] = updated_automation
             return True
         return False
 
@@ -292,7 +337,7 @@ class CiAutomationManager:
                 "IsActive": False,
             },
             "ActionSet": {
-                "IsEnabled": True,
+                "IsEnabled": automation.enabled,
                 "Name": automation.full_display_name,
                 "Guid": automation.guid,
                 "IsOn": False,
@@ -300,7 +345,7 @@ class CiAutomationManager:
                     {
                         "Id": "classisland.os.run",
                         "Settings": {
-                            "Value": str(get_executable_dir()),
+                            "Value": str(get_executable_path() / "EasiAuto.exe"),
                             "Args": f"login -a {automation.account} -p {automation.password}",
                             "IsActive": False,
                         },
@@ -313,7 +358,7 @@ class CiAutomationManager:
             "Triggers": [
                 {
                     "Id": "classisland.lessons.preTimePoint",
-                    "Settings": {"TargetState": 1, "TimeSeconds": automation.start_before},
+                    "Settings": {"TargetState": 1, "TimeSeconds": automation.pretime},
                     "IsActive": False,
                 }
             ],
@@ -325,10 +370,10 @@ class CiAutomationManager:
         """保存自动化配置到文件"""
         try:
             ci_automation_name = self.ci_settings["CurrentAutomationConfig"]
-            ci_automations_path = self.ci_root / "Config" / "Automations" / f"{ci_automation_name}.json"
+            ci_automations_path = self.ci_data_path / "Config" / "Automations" / f"{ci_automation_name}.json"
 
             with ci_automations_path.open("w", encoding="utf-8") as f:
-                json.dump(self.ci_automations, f, ensure_ascii=False, indent=2)
+                json.dump(self.ci_automations, f)
             return True
         except Exception as e:
             print(f"保存自动化配置时出错: {e}")
@@ -344,6 +389,7 @@ class CiAutomationManager:
 
 
 ### 下面是一些用于CLI交互的函数 ###
+### 或许说，测试残留？ ###
 
 
 def input_with_default(prompt: str, default: str = "") -> str:
@@ -364,7 +410,7 @@ def edit_automation_interactive(manager: CiAutomationManager, automation: EasiAu
     current_subject = manager.get_subject_by_id(automation.subject_id)
     print(f"当前科目: {current_subject.name if current_subject else '未知科目'}")
     print(f"当前账号: {automation.account}")
-    print(f"当前提前时间: {automation.start_before}秒")
+    print(f"当前提前时间: {automation.pretime}秒")
     print(f"当前显示名称: {automation.display_name}")
     print(f"当前教师名称: {automation.teacher_name or '未设置'}")
 
@@ -399,11 +445,11 @@ def edit_automation_interactive(manager: CiAutomationManager, automation: EasiAu
         updates["password"] = new_password
 
     # 修改提前时间
-    change_start_before = input("\n是否修改提前时间? (y/N): ").lower() == "y"
-    if change_start_before:
+    change_pretime = input("\n是否修改提前时间? (y/N): ").lower() == "y"
+    if change_pretime:
         try:
-            new_start_before = input_with_default("新提前时间(秒)", str(automation.start_before))
-            updates["start_before"] = int(new_start_before)
+            new_pretime = input_with_default("新提前时间(秒)", str(automation.pretime))
+            updates["pretime"] = int(new_pretime)
         except ValueError:
             print("无效的时间格式，保持原时间")
 
@@ -442,10 +488,12 @@ def edit_automation_interactive(manager: CiAutomationManager, automation: EasiAu
 
 # 使用示例
 def main():
-    CI_ROOT = Path(r"D:\MyPC\Applications\ClassIsland")
+    from utils import get_ci_executable_path
+
+    path = get_ci_executable_path()
 
     try:
-        manager = CiAutomationManager(CI_ROOT)
+        manager = CiAutomationManager(path)  # type: ignore
         print("ClassIsland 自动化管理器初始化成功")
     except FileNotFoundError as e:
         print(f"初始化失败: {e}")
@@ -500,7 +548,7 @@ def main():
                         print(f"      科目: {subject_name}")
                         print(f"      账号: {automation.account}")
                         print(f"      密码: {'*' * len(automation.password)}")
-                        print(f"      提前时间: {automation.start_before}秒")
+                        print(f"      提前时间: {automation.pretime}秒")
                         print(f"      GUID: {automation.guid}")
 
             case 2:
@@ -529,7 +577,7 @@ def main():
                     print("密码不能为空")
                     continue
 
-                start_before = input("提前时间(秒，默认300): ")
+                pretime = input("提前时间(秒，默认300): ")
                 display_name = input("显示名称(默认'自动登录希沃白板'): ")
                 teacher_name = input("教师名称(可选): ")
 
@@ -537,7 +585,7 @@ def main():
                     subject_id=selected_subject.id,
                     account=account,
                     password=password,
-                    start_before=int(start_before) if start_before else 300,
+                    pretime=int(pretime) if pretime else 300,
                     display_name=display_name or "自动登录希沃白板",
                     teacher_name=teacher_name or None,
                 )

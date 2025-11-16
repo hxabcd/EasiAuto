@@ -1,13 +1,20 @@
+import logging
 import sys
+from pathlib import Path
+from typing import Literal
 
-from PySide6.QtCore import QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
+    QFormLayout,
     QHBoxLayout,
+    QLabel,
     QLayout,
     QListWidgetItem,
     QScroller,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -15,6 +22,7 @@ from qfluentwidgets import (
     Action,
     BodyLabel,
     CardWidget,
+    ComboBox,
     ComboBoxSettingCard,
     CommandBar,
     ExpandGroupSettingCard,
@@ -22,15 +30,19 @@ from qfluentwidgets import (
     FluentTranslator,
     FluentWindow,
     HyperlinkLabel,
+    Icon,
     ImageLabel,
     InfoBar,
     InfoBarPosition,
-    ListWidget,
+    LineEdit,
     MessageBox,
     NavigationItemPosition,
+    PrimaryPushButton,
+    PushButton,
     PushSettingCard,
     SettingCardGroup,
     SmoothScrollArea,
+    SpinBox,
     SubtitleLabel,
     SwitchButton,
     Theme,
@@ -40,9 +52,17 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from components import ColorSettingCard, EditSettingCard, RangeSettingCard, SpinSettingCard, SwitchSettingCard
+from ci_automation_manager import CiAutomationManager, EasiAutomation
+from components import (
+    ColorSettingCard,
+    EditSettingCard,
+    ListWidget,
+    RangeSettingCard,
+    SpinSettingCard,
+    SwitchSettingCard,
+)
 from config import QfwEasiautoConfig
-from utils import get_executable_dir, get_resource
+from utils import get_ci_executable_path, get_executable_path, get_resource
 
 
 class EasinoteSettingCard(ExpandGroupSettingCard):
@@ -208,7 +228,7 @@ class ConfigPage(SmoothScrollArea):
     def __init__(self):
         super().__init__()
 
-        config_file = get_executable_dir() / "config.json"
+        config_file = get_executable_path() / "config.json"
         self.config = QfwEasiautoConfig()
         qconfig.load(config_file, self.config)
 
@@ -381,7 +401,7 @@ class ConfigPage(SmoothScrollArea):
 
         if w.exec():
             # 重置设置
-            config_file = get_executable_dir() / "config.json"
+            config_file = get_executable_path() / "config.json"
             config_file.write_text("", encoding="utf-8")
 
             # 弹出提示
@@ -474,11 +494,68 @@ class AboutPage(SmoothScrollArea):
         layout.addStretch()
 
 
+class AutomationStatusBar(QWidget):
+    """自动化页 - 状态栏"""
+
+    def __init__(self, manager: CiAutomationManager | None = None):
+        super().__init__()
+        self.manager = manager
+
+        self.setFixedHeight(42)
+        self.setStyleSheet("BodyLabel { font-size: 14px; }")
+        layout = QHBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(16, 4, 16, 0)
+
+        self.status_label = BodyLabel()
+
+        self.action_button = PushButton(icon=FIF.POWER_BUTTON, text="终止")
+        self.action_button.clicked.connect(self.handle_action_button_clicked)
+
+        layout.addWidget(QLabel("<span style='font-size: 16px'>ClassIsland</span>"))
+        layout.addSpacing(3)
+        layout.addWidget(self.status_label)
+        layout.addSpacing(6)
+        layout.addWidget(self.action_button)
+
+    def update_status(self, status: Literal[-1, 0, 1] | None = None):
+        if status is None:
+            if self.manager:
+                status = 1 if self.manager.is_ci_running else 0
+            else:
+                status = -1
+
+        match status:
+            case -1:
+                self.status_label.setText("未初始化")
+                self.action_button.setEnabled(False)
+            case 1:
+                self.status_label.setText("运行中")
+                self.action_button.setText("终止")
+                self.action_button.setEnabled(True)
+            case 0:
+                self.status_label.setText("未运行")
+                self.action_button.setText("启动")
+                self.action_button.setEnabled(True)
+
+    def handle_action_button_clicked(self):
+        assert self.manager
+        if self.manager.is_ci_running:
+            self.manager.close_ci()
+        else:
+            self.manager.open_ci()
+
+
 class AutomationCard(CardWidget):
+    """自动化项目的卡片组件"""
+
     itemClicked = Signal(QListWidgetItem)
     switchToggled = Signal(bool)
+    actionRun = Signal(EasiAutomation)
+    actionExport = Signal(EasiAutomation)
+    actionRemove = Signal(QListWidgetItem)
 
-    def __init__(self, item):
+    def __init__(self, item: QListWidgetItem, automation: EasiAutomation | None = None):
         super().__init__()
         self.title = "自动化"
         self.enabled = False
@@ -486,19 +563,26 @@ class AutomationCard(CardWidget):
 
         self.init_ui()
 
+        if automation:
+            self.set_automation(automation)
+        self.automation = automation
+
     def init_ui(self):
         layout = QVBoxLayout(self)
 
         # 信息栏
         self.info_bar = QWidget()
         info_layout = QHBoxLayout(self.info_bar)
+        info_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        self.descrption_label = BodyLabel(self.title)
+        self.name_label = BodyLabel(self.title)
         self.switch = SwitchButton()
+        self.switch.setOnText("启用")
+        self.switch.setOffText("禁用")
         self.switch.setChecked(self.enabled)
         self.switch.checkedChanged.connect(self.on_switch_toggled)
 
-        info_layout.addWidget(self.descrption_label)
+        info_layout.addWidget(self.name_label)
         info_layout.addStretch(1)
         info_layout.addWidget(self.switch)
 
@@ -506,9 +590,17 @@ class AutomationCard(CardWidget):
         self.command_bar = CommandBar()
         self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        self.command_bar.addAction(Action(FIF.PLAY, "运行", triggered=lambda: print("运行")))
-        self.command_bar.addAction(Action(FIF.SHARE, "导出", triggered=lambda: print("导出")))
-        self.command_bar.addAction(Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: print("删除")))
+        action_run = Action(FIF.PLAY, "运行", triggered=lambda: self.actionRun.emit(self.automation))
+        action_export = Action(FIF.SHARE, "导出", triggered=lambda: self.actionExport.emit(self.automation))
+        action_remove = Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item))
+
+        # TODO: 待完善
+        action_run.setEnabled(False)
+        action_export.setEnabled(False)
+
+        self.command_bar.addAction(action_run)
+        self.command_bar.addAction(action_export)
+        self.command_bar.addAction(action_remove)
 
         layout.addWidget(self.info_bar)
         layout.addWidget(self.command_bar)
@@ -520,13 +612,12 @@ class AutomationCard(CardWidget):
         self.enabled = checked
         self.switchToggled.emit(checked)
 
-    def setData(self, title: str, enabled: bool):
-        """设置列表项数据"""
-        self.title = title
-        self.enabled = enabled
+    def set_automation(self, automation: EasiAutomation):
+        """设置列表项对应的自动化"""
+        self.automation = automation
 
-        self.descrption_label.setText(title)
-        self.switch.setChecked(enabled)
+        self.name_label.setText(automation.item_display_name)
+        self.switch.setChecked(automation.enabled)
 
     def mousePressEvent(self, event):
         """鼠标点击事件"""
@@ -535,76 +626,480 @@ class AutomationCard(CardWidget):
         super().mousePressEvent(event)
 
 
-class AutomationSelector(ListWidget):
-    def __init__(self):
+class AutomationSelector(QWidget):
+    """自动化管理 - 选择器"""
+
+    updateEditor = Signal(EasiAutomation)
+    clearEditor = Signal()
+
+    def __init__(self, manager: CiAutomationManager | None):
         super().__init__()
-        self.current_item_widget = None
+        self.manager = manager
+        self.current_list_item = None
 
-        items = [
-            {"title": "项目 A", "enabled": True},
-            {"title": "项目 B", "enabled": False},
-            {"title": "项目 C", "enabled": True},
-            {"title": "项目 D", "enabled": True},
-        ]
+        self.init_ui()
 
-        for item in items:
-            self.add_automation_item(**item)
+        if manager:
+            self.init_manager()
 
-    def add_automation_item(self, title: str, enabled: bool):
-        # 创建 QListWidgetItem
-        item = QListWidgetItem(self)
-        item.setSizeHint(QSize(270, 90))
+    def init_ui(self):
+        self.setContentsMargins(0, 0, 0, 4)
+        layout = QVBoxLayout(self)
 
-        # 创建自定义组件
-        item_widget = AutomationCard(item)
-        item_widget.setData(title, enabled)
+        self.action_bar = CommandBar()
+        self.action_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.action_bar.addAction(Action(FIF.ADD, "添加", triggered=self.add_automation))
+        self.action_bar.addAction(Action(FIF.SYNC, "刷新", triggered=lambda: self.init_manager(reload=True)))
+
+        self.auto_list = ListWidget()
+        self.auto_list.setSpacing(3)
+
+        layout.addWidget(self.action_bar)
+        layout.addWidget(self.auto_list)
+
+    def init_manager(self, reload: bool = False):
+        """初始化自动化列表"""
+        assert self.manager, self.auto_list
+
+        if reload:
+            self.manager.reload_config()
+
+        self.auto_list.clear()
+
+        for _, automation in self.manager.automations.items():
+            self.add_automation_item(automation)
+
+    def add_automation_item(self, automation: EasiAutomation):
+        item = QListWidgetItem(self.auto_list)
+        item.setSizeHint(QSize(270, 96))
+
+        item_widget = AutomationCard(item, automation)
         item_widget.itemClicked.connect(self.on_item_clicked)
+        item_widget.actionRemove.connect(self.handle_action_remove)
 
         # 将组件设置到列表项
-        self.setItemWidget(item, item_widget)
+        self.auto_list.setItemWidget(item, item_widget)
 
         # 保存数据到 item
-        item.setData(Qt.UserRole, {"title": title, "enabled": enabled})
+        item.setData(Qt.UserRole, automation)
 
         # 切换开关时保存数据
-        item_widget.switchToggled.connect(
-            lambda checked: item.setData(Qt.UserRole, {"title": item_widget.title, "enabled": checked})
-        )
+        def handle_toggle_enabled(enabled):
+            data: EasiAutomation = item.data(Qt.UserRole)
+            data.enabled = enabled
+            item.setData(Qt.UserRole, data)
+            self.updateEditor.emit(data)
 
-    def on_item_clicked(self, item):
-        """列表项点击事件"""
+            if self.manager:
+                self.manager.update_automation(data.guid, enabled=enabled)
 
-        # 更新当前选中项
-        self.current_item_widget = self.itemWidget(item)
+        item_widget.switchToggled.connect(handle_toggle_enabled)
+
+        return item
+
+    def add_automation(self):
+        """添加新的自动化"""
+        if not self.manager:
+            return
+
+        automation = EasiAutomation(account="", password="", subject_id="")
+        item = self.add_automation_item(automation)
+        self.auto_list.setCurrentRow(self.auto_list.count() - 1)
         self.current_list_item = item
 
-        # 获取数据并显示在右侧
-        data = item.data(Qt.UserRole)
-        print(data)
-        # if data:
-        #     self.title_edit.setText(data["title"])
-        #     self.desc_edit.setText(data["description"])
-        #     self.status_combo.setCurrentText(data["status"])
+        self.updateEditor.emit(automation)
+
+    def handle_action_remove(self, item: QListWidgetItem):
+        """操作 - 删除自动化"""
+        if not self.manager:
+            return
+
+        automation = item.data(Qt.UserRole)
+        self.manager.delete_automation(automation.guid)
+
+        self.auto_list.takeItem(self.auto_list.row(item))
+        self.current_list_item = None
+        self.clearEditor.emit()
+
+    def on_item_clicked(self, item: QListWidgetItem):
+        """列表项点击事件"""
+        self.current_list_item = item
+
+        automation = item.data(Qt.UserRole)
+        self.updateEditor.emit(automation)
 
 
-class AutomationEditor(QWidget): ...  # TODO
+class AutomationEditor(QWidget):
+    """自动化管理 - 编辑器"""
+
+    def __init__(self, manager: CiAutomationManager | None):
+        super().__init__()
+        self.manager = manager
+        self.current_automation: EasiAutomation | None = None
+
+        self.init_ui()
+
+    def init_manager(self, reload: bool = False):
+        """初始化管理器与科目"""
+        assert self.manager, self.subject_edit
+
+        if reload:
+            self.manager.reload_config()
+
+        self.subject_edit.clear()
+
+        for subject in self.manager.list_subjects():
+            self.subject_edit.addItem(subject.name, userData=subject.id)
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+
+        self.form = QWidget()
+        self.form.setStyleSheet("QLabel { font-size: 14px; margin-right: 4px; }")
+        form_layout = QFormLayout(self.form)
+
+        self.account_edit = LineEdit()
+        self.password_edit = LineEdit()
+        self.subject_edit = ComboBox()
+        self.teacher_edit = LineEdit()
+        self.pretime_edit = SpinBox()
+
+        form_layout.addRow("账号", self.account_edit)
+        form_layout.addRow("密码", self.password_edit)
+        form_layout.addRow("科目", self.subject_edit)
+        form_layout.addRow("教师 (可选)", self.teacher_edit)
+        form_layout.addRow("提前时间 (秒)", self.pretime_edit)
+
+        if self.manager:
+            self.init_manager()
+        self.subject_edit.setCurrentIndex(-1)
+
+        self.pretime_edit.setRange(0, 900)
+
+        self.save_button = PrimaryPushButton("保存")
+        self.save_button.clicked.connect(self.handle_save_automation)
+
+        layout.addWidget(self.form)
+        layout.addWidget(self.save_button)
+
+        self.setDisabled(True)
+
+    def update_form(self, auto: EasiAutomation):
+        """更新编辑器数据"""
+        self.current_automation = auto
+        self.account_edit.setText(auto.account)
+        self.password_edit.setText(auto.password)
+
+        self.subject_edit.setCurrentIndex(-1)
+        if self.manager:
+            subject = self.manager.get_subject_by_id(auto.subject_id)
+            if subject:
+                subject_item = self.subject_edit.findData(subject.id)
+                if subject_item != -1:
+                    self.subject_edit.setCurrentIndex(subject_item)
+
+        self.teacher_edit.setText(auto.teacher_name)
+        self.pretime_edit.setValue(auto.pretime)
+
+        self.setEnabled(auto.enabled)
+
+    def clear_form(self):
+        """清空编辑器数据"""
+        self.account_edit.clear()
+        self.password_edit.clear()
+        self.subject_edit.setCurrentIndex(-1)
+        self.teacher_edit.clear()
+        self.pretime_edit.setValue(0)
+
+        self.setDisabled(True)
+
+    def save_form(self):
+        """保存编辑器数据"""
+        if not self.manager:
+            return
+
+        automation = self.current_automation
+        if not automation:
+            return
+
+        automation.account = self.account_edit.text()
+        if automation.account == "":
+            raise ValueError("账号不能为空")
+
+        automation.password = self.password_edit.text()
+        if automation.password == "":
+            raise ValueError("密码不能为空")
+
+        subject_id = self.subject_edit.currentData()
+        if subject_id is None:
+            raise ValueError("未选择科目")
+        if self.manager.get_subject_by_id(subject_id) is None:
+            raise ValueError("无效科目")
+        automation.subject_id = subject_id
+
+        automation.teacher_name = self.teacher_edit.text()
+
+        automation.pretime = self.pretime_edit.value()
+
+        if self.manager.get_automation_by_guid(automation.guid) is None:
+            self.manager.create_automation(automation)
+        else:
+            self.manager.update_automation(automation.guid, **automation.model_dump())
+
+    def handle_save_automation(self):
+        """保存自动化数据"""
+        try:
+            self.save_form()
+        except ValueError as e:
+            InfoBar.error(
+                title="错误",
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.parentWidget().parentWidget(),  # type: ignore
+            )
+
+
+class AutomationManageSubpage(QWidget):
+    """自动化页 - 自动化管理 子页面"""
+
+    def __init__(self, manager: CiAutomationManager | None):
+        super().__init__()
+        self.manager = manager
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.selector = AutomationSelector(self.manager)
+        self.editor = AutomationEditor(self.manager)
+
+        self.selector.updateEditor.connect(self.editor.update_form)
+        self.selector.clearEditor.connect(self.editor.clear_form)
+
+        layout.addWidget(self.selector, 1)
+        layout.addWidget(self.editor, 1)
+
+    def set_manager(self, manager: CiAutomationManager):
+        """重设自动化管理器"""
+        self.manager = manager
+        self.selector.manager = manager
+        self.editor.manager = manager
+
+        self.selector.init_manager()
+        self.editor.init_manager()
+
+
+class PathSelectSubpage(QWidget):
+    """自动化页 - 路径选择 子页面"""
+
+    pathChanged = Signal(Path)
+
+    def __init__(self):
+        super().__init__()
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        hint_icon = QLabel(pixmap=Icon(FIF.REMOVE_FROM).pixmap(96, 96))
+        hint_label = TitleLabel("未能获取到 ClassIsland 路径")
+        hint_desc = BodyLabel("<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>")
+        hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        actions = QWidget()
+
+        actions_layout = QHBoxLayout(actions)
+        actions_layout.setSpacing(10)
+
+        get_ci_button = PrimaryPushButton(icon=FIF.DOWNLOAD, text="获取 ClassIsland")
+        get_ci_button.setFixedWidth(150)
+        get_ci_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://classisland.tech")))
+
+        browse_button = PushButton(icon=FIF.FOLDER_ADD, text="选择已有路径")
+        browse_button.setFixedWidth(150)
+        browse_button.clicked.connect(self.browse_ci_path)
+
+        actions_layout.addWidget(get_ci_button)
+        actions_layout.addWidget(BodyLabel("或"))
+        actions_layout.addWidget(browse_button)
+
+        layout.addWidget(hint_icon)
+        layout.addSpacing(12)
+        layout.addWidget(hint_label)
+        layout.addWidget(hint_desc)
+        layout.addSpacing(18)
+        layout.addWidget(actions)
+
+    def browse_ci_path(self):
+        exe_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 ClassIsland 程序路径",
+            "",
+            "ClassIsland 可执行文件 (*.exe)",
+        )
+
+        if not exe_path:  # 取消选择
+            return
+
+        self.pathChanged.emit(exe_path)
+
+
+class CiRunningWarnSubpage(QWidget):
+    """自动化页 - CI运行警告 子页面"""
+
+    ciClosed = Signal()
+
+    label_text_1 = "ClassIsland 正在运行"
+    label_desc_1 = "<span style='font-size: 15px;'>需要关闭 ClassIsland 才能编辑自动化</span>"
+    label_text_1e = "唔，看起来 ClassIsland 还在运行呢"
+    label_desc_1e = "<span style='font-size: 15px;'>这种坏事要偷偷地干啦，让 ClassIsland 大姐姐看到就不好了哦~</span>"
+
+    label_text_2 = "无法终止 ClassIsland"
+    label_desc_2 = "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
+    label_text_2e = "诶诶，情况好像不太对？！"
+    lalbel_desc_2e = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
+
+    def __init__(self, manager: CiAutomationManager | None = None, easter_egg: bool = False):
+        super().__init__()
+        self.manager = manager
+        self.easter_egg_enabled = easter_egg
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.hint_icon = QLabel()
+        self.hint_label = TitleLabel()
+        self.hint_desc = BodyLabel()
+        self.hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.action_button = PrimaryPushButton(icon=FIF.POWER_BUTTON, text="终止 ClassIsland")
+        self.action_button.clicked.connect(self.terminate_ci)
+
+        layout.addWidget(self.hint_icon)
+        layout.addSpacing(12)
+        layout.addWidget(self.hint_label)
+        layout.addWidget(self.hint_desc)
+        layout.addSpacing(18)
+        layout.addWidget(self.action_button)
+
+        self.set_text()
+
+    def set_text(self, failed: bool = False):
+        if not failed:
+            self.hint_icon.setPixmap(Icon(FIF.BROOM).pixmap(96, 96))
+            if self.easter_egg_enabled:
+                self.hint_label.setText(self.label_text_1e)
+                self.hint_desc.setText(self.label_desc_1e)
+            else:
+                self.hint_label.setText(self.label_text_1)
+                self.hint_desc.setText(self.label_desc_1)
+                self.action_button.show()
+        else:
+            self.hint_icon.setPixmap(Icon(FIF.QUESTION).pixmap(96, 96))
+            if self.easter_egg_enabled:
+                self.hint_label.setText(self.label_text_2e)
+                self.hint_desc.setText(self.label_text_2e)
+            else:
+                self.hint_label.setText(self.label_text_2)
+                self.hint_desc.setText(self.label_desc_2)
+            self.action_button.hide()
+
+    def terminate_ci(self):
+        if self.manager:
+            self.manager.close_ci()
 
 
 class AutomationPage(QWidget):
+    """设置 - 自动化页"""
+
     def __init__(self):
         super().__init__()
         self.setObjectName("AutomationPage")
         self.setStyleSheet("border: none; background-color: transparent;")
 
-        # 创建分栏布局
-        layout = QHBoxLayout(self)
-        layout.setSpacing(8)
+        # 初始化CI自动化管理器
+        self.manager = None
+        if exe_path := get_ci_executable_path():
+            logging.info(f"ClassIsland 程序位置: {exe_path}")
+            self.manager = CiAutomationManager(exe_path)
+        else:
+            logging.warning("自动初始化失败")
 
-        self.selector = AutomationSelector()
-        self.editor = AutomationEditor()
+        self.init_ui()
+        self.start_watchdog()
 
-        layout.addWidget(self.selector, 1)
-        layout.addWidget(self.editor, 1)
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.status_bar = AutomationStatusBar(self.manager)
+
+        # 主页面，下分管理页和路径选择页
+        self.main_widget = QStackedWidget()
+
+        self.path_select_page = PathSelectSubpage()
+        self.ci_running_warn_page = CiRunningWarnSubpage(self.manager)
+        self.manager_page = AutomationManageSubpage(self.manager)
+
+        self.main_widget.addWidget(self.path_select_page)
+        self.main_widget.addWidget(self.ci_running_warn_page)
+        self.main_widget.addWidget(self.manager_page)
+
+        self.path_select_page.pathChanged.connect(self.handle_path_changed)
+
+        layout.addWidget(self.status_bar)
+        layout.addWidget(self.main_widget)
+
+    def start_watchdog(self):
+        """启动CI运行状态监听"""
+        if not self.manager:
+            return
+
+        if hasattr(self.manager, "watchdog"):
+            return
+
+        self.watchdog = QTimer(self)
+        self.watchdog.timeout.connect(self.check_status)
+        self.watchdog.start(1000)
+
+    def check_status(self):
+        """检查状态并切换页面"""
+        target_page: QWidget
+        if self.manager is None:
+            target_page = self.path_select_page
+        elif self.manager.is_ci_running:
+            target_page = self.ci_running_warn_page
+        else:
+            target_page = self.manager_page
+
+        if self.main_widget.currentWidget != target_page:
+            self.main_widget.setCurrentWidget(target_page)
+            self.status_bar.update_status()
+
+    def handle_path_changed(self, path: Path):
+        """重设自动化管理器"""
+        try:
+            self.manager = CiAutomationManager(path)
+        except Exception:
+            InfoBar.error(
+                title="错误",
+                content="指定的目录不正确",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
+            )
+            return
+
+        self.status_bar.manager = self.manager
+        self.ci_running_warn_page.manager = self.manager
+
+        self.start_watchdog()
 
 
 class MainSettingsWindow(FluentWindow):
@@ -657,6 +1152,7 @@ def set_enable_by(switch: SwitchButton, widget: QWidget, reverse: bool = False):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     app = QApplication(sys.argv)
 
     translator = FluentTranslator()
