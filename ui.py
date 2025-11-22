@@ -717,6 +717,7 @@ class AutomationManageSubpage(QWidget):
         self.editor_widget.setDisabled(True)
 
         layout.addWidget(self.selector_widget, 1)
+        layout.addWidget(Separator("vertical"))
         layout.addWidget(self.editor_widget, 1)
 
         if manager:
@@ -1215,6 +1216,7 @@ class AutomationPage(QWidget):
         self.path_select_page.pathChanged.connect(self.handle_path_changed)
 
         layout.addWidget(self.status_bar)
+        layout.addWidget(Separator("horizontal"))
         layout.addWidget(self.main_widget)
 
     def start_watchdog(self):

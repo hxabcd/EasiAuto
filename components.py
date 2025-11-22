@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Literal, Union
 
 from PySide6.QtCore import Property, QModelIndex, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
@@ -81,6 +81,29 @@ class WarningPopupWindow(QMessageBox):
         if result == QMessageBox.Cancel:
             return 0  # 手动取消
         return 1  # 确认/超时继续
+
+
+class Separator(QWidget):
+    """通用分隔符"""
+
+    def __init__(self, direction: Literal["vertical", "horizontal"] = "horizontal", parent=None):
+        super().__init__(parent=parent)
+        self.direction = direction
+        if direction == "vertical":
+            self.setFixedWidth(3)
+        else:
+            self.setFixedHeight(3)
+
+    def paintEvent(self, e):
+        painter = QPainter(self)
+        c = 255 if isDarkTheme() else 0
+        pen = QPen(QColor(c, c, c, 15))
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        if self.direction == "vertical":
+            painter.drawLine(1, 0, 1, self.height())
+        else:
+            painter.drawLine(0, 1, self.width(), 1)
 
 
 class WarningBanner(QWidget):
