@@ -533,6 +533,8 @@ class AutomationStatusBar(QWidget):
         layout.addStretch(1)
         layout.addWidget(self.option_button)
 
+        self.update_status()
+
     def update_status(self, status: Literal[-1, 0, 1] | None = None):
         if status is None:
             if self.manager:
@@ -1283,6 +1285,9 @@ class AutomationPage(QWidget):
         self.main_widget.addWidget(self.path_select_page)
         self.main_widget.addWidget(self.ci_running_warn_page)
         self.main_widget.addWidget(self.manager_page)
+
+        if self.manager and not self.manager.is_ci_running:
+            self.main_widget.setCurrentWidget(self.manager_page)
 
         self.path_select_page.pathChanged.connect(self.handle_path_changed)
 
