@@ -59,6 +59,7 @@ from components import (
     EditSettingCard,
     ListWidget,
     RangeSettingCard,
+    Separator,
     SpinSettingCard,
     SwitchSettingCard,
 )
