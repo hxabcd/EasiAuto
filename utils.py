@@ -38,7 +38,31 @@ def get_resource(file: str):
 
 
 def get_executable_path():
+    """获取 EasiAuto 可执行文件所在目录"""
     return Path(sys.argv[0]).resolve().parent
+
+
+def get_executable():
+    """获取 EasiAuto 可执行文件的目录"""
+    return get_executable_path() / "EasiAuto.exe"
+
+
+def get_runnable():
+    """（谨慎使用）返回一个能运行 EasiAuto 的路径"""
+    if not sys.argv[0].endswith(".exe"):  # 开发环境
+        return "python " + str(get_executable_path() / "main.py")
+    return str(get_executable())
+
+
+def create_script(bat_content: str, file_name: str):
+    """在桌面创建脚本"""
+    shell = win32com.client.Dispatch("WScript.Shell")
+    desktop_path = Path(shell.SpecialFolders("Desktop"))
+
+    bat_path = desktop_path / file_name
+
+    with bat_path.open("w", encoding="utf-8") as f:
+        f.write(bat_content)
 
 
 def load_config(config_file="config.json") -> Config:

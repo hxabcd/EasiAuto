@@ -9,7 +9,7 @@ import psutil
 import win32api
 from pydantic import BaseModel, Field, field_validator
 
-from utils import get_executable_path
+from utils import get_executable
 
 # ClassIsland 联动相关配置
 
@@ -345,7 +345,7 @@ class CiAutomationManager:
                     {
                         "Id": "classisland.os.run",
                         "Settings": {
-                            "Value": str(get_executable_path() / "EasiAuto.exe"),
+                            "Value": str(get_executable()),
                             "Args": f"login -a {automation.account} -p {automation.password}",
                             "IsActive": False,
                         },
