@@ -622,40 +622,75 @@ class AutomationCard(CardWidget):
         super().mousePressEvent(event)
 
 
-class AutomationSelector(QWidget):
-    """自动化管理 - 选择器"""
-
-    updateEditor = Signal(EasiAutomation)
-    clearEditor = Signal()
+class AutomationManageSubpage(QWidget):
+    """自动化页 - 自动化管理 子页面"""
 
     def __init__(self, manager: CiAutomationManager | None):
         super().__init__()
         self.manager = manager
+        self.current_automation: EasiAutomation | None = None
         self.current_list_item = None
 
-        self.init_ui()
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
-        if manager:
-            self.init_manager()
-
-    def init_ui(self):
-        self.setContentsMargins(0, 0, 0, 4)
-        layout = QVBoxLayout(self)
+        # 左侧：选择器
+        self.selector_widget = QWidget()
+        self.selector_layout = QVBoxLayout(self.selector_widget)
+        self.selector_layout.setContentsMargins(8, 0, 8, 12)
 
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.action_bar.addAction(Action(FIF.ADD, "添加", triggered=self.add_automation))
-        self.action_bar.addAction(Action(FIF.SYNC, "刷新", triggered=lambda: self.init_manager(reload=True)))
+        self.action_bar.addAction(Action(FIF.ADD, "添加", triggered=self._add_automation))
+        self.action_bar.addAction(Action(FIF.SYNC, "刷新", triggered=lambda: self._init_selector(reload=True)))
 
         self.auto_list = ListWidget()
         self.auto_list.setSpacing(3)
 
-        layout.addWidget(self.action_bar)
-        layout.addWidget(self.auto_list)
+        self.selector_layout.addWidget(self.action_bar)
+        self.selector_layout.addWidget(self.auto_list)
 
-    def init_manager(self, reload: bool = False):
+        # 右侧：编辑器
+        self.editor_widget = QWidget()
+        self.editor_layout = QVBoxLayout(self.editor_widget)
+
+        self.form = QWidget()
+        self.form.setStyleSheet("QLabel { font-size: 14px; margin-right: 4px; }")
+        form_layout = QFormLayout(self.form)
+
+        self.account_edit = LineEdit()
+        self.password_edit = LineEdit()
+        self.subject_edit = ComboBox()
+        self.teacher_edit = LineEdit()
+        self.pretime_edit = SpinBox()
+
+        form_layout.addRow("账号", self.account_edit)
+        form_layout.addRow("密码", self.password_edit)
+        form_layout.addRow("科目", self.subject_edit)
+        form_layout.addRow("教师 (可选)", self.teacher_edit)
+        form_layout.addRow("提前时间 (秒)", self.pretime_edit)
+
+        self.subject_edit.setCurrentIndex(-1)
+        self.pretime_edit.setRange(0, 900)
+
+        self.save_button = PrimaryPushButton("保存")
+        self.save_button.clicked.connect(self._handle_save_automation)
+
+        self.editor_layout.addWidget(self.form)
+        self.editor_layout.addWidget(self.save_button)
+        self.editor_widget.setDisabled(True)
+
+        layout.addWidget(self.selector_widget, 1)
+        layout.addWidget(self.editor_widget, 1)
+
+        if manager:
+            self._init_selector()
+
+    def _init_selector(self, reload: bool = False):
         """初始化自动化列表"""
-        assert self.manager, self.auto_list
+        if not self.manager:
+            return
 
         if reload:
             self.manager.reload_config()
@@ -663,17 +698,18 @@ class AutomationSelector(QWidget):
         self.auto_list.clear()
 
         for _, automation in self.manager.automations.items():
-            self.add_automation_item(automation)
+            self._add_automation_item(automation)
 
-    def add_automation_item(self, automation: EasiAutomation):
+    def _add_automation_item(self, automation: EasiAutomation):
+        """添加自动化项目到列表"""
         item = QListWidgetItem(self.auto_list)
         item.setSizeHint(QSize(270, 96))
 
         item_widget = AutomationCard(item, automation)
-        item_widget.itemClicked.connect(self.on_item_clicked)
-        item_widget.actionRun.connect(self.handle_action_run)
-        item_widget.actionExport.connect(self.handle_action_export)
-        item_widget.actionRemove.connect(self.handle_action_remove)
+        item_widget.itemClicked.connect(self._on_item_clicked)
+        item_widget.actionRun.connect(self._handle_action_run)
+        item_widget.actionExport.connect(self._handle_action_export)
+        item_widget.actionRemove.connect(self._handle_action_remove)
 
         # 将组件设置到列表项
         self.auto_list.setItemWidget(item, item_widget)
@@ -686,7 +722,7 @@ class AutomationSelector(QWidget):
             data: EasiAutomation = item.data(Qt.UserRole)
             data.enabled = enabled
             item.setData(Qt.UserRole, data)
-            self.updateEditor.emit(data)
+            self._update_editor(data)
 
             if self.manager:
                 self.manager.update_automation(data.guid, enabled=enabled)
@@ -695,19 +731,116 @@ class AutomationSelector(QWidget):
 
         return item
 
-    def add_automation(self):
+    def _add_automation(self):
         """添加新的自动化"""
         if not self.manager:
             return
 
         automation = EasiAutomation(account="", password="", subject_id="")
-        item = self.add_automation_item(automation)
+        item = self._add_automation_item(automation)
         self.auto_list.setCurrentRow(self.auto_list.count() - 1)
         self.current_list_item = item
 
-        self.updateEditor.emit(automation)
+        self._update_editor(automation)
 
-    def handle_action_run(self, automation: EasiAutomation):
+    def _init_editor(self, reload: bool = False):
+        """初始化编辑器与科目"""
+        if not self.manager:
+            return
+
+        if reload:
+            self.manager.reload_config()
+
+        self.subject_edit.clear()
+
+        for subject in self.manager.list_subjects():
+            self.subject_edit.addItem(subject.name, userData=subject.id)
+
+    def _update_editor(self, auto: EasiAutomation):
+        """更新编辑器数据"""
+        self.current_automation = auto
+        self.account_edit.setText(auto.account)
+        self.password_edit.setText(auto.password)
+
+        self.subject_edit.setCurrentIndex(-1)
+        if self.manager:
+            subject = self.manager.get_subject_by_id(auto.subject_id)
+            if subject:
+                subject_item = self.subject_edit.findData(subject.id)
+                if subject_item != -1:
+                    self.subject_edit.setCurrentIndex(subject_item)
+
+        self.teacher_edit.setText(auto.teacher_name)
+        self.pretime_edit.setValue(auto.pretime)
+
+        self.editor_widget.setEnabled(auto.enabled)
+
+    def _clear_editor(self):
+        """清空编辑器数据"""
+        self.account_edit.clear()
+        self.password_edit.clear()
+        self.subject_edit.setCurrentIndex(-1)
+        self.teacher_edit.clear()
+        self.pretime_edit.setValue(0)
+
+        self.editor_widget.setDisabled(True)
+
+    def _save_form(self):
+        """保存编辑器数据"""
+        if not self.manager:
+            return
+
+        automation = self.current_automation
+        if not automation:
+            return
+
+        automation.account = self.account_edit.text()
+        if automation.account == "":
+            raise ValueError("账号不能为空")
+
+        automation.password = self.password_edit.text()
+        if automation.password == "":
+            raise ValueError("密码不能为空")
+
+        subject_id = self.subject_edit.currentData()
+        if subject_id is None:
+            raise ValueError("未选择科目")
+        if self.manager.get_subject_by_id(subject_id) is None:
+            raise ValueError("无效科目")
+        automation.subject_id = subject_id
+
+        automation.teacher_name = self.teacher_edit.text()
+
+        automation.pretime = self.pretime_edit.value()
+
+        if self.manager.get_automation_by_guid(automation.guid) is None:
+            self.manager.create_automation(automation)
+        else:
+            self.manager.update_automation(automation.guid, **automation.model_dump())
+
+    def _handle_save_automation(self):
+        """保存自动化数据"""
+        try:
+            self._save_form()
+        except ValueError as e:
+            InfoBar.error(
+                title="错误",
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
+            )
+
+    def _on_item_clicked(self, item: QListWidgetItem):
+        """列表项点击事件"""
+        self.current_list_item = item
+
+        automation = item.data(Qt.UserRole)
+        self._update_editor(automation)
+
+    def _handle_action_run(self, automation: EasiAutomation):
         """操作 - 运行自动化"""
         if not self.manager:
             return
@@ -748,14 +881,15 @@ class AutomationSelector(QWidget):
         automator = automatorType(automation.account, automation.password, config, config.App.MaxRetries)
 
         automator.start()
-        automator.finished.connect(self.clean_up_after_run)
+        automator.finished.connect(self._clean_up_after_run)
 
-    def clean_up_after_run(self):
+    def _clean_up_after_run(self):
+        """清理运行后的资源"""
         if hasattr(self, "banner"):
             self.banner.close()
             del self.banner
 
-    def handle_action_export(self, automation: EasiAutomation):
+    def _handle_action_export(self, automation: EasiAutomation):
         """操作 - 导出自动化"""
         if not self.manager or not automation:
             return
@@ -790,7 +924,7 @@ cd /d "{get_executable_path()}"
                 parent=self,
             )
 
-    def handle_action_remove(self, item: QListWidgetItem):
+    def _handle_action_remove(self, item: QListWidgetItem):
         """操作 - 删除自动化"""
         if not self.manager:
             return
@@ -800,177 +934,13 @@ cd /d "{get_executable_path()}"
 
         self.auto_list.takeItem(self.auto_list.row(item))
         self.current_list_item = None
-        self.clearEditor.emit()
-
-    def on_item_clicked(self, item: QListWidgetItem):
-        """列表项点击事件"""
-        self.current_list_item = item
-
-        automation = item.data(Qt.UserRole)
-        self.updateEditor.emit(automation)
-
-
-class AutomationEditor(QWidget):
-    """自动化管理 - 编辑器"""
-
-    def __init__(self, manager: CiAutomationManager | None):
-        super().__init__()
-        self.manager = manager
-        self.current_automation: EasiAutomation | None = None
-
-        self.init_ui()
-
-    def init_manager(self, reload: bool = False):
-        """初始化管理器与科目"""
-        assert self.manager, self.subject_edit
-
-        if reload:
-            self.manager.reload_config()
-
-        self.subject_edit.clear()
-
-        for subject in self.manager.list_subjects():
-            self.subject_edit.addItem(subject.name, userData=subject.id)
-
-    def init_ui(self):
-        layout = QVBoxLayout(self)
-
-        self.form = QWidget()
-        self.form.setStyleSheet("QLabel { font-size: 14px; margin-right: 4px; }")
-        form_layout = QFormLayout(self.form)
-
-        self.account_edit = LineEdit()
-        self.password_edit = LineEdit()
-        self.subject_edit = ComboBox()
-        self.teacher_edit = LineEdit()
-        self.pretime_edit = SpinBox()
-
-        form_layout.addRow("账号", self.account_edit)
-        form_layout.addRow("密码", self.password_edit)
-        form_layout.addRow("科目", self.subject_edit)
-        form_layout.addRow("教师 (可选)", self.teacher_edit)
-        form_layout.addRow("提前时间 (秒)", self.pretime_edit)
-
-        if self.manager:
-            self.init_manager()
-        self.subject_edit.setCurrentIndex(-1)
-
-        self.pretime_edit.setRange(0, 900)
-
-        self.save_button = PrimaryPushButton("保存")
-        self.save_button.clicked.connect(self.handle_save_automation)
-
-        layout.addWidget(self.form)
-        layout.addWidget(self.save_button)
-
-        self.setDisabled(True)
-
-    def update_form(self, auto: EasiAutomation):
-        """更新编辑器数据"""
-        self.current_automation = auto
-        self.account_edit.setText(auto.account)
-        self.password_edit.setText(auto.password)
-
-        self.subject_edit.setCurrentIndex(-1)
-        if self.manager:
-            subject = self.manager.get_subject_by_id(auto.subject_id)
-            if subject:
-                subject_item = self.subject_edit.findData(subject.id)
-                if subject_item != -1:
-                    self.subject_edit.setCurrentIndex(subject_item)
-
-        self.teacher_edit.setText(auto.teacher_name)
-        self.pretime_edit.setValue(auto.pretime)
-
-        self.setEnabled(auto.enabled)
-
-    def clear_form(self):
-        """清空编辑器数据"""
-        self.account_edit.clear()
-        self.password_edit.clear()
-        self.subject_edit.setCurrentIndex(-1)
-        self.teacher_edit.clear()
-        self.pretime_edit.setValue(0)
-
-        self.setDisabled(True)
-
-    def save_form(self):
-        """保存编辑器数据"""
-        if not self.manager:
-            return
-
-        automation = self.current_automation
-        if not automation:
-            return
-
-        automation.account = self.account_edit.text()
-        if automation.account == "":
-            raise ValueError("账号不能为空")
-
-        automation.password = self.password_edit.text()
-        if automation.password == "":
-            raise ValueError("密码不能为空")
-
-        subject_id = self.subject_edit.currentData()
-        if subject_id is None:
-            raise ValueError("未选择科目")
-        if self.manager.get_subject_by_id(subject_id) is None:
-            raise ValueError("无效科目")
-        automation.subject_id = subject_id
-
-        automation.teacher_name = self.teacher_edit.text()
-
-        automation.pretime = self.pretime_edit.value()
-
-        if self.manager.get_automation_by_guid(automation.guid) is None:
-            self.manager.create_automation(automation)
-        else:
-            self.manager.update_automation(automation.guid, **automation.model_dump())
-
-    def handle_save_automation(self):
-        """保存自动化数据"""
-        try:
-            self.save_form()
-        except ValueError as e:
-            InfoBar.error(
-                title="错误",
-                content=str(e),
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=self.parentWidget().parentWidget(),  # type: ignore
-            )
-
-
-class AutomationManageSubpage(QWidget):
-    """自动化页 - 自动化管理 子页面"""
-
-    def __init__(self, manager: CiAutomationManager | None):
-        super().__init__()
-        self.manager = manager
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-
-        self.selector = AutomationSelector(self.manager)
-        self.editor = AutomationEditor(self.manager)
-
-        self.selector.updateEditor.connect(self.editor.update_form)
-        self.selector.clearEditor.connect(self.editor.clear_form)
-
-        layout.addWidget(self.selector, 1)
-        layout.addWidget(self.editor, 1)
+        self._clear_editor()
 
     def set_manager(self, manager: CiAutomationManager):
         """重设自动化管理器"""
         self.manager = manager
-        self.selector.manager = manager
-        self.editor.manager = manager
-
-        self.selector.init_manager()
-        self.editor.init_manager()
+        self._init_selector()
+        self._init_editor()
 
 
 class PathSelectSubpage(QWidget):
