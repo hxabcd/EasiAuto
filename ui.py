@@ -62,7 +62,7 @@ from components import (
     SwitchSettingCard,
 )
 from config import QfwEasiautoConfig
-from utils import get_ci_executable_path, get_executable_path, get_resource
+from utils import create_script, get_ci_executable_path, get_executable, get_executable_path, get_resource
 
 
 class EasinoteSettingCard(ExpandGroupSettingCard):
@@ -594,10 +594,6 @@ class AutomationCard(CardWidget):
         action_export = Action(FIF.SHARE, "导出", triggered=lambda: self.actionExport.emit(self.automation))
         action_remove = Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item))
 
-        # TODO: 待完善
-        action_run.setEnabled(False)
-        action_export.setEnabled(False)
-
         self.command_bar.addAction(action_run)
         self.command_bar.addAction(action_export)
         self.command_bar.addAction(action_remove)
@@ -675,6 +671,8 @@ class AutomationSelector(QWidget):
 
         item_widget = AutomationCard(item, automation)
         item_widget.itemClicked.connect(self.on_item_clicked)
+        item_widget.actionRun.connect(self.handle_action_run)
+        item_widget.actionExport.connect(self.handle_action_export)
         item_widget.actionRemove.connect(self.handle_action_remove)
 
         # 将组件设置到列表项
@@ -708,6 +706,89 @@ class AutomationSelector(QWidget):
         self.current_list_item = item
 
         self.updateEditor.emit(automation)
+
+    def handle_action_run(self, automation: EasiAutomation):
+        """操作 - 运行自动化"""
+        if not self.manager:
+            return
+
+        # 最小化设置界面
+        app = QApplication.instance() or QApplication([])
+        main_window = app.activeWindow()
+        if main_window:
+            main_window.showMinimized()
+
+        from automator import CVAutomator, FixedAutomator, UIAAutomator
+        from components import WarningBanner
+        from main import config
+
+        # 显示警示横幅
+        if config.Banner.Enabled:
+            try:
+                screen = app.primaryScreen().geometry()
+                self.banner = WarningBanner(config.Banner)
+                self.banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
+                self.banner.show()
+            except Exception:
+                logging.exception("显示横幅时出错，跳过横幅")
+
+        # 执行登录
+        logging.debug(f"当前设置的登录方案: {config.Login.Method}")
+        match config.Login.Method:  # 选择登录方案
+            case "UIAutomation":
+                automatorType = UIAAutomator
+            case "OpenCV":
+                automatorType = CVAutomator
+            case "FixedPosition":
+                automatorType = FixedAutomator
+            case _:
+                logging.warning("未知方案，已回滚至默认值 (UI Automation)")
+                automatorType = UIAAutomator
+
+        automator = automatorType(automation.account, automation.password, config, config.App.MaxRetries)
+
+        automator.start()
+        automator.finished.connect(self.clean_up_after_run)
+
+    def clean_up_after_run(self):
+        if hasattr(self, "banner"):
+            self.banner.close()
+            del self.banner
+
+    def handle_action_export(self, automation: EasiAutomation):
+        """操作 - 导出自动化"""
+        if not self.manager or not automation:
+            return
+
+        try:
+            content = f"""@echo off
+chcp 65001 >nul
+cd /d "{get_executable_path()}"
+{get_executable()} login -a "{automation.account}" -p "{automation.password}"
+"""
+            name = automation.item_display_name + ".bat"
+            create_script(bat_content=content, file_name=name)
+
+            InfoBar.success(
+                title="创建成功",
+                content=f"已在桌面创建 {automation.item_display_name}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
+            )
+        except Exception as e:
+            logging.exception(f"创建脚本失败: {e}")
+            InfoBar.error(
+                title="创建失败",
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
+            )
 
     def handle_action_remove(self, item: QListWidgetItem):
         """操作 - 删除自动化"""
