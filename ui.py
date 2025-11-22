@@ -685,6 +685,7 @@ class AutomationManageSubpage(QWidget):
 
         self.auto_list = ListWidget()
         self.auto_list.setSpacing(3)
+        QScroller.grabGesture(self.auto_list.viewport(), QScroller.LeftMouseButtonGesture)
 
         self.selector_layout.addWidget(self.action_bar)
         self.selector_layout.addWidget(self.auto_list)
