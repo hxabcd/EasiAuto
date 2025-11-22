@@ -1100,6 +1100,12 @@ cd /d "{get_executable_path()}"
 
     def set_manager(self, manager: CiAutomationManager):
         """重设自动化管理器"""
+        # 退订信号
+        if self.manager:
+            self.manager.automationCreated.disconnect(self._on_automation_created)
+            self.manager.automationUpdated.disconnect(self._on_automation_updated)
+            self.manager.automationDeleted.disconnect(self._on_automation_deleted)
+
         self.manager = manager
         # 订阅信号
         manager.automationCreated.connect(self._on_automation_created)
@@ -1308,6 +1314,8 @@ class AutomationPage(QWidget):
         if self.main_widget.currentWidget() != target_page:
             logging.debug(f"切换自动化页面到: {target_page.__class__.__name__}")
             self.main_widget.setCurrentWidget(target_page)
+            if target_page == self.manager_page:
+                self.manager_page._init_selector(reload=True)
             self.status_bar.update_status()
 
     def handle_path_changed(self, path: Path):
@@ -1331,6 +1339,7 @@ class AutomationPage(QWidget):
 
         self.status_bar.manager = self.manager
         self.ci_running_warn_page.manager = self.manager
+        self.manager_page.set_manager(self.manager)
 
         self.start_watchdog()
 
