@@ -558,7 +558,7 @@ class AutomationCard(CardWidget):
     def __init__(self, item: QListWidgetItem, automation: EasiAutomation | None = None):
         super().__init__()
         self.title = "自动化"
-        self.enabled = False
+        self.enabled = automation.enabled if automation else False
         self.list_item = item
 
         self.init_ui()
