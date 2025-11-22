@@ -31,6 +31,7 @@ from qfluentwidgets import (
     FluentWindow,
     HyperlinkLabel,
     Icon,
+    IconInfoBadge,
     ImageLabel,
     InfoBar,
     InfoBarPosition,
@@ -667,6 +668,27 @@ class AutomationManageSubpage(QWidget):
         self.editor_widget = QWidget()
         self.editor_layout = QVBoxLayout(self.editor_widget)
 
+        # 新自动化提示
+        self.new_auto_hint = CardWidget()
+
+        self.new_auto_hint.setFixedHeight(48)
+        self.new_auto_hint.setContentsMargins(12, 2, 12, 2)
+        hint_layout = QHBoxLayout(self.new_auto_hint)
+        hint_icon = IconInfoBadge.attension(FIF.RINGER)
+        hint_icon.setFixedSize(24, 24)
+        hint_icon.setIconSize(QSize(12, 12))
+        hint_text = QLabel("正在编辑新自动化")
+        hint_text.setStyleSheet("font-size: 14px;")
+        hint_layout.addWidget(hint_icon)
+        hint_layout.addWidget(hint_text)
+        self.new_auto_hint.setVisible(False)
+        self.editor_layout.addWidget(self.new_auto_hint)
+
+        # 自动化名称标签
+        self.automation_name_label = SubtitleLabel()
+        self.editor_layout.addWidget(self.automation_name_label)
+
+        # 编辑表单
         self.form = QWidget()
         self.form.setStyleSheet("QLabel { font-size: 14px; margin-right: 4px; }")
         form_layout = QFormLayout(self.form)
@@ -690,6 +712,7 @@ class AutomationManageSubpage(QWidget):
         self.save_button.clicked.connect(self._handle_save_automation)
 
         self.editor_layout.addWidget(self.form)
+        self.editor_layout.addStretch(1)
         self.editor_layout.addWidget(self.save_button)
         self.editor_widget.setDisabled(True)
 
@@ -747,6 +770,7 @@ class AutomationManageSubpage(QWidget):
         self.is_new_automation = True
         self.current_automation = automation
         self.current_list_item = None
+        self.auto_list.clearSelection()
 
         # 确保科目列表已初始化
         if self.subject_edit.count() == 0:
@@ -771,6 +795,10 @@ class AutomationManageSubpage(QWidget):
     def _update_editor(self, auto: EasiAutomation):
         """更新编辑器数据"""
         self.current_automation = auto
+
+        self.new_auto_hint.setVisible(self.is_new_automation)
+        self.automation_name_label.setText(auto.item_display_name)
+
         self.account_edit.setText(auto.account)
         self.password_edit.setText(auto.password)
 
@@ -853,6 +881,7 @@ class AutomationManageSubpage(QWidget):
         """列表项点击事件"""
         self.current_list_item = item
 
+        self.is_new_automation = False
         automation = item.data(Qt.UserRole)
         self._update_editor(automation)
 
