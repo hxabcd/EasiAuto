@@ -156,6 +156,9 @@ def get_ci_executable_path() -> Path | None:
             )
         ).resolve()
 
+        if not lnk_path.exists():
+            return None
+
         # 解析快捷方式
         shell = win32com.client.Dispatch("WScript.Shell")
         shortcut = shell.CreateShortcut(str(lnk_path))
