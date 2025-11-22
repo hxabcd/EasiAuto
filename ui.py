@@ -550,22 +550,21 @@ class AutomationCard(CardWidget):
     """自动化项目的卡片组件"""
 
     itemClicked = Signal(QListWidgetItem)
-    switchToggled = Signal(bool)
-    actionRun = Signal(EasiAutomation)
-    actionExport = Signal(EasiAutomation)
+    switchEnabledChanged = Signal(str, bool)  # 参数：automation_guid, is_enabled
+    actionRun = Signal(str)  # 参数：automation_guid
+    actionExport = Signal(str)  # 参数：automation_guid
     actionRemove = Signal(QListWidgetItem)
 
     def __init__(self, item: QListWidgetItem, automation: EasiAutomation | None = None):
         super().__init__()
         self.title = "自动化"
-        self.enabled = automation.enabled if automation else False
         self.list_item = item
+        self.automation = automation  # 保留引用用于初始化
 
         self.init_ui()
 
         if automation:
-            self.set_automation(automation)
-        self.automation = automation
+            self.update_display(automation)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -579,7 +578,6 @@ class AutomationCard(CardWidget):
         self.switch = SwitchButton()
         self.switch.setOnText("启用")
         self.switch.setOffText("禁用")
-        self.switch.setChecked(self.enabled)
         self.switch.checkedChanged.connect(self.on_switch_toggled)
 
         info_layout.addWidget(self.name_label)
@@ -590,13 +588,13 @@ class AutomationCard(CardWidget):
         self.command_bar = CommandBar()
         self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        action_run = Action(FIF.PLAY, "运行", triggered=lambda: self.actionRun.emit(self.automation))
-        action_export = Action(FIF.SHARE, "导出", triggered=lambda: self.actionExport.emit(self.automation))
-        action_remove = Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item))
+        self.action_run = Action(FIF.PLAY, "运行", triggered=self._on_run)
+        self.action_export = Action(FIF.SHARE, "导出", triggered=self._on_export)
+        self.action_remove = Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item))
 
-        self.command_bar.addAction(action_run)
-        self.command_bar.addAction(action_export)
-        self.command_bar.addAction(action_remove)
+        self.command_bar.addAction(self.action_run)
+        self.command_bar.addAction(self.action_export)
+        self.command_bar.addAction(self.action_remove)
 
         layout.addWidget(self.info_bar)
         layout.addWidget(self.command_bar)
@@ -605,15 +603,28 @@ class AutomationCard(CardWidget):
         self.setMouseTracking(True)
 
     def on_switch_toggled(self, checked: bool):
-        self.enabled = checked
-        self.switchToggled.emit(checked)
+        """开关状态改变时，发出信号通知父级处理"""
+        if self.automation:
+            self.switchEnabledChanged.emit(self.automation.guid, checked)
 
-    def set_automation(self, automation: EasiAutomation):
-        """设置列表项对应的自动化"""
+    def _on_run(self):
+        """运行按钮点击"""
+        if self.automation:
+            self.actionRun.emit(self.automation.guid)
+
+    def _on_export(self):
+        """导出按钮点击"""
+        if self.automation:
+            self.actionExport.emit(self.automation.guid)
+
+    def update_display(self, automation: EasiAutomation):
+        """更新卡片显示（不修改数据）"""
         self.automation = automation
-
         self.name_label.setText(automation.item_display_name)
+        # 断开连接以避免触发信号
+        self.switch.checkedChanged.disconnect()
         self.switch.setChecked(automation.enabled)
+        self.switch.checkedChanged.connect(self.on_switch_toggled)
 
     def mousePressEvent(self, event):
         """鼠标点击事件"""
@@ -630,6 +641,7 @@ class AutomationManageSubpage(QWidget):
         self.manager = manager
         self.current_automation: EasiAutomation | None = None
         self.current_list_item = None
+        self.is_new_automation = False  # 标记是否在编辑新自动化
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -685,7 +697,12 @@ class AutomationManageSubpage(QWidget):
         layout.addWidget(self.editor_widget, 1)
 
         if manager:
+            # 订阅 Manager 的数据变更信号
+            manager.automationCreated.connect(self._on_automation_created)
+            manager.automationUpdated.connect(self._on_automation_updated)
+            manager.automationDeleted.connect(self._on_automation_deleted)
             self._init_selector()
+            self._init_editor()
 
     def _init_selector(self, reload: bool = False):
         """初始化自动化列表"""
@@ -707,6 +724,7 @@ class AutomationManageSubpage(QWidget):
 
         item_widget = AutomationCard(item, automation)
         item_widget.itemClicked.connect(self._on_item_clicked)
+        item_widget.switchEnabledChanged.connect(self._on_automation_enabled_changed)
         item_widget.actionRun.connect(self._handle_action_run)
         item_widget.actionExport.connect(self._handle_action_export)
         item_widget.actionRemove.connect(self._handle_action_remove)
@@ -717,18 +735,6 @@ class AutomationManageSubpage(QWidget):
         # 保存数据到 item
         item.setData(Qt.UserRole, automation)
 
-        # 切换开关时保存数据
-        def handle_toggle_enabled(enabled):
-            data: EasiAutomation = item.data(Qt.UserRole)
-            data.enabled = enabled
-            item.setData(Qt.UserRole, data)
-            self._update_editor(data)
-
-            if self.manager:
-                self.manager.update_automation(data.guid, enabled=enabled)
-
-        item_widget.switchToggled.connect(handle_toggle_enabled)
-
         return item
 
     def _add_automation(self):
@@ -736,12 +742,18 @@ class AutomationManageSubpage(QWidget):
         if not self.manager:
             return
 
+        # 创建临时对象用于编辑，但不添加到列表
         automation = EasiAutomation(account="", password="", subject_id="")
-        item = self._add_automation_item(automation)
-        self.auto_list.setCurrentRow(self.auto_list.count() - 1)
-        self.current_list_item = item
+        self.is_new_automation = True
+        self.current_automation = automation
+        self.current_list_item = None
+
+        # 确保科目列表已初始化
+        if self.subject_edit.count() == 0:
+            self._init_editor()
 
         self._update_editor(automation)
+        self.editor_widget.setEnabled(True)
 
     def _init_editor(self, reload: bool = False):
         """初始化编辑器与科目"""
@@ -787,13 +799,12 @@ class AutomationManageSubpage(QWidget):
 
     def _save_form(self):
         """保存编辑器数据"""
-        if not self.manager:
+        if not self.manager or not self.current_automation:
             return
 
         automation = self.current_automation
-        if not automation:
-            return
 
+        # 验证并收集数据
         automation.account = self.account_edit.text()
         if automation.account == "":
             raise ValueError("账号不能为空")
@@ -810,18 +821,23 @@ class AutomationManageSubpage(QWidget):
         automation.subject_id = subject_id
 
         automation.teacher_name = self.teacher_edit.text()
-
         automation.pretime = self.pretime_edit.value()
 
+        # 通过 Manager 保存，不直接修改 item
         if self.manager.get_automation_by_guid(automation.guid) is None:
+            # 新建
             self.manager.create_automation(automation)
         else:
+            # 更新
             self.manager.update_automation(automation.guid, **automation.model_dump())
 
     def _handle_save_automation(self):
         """保存自动化数据"""
         try:
             self._save_form()
+            # 保存成功后重置新建状态标志
+            if self.is_new_automation:
+                self.is_new_automation = False
         except ValueError as e:
             InfoBar.error(
                 title="错误",
@@ -840,9 +856,18 @@ class AutomationManageSubpage(QWidget):
         automation = item.data(Qt.UserRole)
         self._update_editor(automation)
 
-    def _handle_action_run(self, automation: EasiAutomation):
+    def _on_automation_enabled_changed(self, guid: str, enabled: bool):
+        """处理 Card 中开关状态改变（通过 Manager 更新）"""
+        if self.manager:
+            self.manager.update_automation(guid, enabled=enabled)
+
+    def _handle_action_run(self, guid: str):
         """操作 - 运行自动化"""
         if not self.manager:
+            return
+
+        automation = self.manager.get_automation_by_guid(guid)
+        if not automation:
             return
 
         # 最小化设置界面
@@ -889,9 +914,13 @@ class AutomationManageSubpage(QWidget):
             self.banner.close()
             del self.banner
 
-    def _handle_action_export(self, automation: EasiAutomation):
+    def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
-        if not self.manager or not automation:
+        if not self.manager:
+            return
+
+        automation = self.manager.get_automation_by_guid(guid)
+        if not automation:
             return
 
         try:
@@ -905,7 +934,7 @@ cd /d "{get_executable_path()}"
 
             InfoBar.success(
                 title="创建成功",
-                content=f"已在桌面创建 {automation.item_display_name}",
+                content=f"已在桌面创建 {name}",
                 orient=Qt.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -932,13 +961,66 @@ cd /d "{get_executable_path()}"
         automation = item.data(Qt.UserRole)
         self.manager.delete_automation(automation.guid)
 
-        self.auto_list.takeItem(self.auto_list.row(item))
-        self.current_list_item = None
-        self._clear_editor()
+    def _on_automation_created(self, guid: str):
+        """Manager 信号：自动化被创建"""
+        if not self.manager:
+            return
+
+        automation = self.manager.get_automation_by_guid(guid)
+        if not automation:
+            return
+
+        # 添加到列表
+        item = self._add_automation_item(automation)
+        # 如果是新建的自动化，自动选中
+        if self.is_new_automation:
+            self.auto_list.setCurrentItem(item)
+            self.current_list_item = item
+
+    def _on_automation_updated(self, guid: str):
+        """Manager 信号：自动化被更新"""
+        if not self.manager:
+            return
+
+        automation = self.manager.get_automation_by_guid(guid)
+        if not automation:
+            return
+
+        # 找到对应的列表项并更新
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            card_widget = self.auto_list.itemWidget(item)
+            if item.data(Qt.UserRole).guid == guid:
+                # 更新 item 数据
+                item.setData(Qt.UserRole, automation)
+                # 更新 Card 显示
+                if card_widget:
+                    card_widget.update_display(automation)
+                # 如果是当前编辑的项，也更新编辑器
+                if self.current_list_item == item:
+                    self._update_editor(automation)
+                break
+
+    def _on_automation_deleted(self, guid: str):
+        """Manager 信号：自动化被删除"""
+        # 从列表中移除
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            if item.data(Qt.UserRole).guid == guid:
+                self.auto_list.takeItem(i)
+                # 如果删除的是当前项，清空编辑器
+                if self.current_list_item == item:
+                    self.current_list_item = None
+                    self._clear_editor()
+                break
 
     def set_manager(self, manager: CiAutomationManager):
         """重设自动化管理器"""
         self.manager = manager
+        # 订阅信号
+        manager.automationCreated.connect(self._on_automation_created)
+        manager.automationUpdated.connect(self._on_automation_updated)
+        manager.automationDeleted.connect(self._on_automation_deleted)
         self._init_selector()
         self._init_editor()
 
@@ -1075,10 +1157,11 @@ class AutomationPage(QWidget):
         # 初始化CI自动化管理器
         self.manager = None
         if exe_path := get_ci_executable_path():
-            logging.info(f"ClassIsland 程序位置: {exe_path}")
+            logging.info("管理器初始化成功")
+            logging.debug(f"ClassIsland 程序位置: {exe_path}")
             self.manager = CiAutomationManager(exe_path)
         else:
-            logging.warning("自动初始化失败")
+            logging.warning("管理器初始化失败")
 
         self.init_ui()
         self.start_watchdog()
@@ -1112,6 +1195,8 @@ class AutomationPage(QWidget):
 
         if hasattr(self.manager, "watchdog"):
             return
+
+        self.check_status()
 
         self.watchdog = QTimer(self)
         self.watchdog.timeout.connect(self.check_status)

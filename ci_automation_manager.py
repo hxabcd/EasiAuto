@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 import psutil
 import win32api
 from pydantic import BaseModel, Field, field_validator
+from PySide6.QtCore import QObject, Signal
 
 from utils import get_executable
 
@@ -51,10 +52,16 @@ class EasiAutomation(BaseModel):
         return self.display_name
 
 
-class CiAutomationManager:
+class CiAutomationManager(QObject):
     """ClassIsland自动化管理器"""
 
+    # 数据变更信号，参数为 GUID
+    automationCreated = Signal(str)
+    automationUpdated = Signal(str)
+    automationDeleted = Signal(str)
+
     def __init__(self, path: Path | str):
+        super().__init__()
         self.subjects: Dict[str, CiSubject] = {}
         self.automations: Dict[str, EasiAutomation] = {}
         self.ci_settings: dict = {}
@@ -251,6 +258,7 @@ class CiAutomationManager:
         # 保存到文件
         if self._save_automations():
             self.automations[automation.guid] = automation
+            self.automationCreated.emit(automation.guid)
             return True
         return False
 
@@ -289,6 +297,7 @@ class CiAutomationManager:
         # 保存到文件
         if self._save_automations():
             self.automations[_guid] = updated_automation
+            self.automationUpdated.emit(_guid)
             return True
         return False
 
@@ -303,6 +312,7 @@ class CiAutomationManager:
         # 保存到文件
         if self._save_automations():
             del self.automations[guid]
+            self.automationDeleted.emit(guid)
             return True
         return False
 
