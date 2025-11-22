@@ -25,6 +25,7 @@ from qfluentwidgets import (
     ComboBox,
     ComboBoxSettingCard,
     CommandBar,
+    DotInfoBadge,
     ExpandGroupSettingCard,
     ExpandSettingCard,
     FluentTranslator,
@@ -35,6 +36,7 @@ from qfluentwidgets import (
     ImageLabel,
     InfoBar,
     InfoBarPosition,
+    InfoLevel,
     LineEdit,
     MessageBox,
     NavigationItemPosition,
@@ -44,10 +46,12 @@ from qfluentwidgets import (
     SettingCardGroup,
     SmoothScrollArea,
     SpinBox,
+    StrongBodyLabel,
     SubtitleLabel,
     SwitchButton,
     Theme,
     TitleLabel,
+    TransparentPushButton,
     qconfig,
     setTheme,
 )
@@ -507,21 +511,27 @@ class AutomationStatusBar(QWidget):
         self.manager = manager
 
         self.setFixedHeight(42)
-        self.setStyleSheet("BodyLabel { font-size: 14px; }")
         layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         layout.setContentsMargins(16, 4, 16, 0)
 
-        self.status_label = BodyLabel()
+        self.status_badge = DotInfoBadge.error()
+        self.status_label = BodyLabel("未初始化")
 
         self.action_button = PushButton(icon=FIF.POWER_BUTTON, text="终止")
         self.action_button.clicked.connect(self.handle_action_button_clicked)
+        self.action_button.setEnabled(False)
 
-        layout.addWidget(QLabel("<span style='font-size: 16px'>ClassIsland</span>"))
-        layout.addSpacing(3)
+        self.option_button = TransparentPushButton(icon=FIF.DEVELOPER_TOOLS, text="高级选项")
+
+        layout.addWidget(StrongBodyLabel("ClassIsland"))
+        layout.addSpacing(12)
+        layout.addWidget(self.status_badge)
         layout.addWidget(self.status_label)
         layout.addSpacing(6)
         layout.addWidget(self.action_button)
+        layout.addStretch(1)
+        layout.addWidget(self.option_button)
 
     def update_status(self, status: Literal[-1, 0, 1] | None = None):
         if status is None:
@@ -533,13 +543,19 @@ class AutomationStatusBar(QWidget):
         logging.debug(f"更新 ClassIsland 状态: {status}")
         match status:
             case -1:
+                self.status_badge.level = InfoLevel.ERROR
+                self.status_badge.update()
                 self.status_label.setText("未初始化")
                 self.action_button.setEnabled(False)
             case 1:
+                self.status_badge.level = InfoLevel.SUCCESS
+                self.status_badge.update()
                 self.status_label.setText("运行中")
                 self.action_button.setText("终止")
                 self.action_button.setEnabled(True)
             case 0:
+                self.status_badge.level = InfoLevel.INFOAMTION
+                self.status_badge.update()
                 self.status_label.setText("未运行")
                 self.action_button.setText("启动")
                 self.action_button.setEnabled(True)
