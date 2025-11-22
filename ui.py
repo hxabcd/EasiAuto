@@ -845,6 +845,7 @@ class AutomationManageSubpage(QWidget):
 
     def _clear_editor(self):
         """清空编辑器数据"""
+        self.automation_name_label.setText("")
         self.account_edit.clear()
         self.password_edit.clear()
         self.subject_edit.setCurrentIndex(-1)
@@ -889,13 +890,17 @@ class AutomationManageSubpage(QWidget):
 
     def _handle_save_automation(self):
         """保存自动化数据"""
+        if not self.manager or not self.current_automation:
+            return
         try:
             logging.debug("保存自动化数据")
             self._save_form()
             logging.info("自动化数据保存成功")
-            # 保存成功后重置新建状态标志
-            if self.is_new_automation:
-                self.is_new_automation = False
+            # 更新状态
+            self.current_automation = self.manager.get_automation_by_guid(self.current_automation.guid)
+            self.is_new_automation = False
+            if self.current_automation:
+                self._update_editor(self.current_automation)
         except ValueError as e:
             logging.warning(f"自动化数据保存失败: {e}")
             InfoBar.error(
