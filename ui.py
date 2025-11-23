@@ -1097,13 +1097,13 @@ cd /d "{get_executable_path()}"
         for i in range(self.auto_list.count()):
             item = self.auto_list.item(i)
             if item.data(Qt.UserRole).guid == guid:
-                automation_name = item.data(Qt.UserRole).item_display_name
-                self.auto_list.takeItem(i)
-                logging.info(f"自动化已删除: {automation_name}")
                 # 如果删除的是当前项，清空编辑器
                 if self.current_list_item == item:
                     self.current_list_item = None
                     self._clear_editor()
+                automation_name = item.data(Qt.UserRole).item_display_name
+                self.auto_list.takeItem(i)
+                logging.info(f"自动化已删除: {automation_name}")
                 break
 
     def set_manager(self, manager: CiAutomationManager):
