@@ -74,9 +74,9 @@ class CiAutomationManager(QObject):
     def is_ci_running(self) -> bool:
         for p in psutil.process_iter(["pid", "exe"]):
             try:
-                if p.info["exe"] and Path(p.info["exe"]).resolve() in [
-                    self.ci_executable_path,
-                    self.ci_executable_path.parent / "ClassIsland.Desktop.exe",
+                if p.info["exe"] and Path(p.info["exe"]).name in [
+                    "ClassIsland.exe",
+                    "ClassIsland.Desktop.exe",
                 ]:
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -87,7 +87,7 @@ class CiAutomationManager(QObject):
         os.startfile(self.ci_executable_path, cwd=self.ci_executable_path.parent)
 
     def close_ci(self):
-        os.system(f"taskkill /f /im {self.ci_executable_path.name}")
+        os.system(f"taskkill /f /im {'ClassIsland.Desktop.exe' if self.is_v2 else 'ClassIsland.exe'}")
 
     def init_ci(self, exe_path: Path | str):
         """获取CI版本，定位数据目录并初始化"""
@@ -99,14 +99,7 @@ class CiAutomationManager(QObject):
 
         root = exe_path.parent
         if version > (1, 7, 100, 0):  # v2
-            # ClassIsland / app-[version]-0 / ClassIsland.Desktop.exe
-            if exe_path.name == "ClassIsland.exe":  # 外层启动器
-                exe_path = (
-                    root / f"app-{version[0]}.{version[1]}.{version[2]}.{version[3]}-0" / "ClassIsland.Desktop.exe"
-                )  # NOTE 这样操作的话 CI以后改动文件结构可能会出问题 待后续解决
-                self.ci_data_path = root / "data"
-            else:
-                self.ci_data_path = root.parent / "data"
+            self.ci_data_path = root / "data"
             self.is_v2 = True
         else:  # v1
             self.ci_data_path = root
