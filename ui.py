@@ -58,17 +58,17 @@ from qfluentwidgets import (
 from qfluentwidgets import FluentIcon as FIF
 
 from ci_automation_manager import CiAutomationManager, EasiAutomation
-from components import (
+from components import Separator
+from config import QfwEasiautoConfig
+from qfw_widgets import (
     ColorSettingCard,
     EditSettingCard,
     ListWidget,
     RangeSettingCard,
-    Separator,
     SpinSettingCard,
     SwitchSettingCard,
 )
-from config import QfwEasiautoConfig
-from utils import create_script, get_ci_executable_path, get_executable, get_executable_path, get_resource
+from utils import EA_EXECUTABLE, create_script, get_ci_executable, get_resource
 
 
 class EasinoteSettingCard(ExpandGroupSettingCard):
@@ -234,7 +234,7 @@ class ConfigPage(SmoothScrollArea):
     def __init__(self):
         super().__init__()
 
-        config_file = get_executable_path() / "config.json"
+        config_file = EA_EXECUTABLE.parent / "config.json"
         self.config = QfwEasiautoConfig()
         qconfig.load(config_file, self.config)
 
@@ -408,7 +408,7 @@ class ConfigPage(SmoothScrollArea):
 
         if w.exec():
             # 重置设置
-            config_file = get_executable_path() / "config.json"
+            config_file = EA_EXECUTABLE.parent / "config.json"
             logging.debug(f"清空配置文件: {config_file}")
             config_file.write_text("", encoding="utf-8")
             logging.info("配置已重置")
@@ -1003,8 +1003,8 @@ class AutomationManageSubpage(QWidget):
         try:
             content = f"""@echo off
 chcp 65001 >nul
-cd /d "{get_executable_path()}"
-{get_executable()} login -a "{automation.account}" -p "{automation.password}"
+cd /d "{EA_EXECUTABLE.parent}"
+{EA_EXECUTABLE} login -a "{automation.account}" -p "{automation.password}"
 """
             name = automation.item_display_name + ".bat"
             logging.debug(f"创建脚本文件: {name}")
@@ -1259,7 +1259,7 @@ class AutomationPage(QWidget):
 
         # 初始化CI自动化管理器
         self.manager = None
-        if exe_path := get_ci_executable_path():
+        if exe_path := get_ci_executable():
             logging.info("自动化管理器初始化成功")
             logging.debug(f"ClassIsland 程序位置: {exe_path}")
             self.manager = CiAutomationManager(exe_path)
