@@ -37,21 +37,7 @@ def get_resource(file: str):
     return str(base_path / "resources" / file)
 
 
-def get_executable_path():
-    """获取 EasiAuto 可执行文件所在目录"""
-    return Path(sys.argv[0]).resolve().parent
-
-
-def get_executable():
-    """获取 EasiAuto 可执行文件的目录"""
-    return get_executable_path() / "EasiAuto.exe"
-
-
-def get_runnable():
-    """（谨慎使用）返回一个能运行 EasiAuto 的路径"""
-    if not sys.argv[0].endswith(".exe"):  # 开发环境
-        return "python " + str(get_executable_path() / "main.py")
-    return str(get_executable())
+EA_EXECUTABLE = Path(sys.argv[0]).resolve().parent / "EasiAuto.exe"
 
 
 def create_script(bat_content: str, file_name: str):
@@ -67,7 +53,7 @@ def create_script(bat_content: str, file_name: str):
 
 def load_config(config_file="config.json") -> Config:
     """加载配置文件"""
-    config_path = get_executable_path() / config_file
+    config_path = EA_EXECUTABLE.parent / config_file
 
     logging.debug(f"查找配置文件: {config_path}")
 
@@ -99,7 +85,7 @@ def init():
 
 def toggle_skip(config: Config, status: bool, file="config.json"):
     config.Login.SkipOnce = status
-    path = get_executable_path() / file
+    path = EA_EXECUTABLE.parent / file
     with path.open("w", encoding="utf-8") as f:
         data = config.model_dump_json(indent=4)
         f.write(data)
@@ -147,7 +133,7 @@ def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int |
     return hwnd_found
 
 
-def get_ci_executable_path() -> Path | None:
+def get_ci_executable() -> Path | None:
     """获取 ClassIsland 可执行文件位置"""
     try:
         lnk_path = Path(

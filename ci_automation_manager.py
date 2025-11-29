@@ -10,7 +10,7 @@ import win32api
 from pydantic import BaseModel, Field, field_validator
 from PySide6.QtCore import QObject, Signal
 
-from utils import get_executable
+from utils import EA_EXECUTABLE
 
 # ClassIsland 联动相关配置
 
@@ -357,7 +357,7 @@ class CiAutomationManager(QObject):
                     {
                         "Id": "classisland.os.run",
                         "Settings": {
-                            "Value": str(get_executable()),
+                            "Value": str(EA_EXECUTABLE),
                             "Args": f"login -a {automation.account} -p {automation.password}",
                             "IsActive": False,
                         },
@@ -500,9 +500,9 @@ def edit_automation_interactive(manager: CiAutomationManager, automation: EasiAu
 
 # 使用示例
 def main():
-    from utils import get_ci_executable_path
+    from utils import get_ci_executable
 
-    path = get_ci_executable_path()
+    path = get_ci_executable()
 
     try:
         manager = CiAutomationManager(path)  # type: ignore
