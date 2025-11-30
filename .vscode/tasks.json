@@ -23,6 +23,7 @@
                 "--main=\"main.py\"",
                 "--include-data-dir=resources=resources",
                 "--output-filename=\"EasiAuto.exe\"",
+                "--msvc=\"latest\"",
             ],
             "group": {
                 "kind": "build",
