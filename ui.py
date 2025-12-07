@@ -1,7 +1,8 @@
 import logging
 import sys
+from enum import Enum
+from importlib.metadata import version
 from pathlib import Path
-from typing import Literal
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
@@ -461,7 +462,7 @@ class AboutPage(SmoothScrollArea):
         self.banner_image.setStyleSheet("border-radius: 8px;")
 
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel("版本 1.0.1", self)
+        subtitle = SubtitleLabel(f"版本 {version('easiauto')}", self)
 
         banner_layout.addWidget(self.banner_image)
         banner_layout.addWidget(title)
@@ -502,6 +503,10 @@ class AboutPage(SmoothScrollArea):
         layout.addWidget(self.info_area)
         layout.addStretch()
 
+class CIStatus(Enum):
+    UNINITIALIZED = -1
+    DIED = 0
+    RUNNING = 1
 
 class AutomationStatusBar(QWidget):
     """自动化页 - 状态栏"""
@@ -535,27 +540,27 @@ class AutomationStatusBar(QWidget):
 
         self.update_status()
 
-    def update_status(self, status: Literal[-1, 0, 1] | None = None):
+    def update_status(self, status: CIStatus | None = None):
         if status is None:
             if self.manager:
-                status = 1 if self.manager.is_ci_running else 0
+                status = CIStatus.RUNNING if self.manager.is_ci_running else CIStatus.DIED
             else:
-                status = -1
+                status = CIStatus.DIED
 
         logging.debug(f"更新 ClassIsland 状态: {status}")
         match status:
-            case -1:
+            case CIStatus.UNINITIALIZED:
                 self.status_badge.level = InfoLevel.ERROR
                 self.status_badge.update()
                 self.status_label.setText("未初始化")
                 self.action_button.setEnabled(False)
-            case 1:
+            case CIStatus.RUNNING:
                 self.status_badge.level = InfoLevel.SUCCESS
                 self.status_badge.update()
                 self.status_label.setText("运行中")
                 self.action_button.setText("终止")
                 self.action_button.setEnabled(True)
-            case 0:
+            case CIStatus.DIED:
                 self.status_badge.level = InfoLevel.INFOAMTION
                 self.status_badge.update()
                 self.status_label.setText("未运行")
