@@ -67,8 +67,8 @@ def cmd_login(args):
             automatorType = CVAutomator
         case "FixedPosition":
             automatorType = FixedAutomator
-        case _:
-            logging.warning("未知方案，已回滚至默认值 (UI Automation)")
+        case _ as unknown:
+            logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
             automatorType = UIAAutomator
 
     automator = automatorType(args.account, args.password, config, config.App.MaxRetries)
