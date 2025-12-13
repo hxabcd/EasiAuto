@@ -92,17 +92,18 @@ class ConfigPage(SmoothScrollArea):
         self.setWidget(self.content_widget)
 
         # 内容布局
-        content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(40, 20, 40, 20)
-        content_layout.setSpacing(32)
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(40, 20, 40, 20)
+        self.content_layout.setSpacing(32)
 
         # 添加设置组
-        for group in self.config.iter_items():
-            self._add_config_menu(group, layout=content_layout)  # type: ignore
+        for group in config.iter_items():
+            self._add_config_menu(group)  # type: ignore
         self.apply_attachment()
-        content_layout.addStretch()
 
-    def _add_config_menu(self, config: ConfigGroup, layout: QLayout):
+        self.content_layout.addStretch()
+
+    def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""
         card_group = SettingCardGroup(config.title)
         card_group.setObjectName(config.name)
@@ -113,23 +114,27 @@ class ConfigPage(SmoothScrollArea):
 
             card_group.addSettingCard(card)
 
-        layout.addWidget(card_group)
+        self.content_layout.addWidget(card_group)
 
     def apply_attachment(self):
         """应用附加的界面样式与属性"""
 
         # 额外设置项
-        for name, menu in self.menu_index.items():
-            match name:
-                case "App":
-                    reset_button = PushSettingCard(
-                        text="重置",
-                        icon=FIF.CANCEL,
-                        title="重置配置",
-                        content="将所有配置项重置为默认值",
-                    )
-                    reset_button.clicked.connect(self.reset_config)
-                    menu.addSettingCard(reset_button)
+
+        # for name, menu in self.menu_index.items():
+        #     match name:
+        #         case "":
+        #             ...
+        # 目前无需插入到已有菜单中，注释以备用
+
+        reset_card = PushSettingCard(
+            text="重置",
+            icon=FIF.CANCEL,
+            title="重置配置",
+            content="将所有配置项重置为默认值",
+        )
+        reset_card.clicked.connect(self.reset_config)
+        self.content_layout.addWidget(reset_card)
 
         # 额外属性
         for name, card in SettingCard.index.items():

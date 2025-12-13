@@ -115,6 +115,12 @@ class LoginConfig(ConfigModel):
         description="适用于打开希沃时不进入黑板界面（iwb）的情况",
         json_schema_extra={"icon": "People"},
     )
+    Is4K: bool = Field(
+        default=False,
+        title="OpenCV 4K 适配",
+        description="在 OpenCV 图像识别 登录方式下，启用对 3840x2160 200% 缩放的支持",
+        json_schema_extra={"icon": "FitPage"},
+    )
 
     Timeout: TimeoutConfig = Field(
         default_factory=lambda: TimeoutConfig(),
@@ -231,32 +237,39 @@ class BannerStyleConfig(ConfigModel):
         default="  ⚠️WARNING⚠️  正在运行希沃白板自动登录  请勿触摸一体机",
         title="文本",
         description="横幅中滚动的文本内容",
+        json_schema_extra={"icon": "Label"},
     )
     TextFont: str = Field(
         default="HarmonyOS Sans SC",
         title="文字字体",
         description="横幅文本使用的字体名称",
+        json_schema_extra={"icon": "Font"},
     )
     TextColor: qtp.QColor = Field(
         default=QColor("#FFFFDE59"),
         title="文字颜色",
         description="横幅的文本颜色",
-        json_schema_extra={"enable_alpha": True},
+        json_schema_extra={"icon": "Palette", "enable_alpha": True},
     )
     FgColor: qtp.QColor = Field(
         default=QColor("#C8FFDE59"),
         title="前景颜色",
         description="横幅高亮或装饰元素的颜色",
-        json_schema_extra={"enable_alpha": True},
+        json_schema_extra={"icon": "Highlight", "enable_alpha": True},
     )
     BgColor: qtp.QColor = Field(
         default=QColor("#B4E4080A"),
         title="背景颜色",
         description="横幅的背景色",
-        json_schema_extra={"enable_alpha": True},
+        json_schema_extra={"icon": "BackgroundColor", "enable_alpha": True},
     )
     Fps: int = Field(
-        default=60, ge=1, le=120, title="帧率", description="横幅的刷新帧率", json_schema_extra={"style": "slider"}
+        default=60,
+        ge=1,
+        le=120,
+        title="帧率",
+        description="横幅的刷新帧率",
+        json_schema_extra={"icon": "SpeedHigh", "style": "slider"},
     )
     TextSpeed: int = Field(
         default=3,
@@ -264,7 +277,7 @@ class BannerStyleConfig(ConfigModel):
         le=8,
         title="文字滚动速度",
         description="横幅文本滚动的速度",
-        json_schema_extra={"style": "slider"},
+        json_schema_extra={"icon": "RightArrow", "style": "slider"},
     )
     YOffset: int = Field(default=20, title="垂直偏移", description="横幅距离屏幕顶部的像素偏移量")
 
@@ -283,6 +296,12 @@ class AppConfig(ConfigModel):
         title="日志级别",
         description="应用的日志记录级别",
         json_schema_extra={"icon": "DeveloperTools"},
+    )
+    EasterEggEnabled: bool = Field(
+        default=False,
+        title="启用彩蛋",
+        description="唔……似乎某些地方有点不对劲的说喵？",
+        json_schema_extra={"icon": "Question"},
     )
 
 
