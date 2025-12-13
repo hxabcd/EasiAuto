@@ -744,7 +744,7 @@ class AutomationManageSubpage(QWidget):
                 logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
                 automatorType = UIAAutomator
 
-        automator = automatorType(automation.account, automation.password, config, config.App.MaxRetries)
+        automator = automatorType(automation.account, automation.password, config.Login, config.App.MaxRetries)
 
         automator.start()
         automator.finished.connect(self._clean_up_after_run)

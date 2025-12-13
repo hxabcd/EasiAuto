@@ -91,7 +91,7 @@ def cmd_login(args):
             logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
             automatorType = UIAAutomator
 
-    automator = automatorType(args.account, args.password, config, config.App.MaxRetries)
+    automator = automatorType(args.account, args.password, config.Login, config.App.MaxRetries)
 
     automator.start()
     automator.finished.connect(app.quit)

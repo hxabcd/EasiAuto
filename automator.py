@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import win32gui
 from PySide6.QtCore import QThread, Signal
 
-from config import Config
+from config import LoginConfig
 from utils import get_resource, switch_window
 
 
@@ -20,7 +20,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     task_update = Signal(str)
     progress_update = Signal(str)
 
-    def __init__(self, account: str, password: str, config: Config, max_retries: int = 2) -> None:
+    def __init__(self, account: str, password: str, config: LoginConfig, max_retries: int = 2) -> None:
         super().__init__()
         self.account = account
         self.password = password
@@ -54,7 +54,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.progress_update.emit("终止希沃白板进程")
 
         cmd_list = [["taskkill", "/f", "/im", self.config.EasiNote.ProcessName]]
-        if self.config.Login.KillAgent:
+        if self.config.KillAgent:
             cmd_list.append(["taskkill", "/f", "/im", "EasiAgent.exe"])
 
         for command in cmd_list:
@@ -135,11 +135,11 @@ class CVAutomator(BaseAutomator):
 
         # 直接登录与4K适配
         path_suffix = ""
-        if self.config.Login.Directly:
+        if self.config.Directly:
             path_suffix += "_direct"
-        if self.config.Login.Is4K:
+        if self.config.Is4K:
             path_suffix += "_4k"
-        scale = 2 if self.config.Login.Is4K else 1
+        scale = 2 if self.config.Is4K else 1
 
         # 获取资源图片
         button_img = get_resource("button%s.png" % path_suffix)
@@ -147,7 +147,7 @@ class CVAutomator(BaseAutomator):
         checkbox_img = get_resource("checkbox%s.png" % path_suffix)
 
         # 进入登录界面
-        if not self.config.Login.Directly:
+        if not self.config.Directly:
             logging.info("点击进入登录界面")
             self.progress_update.emit("进入登录界面")
 
@@ -245,7 +245,7 @@ class UIAAutomator(BaseAutomator):
         dlg.set_focus()  # 设置焦点为希沃白板窗口
 
         # 如果启动进入白板 (iwb)
-        is_iwb = not self.config.Login.Directly
+        is_iwb = not self.config.Directly
         if is_iwb:
             # 先进入登录界面
             logging.info("点击进入登录界面")
