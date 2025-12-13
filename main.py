@@ -8,15 +8,35 @@ from qfluentwidgets import (
     FluentTranslator,
     Theme,
     setTheme,
+    setThemeColor,
 )
 
 from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import WarningBanner, WarningPopupWindow
+from config import Config
 from ui import MainSettingsWindow
-from utils import init, toggle_skip
 
-config = init()
 
+def set_logger(level=logging.WARNING):
+    try:  # 使用彩色日志
+        import coloredlogs
+
+        coloredlogs.install(
+            level=level,
+            fmt="[%(asctime)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    except Exception:  # 回退基本日志
+        logging.basicConfig(
+            level=level,
+            format="[%(asctime)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+            force=True,
+        )
+
+
+set_logger(logging.DEBUG)  # 预初始化
+config = Config.load()
 
 # -------- 命令解析 --------
 
@@ -31,7 +51,7 @@ def cmd_login(args):
     # 若临时禁用，则退出程序
     if config.Login.SkipOnce:
         logging.info("已通过配置文件禁用，正在退出")
-        toggle_skip(config, False)
+        config.Login.SkipOnce = False
 
         sys.exit(0)
 
@@ -67,7 +87,7 @@ def cmd_login(args):
             automatorType = CVAutomator
         case "FixedPosition":
             automatorType = FixedAutomator
-        case _ as unknown:
+        case unknown:
             logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
             automatorType = UIAAutomator
 
@@ -95,7 +115,7 @@ def cmd_settings(args):
 
 def cmd_skip(args):
     """skip 子命令 - 跳过下一次登录"""
-    toggle_skip(config, True)
+    config.Login.SkipOnce = True
     logging.info("已更新配置文件，正在退出")
     sys.exit(0)
 
