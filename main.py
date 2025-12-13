@@ -86,6 +86,7 @@ def cmd_settings(args):
     translator = FluentTranslator()
     app.installTranslator(translator)
     setTheme(Theme.AUTO)
+    setThemeColor("#00C884")
 
     window = MainSettingsWindow()
     window.show()
