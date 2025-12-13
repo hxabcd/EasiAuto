@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLayout,
     QListWidgetItem,
     QScroller,
     QStackedWidget,
@@ -27,6 +26,7 @@ from qfluentwidgets import (
     CommandBar,
     DotInfoBadge,
     ExpandSettingCard,
+    FluentIcon,
     FluentTranslator,
     FluentWindow,
     HorizontalSeparator,
@@ -56,13 +56,34 @@ from qfluentwidgets import (
     setTheme,
     setThemeColor,
 )
-from qfluentwidgets import FluentIcon as FIF
 
 from ci_automation_manager import CiAutomationManager, EasiAutomation
 from components import SettingCard
-from config import Config, ConfigGroup
+from config import ConfigGroup, LoginMethod, config
 from qfw_widgets import ListWidget
 from utils import EA_EXECUTABLE, create_script, get_ci_executable, get_resource
+
+
+def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
+    """通过开关启用组件"""
+    if not reverse:
+        widget.setEnabled(switch.checked)  # type: ignore
+
+        def handle_check_change(checked: bool):
+            widget.setEnabled(checked)
+            if not checked and isinstance(widget, ExpandSettingCard):
+                widget.setExpand(False)
+
+        switch.checkedChanged.connect(handle_check_change)
+    else:
+        widget.setDisabled(switch.checked)  # type: ignore
+
+        def handle_check_change(checked: bool):
+            widget.setDisabled(checked)
+            if checked and isinstance(widget, ExpandSettingCard):
+                widget.setExpand(False)
+
+        switch.checkedChanged.connect(handle_check_change)
 
 
 class ConfigPage(SmoothScrollArea):
@@ -71,7 +92,6 @@ class ConfigPage(SmoothScrollArea):
     def __init__(self):
         super().__init__()
 
-        self.config = Config.load()
         self.menu_index: weakref.WeakValueDictionary[str, SettingCardGroup] = weakref.WeakValueDictionary()
 
         self.init_ui()
@@ -129,7 +149,7 @@ class ConfigPage(SmoothScrollArea):
 
         reset_card = PushSettingCard(
             text="重置",
-            icon=FIF.CANCEL,
+            icon=FluentIcon.CANCEL,
             title="重置配置",
             content="将所有配置项重置为默认值",
         )
@@ -140,26 +160,29 @@ class ConfigPage(SmoothScrollArea):
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
-                    card._widget.setMinimumWidth(200)
+                    card.control.setMinimumWidth(200)
                 case n if n.startswith("Login.Timeout."):
-                    card._widget.setMinimumWidth(160)
+                    card.control.setMinimumWidth(160)
                 case "Login.EasiNote.Path" | "Login.EasiNote.ProcessName" | "Login.EasiNote.WindowTitle":
-                    card._widget.setFixedWidth(400)
+                    card.control.setFixedWidth(400)
                 case "Login.EasiNote.Args":
-                    card._widget.setFixedWidth(400)
-                    card._widget.setClearButtonEnabled(True)
+                    card.control.setFixedWidth(400)
+                    card.control.setClearButtonEnabled(True)
                 case "Banner.Style.Text":
-                    card._widget.setFixedWidth(420)
+                    card.control.setFixedWidth(420)
                 case "Banner.Style.TextFont":
-                    card._widget.setFixedWidth(200)
-                    card._widget.setClearButtonEnabled(True)
+                    card.control.setFixedWidth(200)
+                    card.control.setClearButtonEnabled(True)
                 case "App.LogLevel":
-                    card._widget.setMinimumWidth(104)
+                    card.control.setMinimumWidth(104)
 
         # 从属关系
-        set_enable_by(SettingCard.index["Login.EasiNote.Path"], SettingCard.index["Login.EasiNote.AutoPath"]._widget)  # type: ignore
-        set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"]._widget)  # type: ignore
-        set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"]._widget)  # type: ignore
+        set_enable_by(
+            SettingCard.index["Login.EasiNote.Path"],
+            SettingCard.index["Login.EasiNote.AutoPath"].control,
+        )  # type: ignore
+        set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].control)  # type: ignore
+        set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].control)  # type: ignore
 
     def reset_config(self):
         """重置配置为默认值"""
@@ -171,7 +194,7 @@ class ConfigPage(SmoothScrollArea):
 
         if w.exec():
             # 重置设置
-            self.config.reset_all()
+            config.reset_all()
             SettingCard.update_all()
 
             # 弹出提示
@@ -285,11 +308,11 @@ class AutomationStatusBar(QWidget):
         self.status_badge = DotInfoBadge.error()
         self.status_label = BodyLabel("未初始化")
 
-        self.action_button = PushButton(icon=FIF.POWER_BUTTON, text="终止")
+        self.action_button = PushButton(icon=FluentIcon.POWER_BUTTON, text="终止")
         self.action_button.clicked.connect(self.handle_action_button_clicked)
         self.action_button.setEnabled(False)
 
-        self.option_button = TransparentPushButton(icon=FIF.DEVELOPER_TOOLS, text="高级选项")
+        self.option_button = TransparentPushButton(icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项")
 
         layout.addWidget(StrongBodyLabel("ClassIsland"))
         layout.addSpacing(12)
@@ -381,9 +404,11 @@ class AutomationCard(CardWidget):
         self.command_bar = CommandBar()
         self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        self.action_run = Action(FIF.PLAY, "运行", triggered=self._on_run)
-        self.action_export = Action(FIF.SHARE, "导出", triggered=self._on_export)
-        self.action_remove = Action(FIF.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item))
+        self.action_run = Action(FluentIcon.PLAY, "运行", triggered=self._on_run)
+        self.action_export = Action(FluentIcon.SHARE, "导出", triggered=self._on_export)
+        self.action_remove = Action(
+            FluentIcon.CANCEL_MEDIUM, "删除", triggered=lambda: self.actionRemove.emit(self.list_item)
+        )
 
         self.command_bar.addAction(self.action_run)
         self.command_bar.addAction(self.action_export)
@@ -421,11 +446,11 @@ class AutomationCard(CardWidget):
         self.switch.setChecked(automation.enabled)
         self.switch.checkedChanged.connect(self.on_switch_toggled)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, e):
         """鼠标点击事件"""
-        if event.button() == Qt.LeftButton:
+        if e.button() == Qt.LeftButton:
             self.itemClicked.emit(self.list_item)
-        super().mousePressEvent(event)
+        super().mousePressEvent(e)
 
 
 class AutomationManageSubpage(QWidget):
@@ -449,8 +474,8 @@ class AutomationManageSubpage(QWidget):
 
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.action_bar.addAction(Action(FIF.ADD, "添加", triggered=self._add_automation))
-        self.action_bar.addAction(Action(FIF.SYNC, "刷新", triggered=lambda: self._init_selector(reload=True)))
+        self.action_bar.addAction(Action(FluentIcon.ADD, "添加", triggered=self._add_automation))
+        self.action_bar.addAction(Action(FluentIcon.SYNC, "刷新", triggered=lambda: self._init_selector(reload=True)))
 
         self.auto_list = ListWidget()
         self.auto_list.setSpacing(3)
@@ -469,7 +494,7 @@ class AutomationManageSubpage(QWidget):
         self.new_auto_hint.setFixedHeight(48)
         self.new_auto_hint.setContentsMargins(12, 2, 12, 2)
         hint_layout = QHBoxLayout(self.new_auto_hint)
-        hint_icon = IconInfoBadge.attension(FIF.RINGER)
+        hint_icon = IconInfoBadge.attension(FluentIcon.RINGER)
         hint_icon.setFixedSize(24, 24)
         hint_icon.setIconSize(QSize(12, 12))
         hint_text = QLabel("正在编辑新自动化")
@@ -698,7 +723,7 @@ class AutomationManageSubpage(QWidget):
         if self.manager:
             self.manager.update_automation(guid, enabled=enabled)
 
-    def _handle_action_run(self, guid: str):
+    def _handle_action_run(self, guid: str):  # TODO: 疑似无法正常运行
         """操作 - 运行自动化"""
         if not self.manager:
             logging.warning("无法运行自动化: 管理器未初始化")
@@ -719,7 +744,6 @@ class AutomationManageSubpage(QWidget):
 
         from automator import CVAutomator, FixedAutomator, UIAAutomator
         from components import WarningBanner
-        from main import config
 
         # 显示警示横幅
         if config.Banner.Enabled:
@@ -734,17 +758,14 @@ class AutomationManageSubpage(QWidget):
         # 执行登录
         logging.debug(f"当前设置的登录方案: {config.Login.Method}")
         match config.Login.Method:  # 选择登录方案
-            case "UIAutomation":
-                automatorType = UIAAutomator
-            case "OpenCV":
-                automatorType = CVAutomator
-            case "FixedPosition":
-                automatorType = FixedAutomator
-            case unknown:
-                logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
-                automatorType = UIAAutomator
+            case LoginMethod.UI_AUTOMATION:
+                automator_type = UIAAutomator
+            case LoginMethod.OPENCV:
+                automator_type = CVAutomator
+            case LoginMethod.FIXED_POSITION:
+                automator_type = FixedAutomator
 
-        automator = automatorType(automation.account, automation.password, config.Login, config.App.MaxRetries)
+        automator = automator_type(automation.account, automation.password, config.Login, config.App.MaxRetries)
 
         automator.start()
         automator.finished.connect(self._clean_up_after_run)
@@ -901,7 +922,7 @@ class PathSelectSubpage(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        hint_icon = QLabel(pixmap=Icon(FIF.REMOVE_FROM).pixmap(96, 96))
+        hint_icon = QLabel(pixmap=Icon(FluentIcon.REMOVE_FROM).pixmap(96, 96))
         hint_label = TitleLabel("未能获取到 ClassIsland 路径")
         hint_desc = BodyLabel("<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>")
         hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -912,11 +933,11 @@ class PathSelectSubpage(QWidget):
         actions_layout = QHBoxLayout(actions)
         actions_layout.setSpacing(10)
 
-        get_ci_button = PrimaryPushButton(icon=FIF.DOWNLOAD, text="获取 ClassIsland")
+        get_ci_button = PrimaryPushButton(icon=FluentIcon.DOWNLOAD, text="获取 ClassIsland")
         get_ci_button.setFixedWidth(150)
         get_ci_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://classisland.tech")))
 
-        browse_button = PushButton(icon=FIF.FOLDER_ADD, text="选择已有路径")
+        browse_button = PushButton(icon=FluentIcon.FOLDER_ADD, text="选择已有路径")
         browse_button.setFixedWidth(150)
         browse_button.clicked.connect(self.browse_ci_path)
 
@@ -977,7 +998,7 @@ class CiRunningWarnSubpage(QWidget):
         self.hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.action_button = PrimaryPushButton(icon=FIF.POWER_BUTTON, text="终止 ClassIsland")
+        self.action_button = PrimaryPushButton(icon=FluentIcon.POWER_BUTTON, text="终止 ClassIsland")
         self.action_button.clicked.connect(self.terminate_ci)
 
         layout.addWidget(self.hint_icon)
@@ -991,7 +1012,7 @@ class CiRunningWarnSubpage(QWidget):
 
     def set_text(self, failed: bool = False):
         if not failed:
-            self.hint_icon.setPixmap(Icon(FIF.BROOM).pixmap(96, 96))
+            self.hint_icon.setPixmap(Icon(FluentIcon.BROOM).pixmap(96, 96))
             if self.easter_egg_enabled:
                 self.hint_label.setText(self.label_text_1e)
                 self.hint_desc.setText(self.label_desc_1e)
@@ -1000,7 +1021,7 @@ class CiRunningWarnSubpage(QWidget):
                 self.hint_desc.setText(self.label_desc_1)
                 self.action_button.show()
         else:
-            self.hint_icon.setPixmap(Icon(FIF.QUESTION).pixmap(96, 96))
+            self.hint_icon.setPixmap(Icon(FluentIcon.QUESTION).pixmap(96, 96))
             if self.easter_egg_enabled:
                 self.hint_label.setText(self.label_text_2e)
                 self.hint_desc.setText(self.label_text_2e)
@@ -1135,10 +1156,10 @@ class MainSettingsWindow(FluentWindow):
         self.initWindow()
 
     def initNavigation(self):
-        self.addSubInterface(self.config_page, FIF.SETTING, "配置")
-        self.addSubInterface(self.automation_page, FIF.AIRPLANE, "自动化")
-        # self.addSubInterface(self.overlay_page, FIF.ZOOM, "浮窗")
-        self.addSubInterface(self.about_page, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
+        self.addSubInterface(self.automation_page, FluentIcon.AIRPLANE, "自动化")
+        # self.addSubInterface(self.overlay_page, FluentIcon.ZOOM, "浮窗")
+        self.addSubInterface(self.about_page, FluentIcon.INFO, "关于", NavigationItemPosition.BOTTOM)
         # self.navigationInterface.addSeparator()
 
         self.navigationInterface.setExpandWidth(180)
@@ -1151,39 +1172,13 @@ class MainSettingsWindow(FluentWindow):
         logging.info("主设置窗口初始化完成")
 
 
-def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
-    """通过开关启用组件"""
-    if not reverse:
-        widget.setEnabled(switch.checked)  # type: ignore
+# os.environ['QT_SCALE_FACTOR'] = ...
+QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
-        def handle_check_change(checked: bool):
-            widget.setEnabled(checked)
-            if not checked and isinstance(widget, ExpandSettingCard):
-                widget.setExpand(False)
-
-        switch.checkedChanged.connect(handle_check_change)
-    else:
-        widget.setDisabled(switch.checked)  # type: ignore
-
-        def handle_check_change(checked: bool):
-            widget.setDisabled(checked)
-            if checked and isinstance(widget, ExpandSettingCard):
-                widget.setExpand(False)
-
-        switch.checkedChanged.connect(handle_check_change)
-
-
-if __name__ == "__main__":
-    from utils import set_logger
-
-    set_logger(level=logging.DEBUG)
-    app = QApplication(sys.argv)
-
-    translator = FluentTranslator()
-    app.installTranslator(translator)
-    setTheme(Theme.AUTO)
-    setThemeColor("#00C884")
-
-    window = MainSettingsWindow()
-    window.show()
-    sys.exit(app.exec())
+app = QApplication(sys.argv)
+translator = FluentTranslator()
+app.installTranslator(translator)
+setTheme(Theme.AUTO)
+setThemeColor("#00C884")

@@ -59,7 +59,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         for command in cmd_list:
             logging.debug(f"命令：{' '.join(command)}")
-            subprocess.run(command, shell=True)
+            subprocess.run(command, shell=True, check=False)
         time.sleep(self.config.Timeout.Terminate)  # 等待终止
 
         # 启动希沃白板
@@ -90,9 +90,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 return
             time.sleep(interval)
             elapsed += interval
-        else:
-            logging.error(f"窗口在 {timeout} 秒内未打开：{window_title}")
-            raise TimeoutError(f"窗口在 {timeout} 秒内未打开：{window_title}")
+        logging.error(f"窗口在 {timeout} 秒内未打开：{window_title}")
+        raise TimeoutError(f"窗口在 {timeout} 秒内未打开：{window_title}")
 
     @abstractmethod
     def login(self):
@@ -108,7 +107,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.login()
 
                 self.finished.emit("登录完成")
-                return 0
             except Exception as e:
                 retries += 1
                 if retries <= self.max_retries:
@@ -118,7 +116,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 else:
                     logging.critical(f"[X] {retries}次尝试均登录失败")
                     self.finished.emit("登录失败")
-                    return 1
 
 
 class CVAutomator(BaseAutomator):
@@ -142,9 +139,9 @@ class CVAutomator(BaseAutomator):
         scale = 2 if self.config.Is4K else 1
 
         # 获取资源图片
-        button_img = get_resource("button%s.png" % path_suffix)
-        button_img_selected = get_resource("button_selected%s.png" % path_suffix)
-        checkbox_img = get_resource("checkbox%s.png" % path_suffix)
+        button_img = get_resource(f"button{path_suffix}.png")
+        button_img_selected = get_resource(f"button_selected{path_suffix}.png")
+        checkbox_img = get_resource(f"checkbox{path_suffix}.png")
 
         # 进入登录界面
         if not self.config.Directly:
@@ -215,7 +212,6 @@ class CVAutomator(BaseAutomator):
 
         self.progress_update.emit("登录完成")
         self.task_update.emit("完成")
-        return
 
 
 class FixedAutomator(BaseAutomator):
@@ -309,4 +305,3 @@ class UIAAutomator(BaseAutomator):
 
         self.progress_update.emit("登录完成")
         self.task_update.emit("完成")
-        return

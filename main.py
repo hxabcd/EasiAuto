@@ -2,51 +2,30 @@ import logging
 import sys
 from argparse import ArgumentParser
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
-from qfluentwidgets import (
-    FluentTranslator,
-    Theme,
-    setTheme,
-    setThemeColor,
-)
-
 from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import WarningBanner, WarningPopupWindow
-from config import Config
-from ui import MainSettingsWindow
+from config import LoginMethod, config
+from ui import MainSettingsWindow, app
+
+try:  # 使用彩色日志
+    import coloredlogs
+
+    coloredlogs.install(
+        level=config.App.LogLevel.value,
+        fmt="[%(asctime)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+except Exception:  # 回退基本日志
+    logging.basicConfig(
+        level=config.App.LogLevel.value,
+        format="[%(asctime)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+        force=True,
+    )
 
 
-def set_logger(level=logging.WARNING):
-    try:  # 使用彩色日志
-        import coloredlogs
-
-        coloredlogs.install(
-            level=level,
-            fmt="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%H:%M:%S",
-        )
-    except Exception:  # 回退基本日志
-        logging.basicConfig(
-            level=level,
-            format="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%H:%M:%S",
-            force=True,
-        )
-
-
-set_logger(logging.DEBUG)  # 预初始化
-config = Config.load()
-
-# -------- 命令解析 --------
-
-
-def cmd_login(args):
+def cmd_login(args, manual: bool = False):
     """login 子命令 - 执行自动登录"""
-
-    # 启用DPI缩放并创建 QApplication
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    app = QApplication([])
 
     # 若临时禁用，则退出程序
     if config.Login.SkipOnce:
@@ -55,10 +34,10 @@ def cmd_login(args):
 
         sys.exit(0)
 
-    logging.debug("传入的参数：\n%s" % "\n".join([f" - {key}: {value}" for key, value in vars(args).items()]))
+    logging.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
-    if config.Warning.Enabled:
+    if not manual and config.Warning.Enabled:
         try:
             msgbox = WarningPopupWindow()
             if msgbox.countdown(config.Warning.Timeout) == 0:
@@ -66,7 +45,7 @@ def cmd_login(args):
                 sys.exit(0)
             logging.info("用户确认或超时，继续执行")
         except Exception:
-            logging.exception("显示警告通知时出错，跳过警告")
+            logging.exception("显示警告弹窗时出错，跳过警告")
 
     # 显示警示横幅
     if config.Banner.Enabled:
@@ -81,39 +60,32 @@ def cmd_login(args):
     # 执行登录
     logging.debug(f"当前设置的登录方案: {config.Login.Method}")
     match config.Login.Method:  # 选择登录方案
-        case "UIAutomation":
-            automatorType = UIAAutomator
-        case "OpenCV":
-            automatorType = CVAutomator
-        case "FixedPosition":
-            automatorType = FixedAutomator
-        case unknown:
-            logging.warning(f"未知方案 {unknown}，已回滚至默认值 (UI Automation)")
-            automatorType = UIAAutomator
+        case LoginMethod.UI_AUTOMATION:
+            automator_type = UIAAutomator
+        case LoginMethod.OPENCV:
+            automator_type = CVAutomator
+        case LoginMethod.FIXED_POSITION:
+            automator_type = FixedAutomator
 
-    automator = automatorType(args.account, args.password, config.Login, config.App.MaxRetries)
+    automator = automator_type(args.account, args.password, config.Login, config.App.MaxRetries)
 
     automator.start()
-    automator.finished.connect(app.quit)
+    if manual:
+        automator.finished.connect(banner.close)
+    else:
+        automator.finished.connect(app.quit)
+        sys.exit(app.exec())
 
-    sys.exit(app.exec())
 
-
-def cmd_settings(args):
+def cmd_settings(_):
     """settings 子命令 - 打开设置界面"""
-    app = QApplication(sys.argv)
-
-    translator = FluentTranslator()
-    app.installTranslator(translator)
-    setTheme(Theme.AUTO)
-    setThemeColor("#00C884")
 
     window = MainSettingsWindow()
     window.show()
     sys.exit(app.exec())
 
 
-def cmd_skip(args):
+def cmd_skip(_):
     """skip 子命令 - 跳过下一次登录"""
     config.Login.SkipOnce = True
     logging.info("已更新配置文件，正在退出")

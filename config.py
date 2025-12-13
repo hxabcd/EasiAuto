@@ -70,7 +70,7 @@ class ConfigModel(BaseModel):
 
     def _bind_children(self):
         """递归绑定所有子模型的父模型"""
-        for name, value in self.__dict__.items():
+        for value in self.__dict__.values():
             if isinstance(value, ConfigModel):
                 value._parent = self
                 value._bind_children()
@@ -312,7 +312,7 @@ class Config(ConfigModel):
     App: AppConfig = Field(default_factory=lambda: AppConfig(), title="应用设置")
 
     @classmethod
-    def load(cls, file: str | Path = EA_EXECUTABLE.parent / "config.json") -> Config:
+    def load(cls, file: str | Path) -> Config:
         path = Path(file)
 
         if path.exists():
@@ -464,3 +464,6 @@ def iter_config_items(
             result.append(item_node)
 
     return result
+
+
+config = Config.load(EA_EXECUTABLE.parent / "config.json")
