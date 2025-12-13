@@ -7,26 +7,6 @@ import win32com.client
 import win32con
 import win32gui
 
-from config import Config, get_log_level
-
-
-def set_logger(level=logging.WARNING):
-    try:  # 使用彩色日志
-        import coloredlogs
-
-        coloredlogs.install(
-            level=level,
-            fmt="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%H:%M:%S",
-        )
-    except Exception:  # 回退基本日志
-        logging.basicConfig(
-            level=level,
-            format="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%H:%M:%S",
-            force=True,
-        )
-
 
 def get_resource(file: str):
     """获取资源路径"""
@@ -49,46 +29,6 @@ def create_script(bat_content: str, file_name: str):
 
     with bat_path.open("w", encoding="utf-8") as f:
         f.write(bat_content)
-
-
-def load_config(config_file="config.json") -> Config:
-    """加载配置文件"""
-    config_path = EA_EXECUTABLE.parent / config_file
-
-    logging.debug(f"查找配置文件: {config_path}")
-
-    return Config.load(str(config_path))
-
-
-def init():
-    """初始化"""
-
-    set_logger()  # 预初始化
-
-    config = load_config()
-
-    try:
-        set_logger(get_log_level[config.App.LogLevel])
-        logging.info(f"当前日志级别：{config.App.LogLevel}")
-    except ValueError:
-        set_logger()
-        logging.error(f"无效的日志级别：{config.App.LogLevel}，使用默认级别 WARNING")
-    logging.info("初始化完成")
-
-    # logging.debug(
-    #     "载入的配置：\n%s" % "\n".join([f" - {key}: {value}" for key, value in config])
-    # )
-    # TODO: 嵌套格式无法正常打印
-
-    return config
-
-
-def toggle_skip(config: Config, status: bool, file="config.json"):
-    config.Login.SkipOnce = status
-    path = EA_EXECUTABLE.parent / file
-    with path.open("w", encoding="utf-8") as f:
-        data = config.model_dump_json(indent=4)
-        f.write(data)
 
 
 def switch_window(hwnd: int):
