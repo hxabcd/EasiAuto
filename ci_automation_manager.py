@@ -3,7 +3,6 @@ import os
 import re
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import psutil
 import win32api
@@ -18,9 +17,9 @@ from utils import EA_EXECUTABLE
 class CiSubject(BaseModel):
     id: str
     name: str
-    initial: Optional[str] = None
-    teacher_name: Optional[str] = None
-    is_out_door: Optional[bool] = None
+    initial: str | None = None
+    teacher_name: str | None = None
+    is_out_door: bool | None = None
 
 
 class EasiAutomation(BaseModel):
@@ -30,7 +29,7 @@ class EasiAutomation(BaseModel):
     pretime: int = 300
     guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
     display_name: str = "自动登录希沃白板"
-    teacher_name: Optional[str] = None
+    teacher_name: str | None = None
     enabled: bool = True
 
     @field_validator("pretime")
@@ -62,11 +61,11 @@ class CiAutomationManager(QObject):
 
     def __init__(self, path: Path | str):
         super().__init__()
-        self.subjects: Dict[str, CiSubject] = {}
-        self.automations: Dict[str, EasiAutomation] = {}
+        self.subjects: dict[str, CiSubject] = {}
+        self.automations: dict[str, EasiAutomation] = {}
         self.ci_settings: dict = {}
         self.ci_profile: dict = {}
-        self.ci_automations: List[dict] = []
+        self.ci_automations: list[dict] = []
 
         self.init_ci(path)
 
@@ -183,7 +182,7 @@ class CiAutomationManager(QObject):
                 if easi_auto:
                     self.automations[easi_auto.guid] = easi_auto
 
-    def _parse_easi_automation(self, automation: dict) -> Optional[EasiAutomation]:
+    def _parse_easi_automation(self, automation: dict) -> EasiAutomation | None:
         """解析EasiAuto自动化配置"""
         try:
             name: str = automation["ActionSet"]["Name"]
@@ -231,15 +230,15 @@ class CiAutomationManager(QObject):
             print(f"解析自动化配置时出错: {e}")
             return None
 
-    def get_subject_by_id(self, subject_id: str) -> Optional[CiSubject]:
+    def get_subject_by_id(self, subject_id: str) -> CiSubject | None:
         """根据ID获取科目"""
         return self.subjects.get(subject_id)
 
-    def get_automation_by_guid(self, guid: str) -> Optional[EasiAutomation]:
+    def get_automation_by_guid(self, guid: str) -> EasiAutomation | None:
         """根据GUID获取自动化"""
         return self.automations.get(guid)
 
-    def get_automations_by_subject(self, subject_id: str) -> List[EasiAutomation]:
+    def get_automations_by_subject(self, subject_id: str) -> list[EasiAutomation]:
         """获取指定科目的所有自动化"""
         return [auto for auto in self.automations.values() if auto.subject_id == subject_id]
 
@@ -391,11 +390,10 @@ class CiAutomationManager(QObject):
             print(f"保存自动化配置时出错: {e}")
             return False
 
-    def list_subjects(self) -> List[CiSubject]:
+    def list_subjects(self) -> list[CiSubject]:
         """获取所有科目列表"""
         return list(self.subjects.values())
 
-    def list_automations(self) -> List[EasiAutomation]:
+    def list_automations(self) -> list[EasiAutomation]:
         """获取所有自动化列表"""
         return list(self.automations.values())
-
