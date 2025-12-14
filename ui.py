@@ -43,10 +43,8 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     PushSettingCard,
-    SettingCardGroup,
     SmoothScrollArea,
     SpinBox,
-    StrongBodyLabel,
     SubtitleLabel,
     SwitchButton,
     Theme,
@@ -60,7 +58,7 @@ from qfluentwidgets import (
 from ci_automation_manager import CiAutomationManager, EasiAutomation
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, config
-from qfw_widgets import ListWidget
+from qfw_widgets import ListWidget, SettingCardGroup
 from utils import EA_EXECUTABLE, create_script, get_ci_executable, get_resource
 
 
@@ -86,7 +84,7 @@ def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
         switch.checkedChanged.connect(handle_check_change)
 
 
-class ConfigPage(SmoothScrollArea):
+class ConfigPage(QWidget):
     """设置 - 配置页"""
 
     def __init__(self):
@@ -101,20 +99,28 @@ class ConfigPage(SmoothScrollArea):
         self.setObjectName("ConfigPage")
         self.setStyleSheet("border: none; background-color: transparent;")
 
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        title = TitleLabel("设置")
+        title.setContentsMargins(36, 10, 0, 16)
+        layout.addWidget(title)
+
         # 创建滚动区域
-        self.setWidgetResizable(True)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setMinimumSize(750, 480)
-        QScroller.grabGesture(self.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
+        self.scroll_area = SmoothScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
 
         # 创建内容容器
-        self.content_widget = QWidget(self)
-        self.setWidget(self.content_widget)
+        self.content_widget = QWidget(self.scroll_area)
+        self.scroll_area.setWidget(self.content_widget)
 
         # 内容布局
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(40, 20, 40, 20)
-        self.content_layout.setSpacing(32)
+        self.content_layout.setContentsMargins(40, 0, 40, 20)
+        self.content_layout.setSpacing(28)
 
         # 添加设置组
         for group in config.iter_items():
@@ -122,6 +128,7 @@ class ConfigPage(SmoothScrollArea):
         self.apply_attachment()
 
         self.content_layout.addStretch()
+        layout.addWidget(self.scroll_area)
 
     def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""
@@ -160,29 +167,29 @@ class ConfigPage(SmoothScrollArea):
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
-                    card.control.setMinimumWidth(200)
+                    card.widget.setMinimumWidth(200)
                 case n if n.startswith("Login.Timeout."):
-                    card.control.setMinimumWidth(160)
+                    card.widget.setMinimumWidth(160)
                 case "Login.EasiNote.Path" | "Login.EasiNote.ProcessName" | "Login.EasiNote.WindowTitle":
-                    card.control.setFixedWidth(400)
+                    card.widget.setFixedWidth(400)
                 case "Login.EasiNote.Args":
-                    card.control.setFixedWidth(400)
-                    card.control.setClearButtonEnabled(True)
+                    card.widget.setFixedWidth(400)
+                    card.widget.setClearButtonEnabled(True)
                 case "Banner.Style.Text":
-                    card.control.setFixedWidth(420)
+                    card.widget.setFixedWidth(420)
                 case "Banner.Style.TextFont":
-                    card.control.setFixedWidth(200)
-                    card.control.setClearButtonEnabled(True)
+                    card.widget.setFixedWidth(200)
+                    card.widget.setClearButtonEnabled(True)
                 case "App.LogLevel":
-                    card.control.setMinimumWidth(104)
+                    card.widget.setMinimumWidth(104)
 
         # 从属关系
         set_enable_by(
             SettingCard.index["Login.EasiNote.Path"],
-            SettingCard.index["Login.EasiNote.AutoPath"].control,
+            SettingCard.index["Login.EasiNote.AutoPath"].widget,
         )  # type: ignore
-        set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].control)  # type: ignore
-        set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].control)  # type: ignore
+        set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
+        set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
 
     def reset_config(self):
         """重置配置为默认值"""
@@ -217,41 +224,75 @@ class AboutPage(SmoothScrollArea):
         self.setObjectName("AboutPage")
         self.setStyleSheet("border: none; background-color: transparent;")
 
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        title = TitleLabel("关于")
+        title.setContentsMargins(36, 10, 0, 16)
+        layout.addWidget(title)
+
         # 创建滚动区域
-        self.setWidgetResizable(True)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(self.viewport(), QScroller.LeftMouseButtonGesture)
+        self.scroll_area = SmoothScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
 
-        # 创建内容容器
-        content_widget = QWidget(self)
-        content_widget.setMaximumWidth(700)
-        self.setAlignment(Qt.AlignHCenter)
-        self.setWidget(content_widget)
+        layout.addWidget(self.scroll_area)
 
-        layout = QVBoxLayout(content_widget)
-        layout.setContentsMargins(40, 20, 40, 20)
-        layout.setSpacing(20)
+        # 居中容器
+        self.scroll_container = QWidget()
+        self.scroll_area.setWidget(self.scroll_container)
+
+        self.scroll_container_layout = QHBoxLayout(self.scroll_container)
+        self.scroll_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_container_layout.setAlignment(Qt.AlignHCenter)
+
+        self.content_widget = QWidget()
+        self.content_widget.setMaximumWidth(640)
+        self.scroll_container_layout.addWidget(self.content_widget)
+
+        # 内容容器
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(40, 0, 40, 20)
+        self.content_layout.setSpacing(28)
 
         # Banner
         self.banner_area = CardWidget()
         banner_layout = QVBoxLayout(self.banner_area)
+
+        banner_layout.setContentsMargins(0, 0, 0, 0)
+        banner_layout.setSpacing(0)
         banner_layout.setAlignment(Qt.AlignTop)
-        banner_layout.setContentsMargins(24, 16, 24, 16)
 
         self._banner_img_orig = QPixmap(get_resource("banner.png"))
         self.banner_image = ImageLabel(self._banner_img_orig)
-        self.banner_image.setBorderRadius(8, 8, 8, 8)
-        self.banner_image.scaledToWidth(560)
-        self.banner_image.setStyleSheet("border-radius: 8px;")
+
+        self.banner_image.setBorderRadius(8, 8, 0, 0)  # TODO: 圆角显示不正确
+        # self.banner_image.setScaledContents(True)
+        # self.banner_image.setFixedHeight(180)
+        self.banner_image.scaledToWidth(640)
+
+        banner_layout.addWidget(self.banner_image)
+
+        text_container = QWidget()
+        text_layout = QHBoxLayout(text_container)
+        text_layout.setAlignment(Qt.AlignBottom)
+
+        text_layout.setContentsMargins(24, 16, 24, 16)
 
         title = TitleLabel("EasiAuto", self)
         subtitle = SubtitleLabel("版本 1.0.1", self)
 
-        banner_layout.addWidget(self.banner_image)
-        banner_layout.addWidget(title)
-        banner_layout.addWidget(subtitle)
+        text_layout.addWidget(title)
+        text_layout.addSpacing(8)
+        text_layout.addWidget(subtitle)
+        text_layout.addStretch(1)
 
-        layout.addWidget(self.banner_area)
+        # 将文字容器加入主布局
+        banner_layout.addWidget(text_container)
+
+        self.content_layout.addWidget(self.banner_area)
 
         # Product Info
         self.product_info_area = CardWidget()
@@ -265,7 +306,7 @@ class AboutPage(SmoothScrollArea):
         github_link = HyperlinkLabel(QUrl("https://github.com/hxabcd/easiauto"), "GitHub 仓库")
         product_info_layout.addWidget(github_link)
 
-        layout.addWidget(self.product_info_area)
+        self.content_layout.addWidget(self.product_info_area)
 
         # Author Info
         self.info_area = CardWidget()
@@ -283,8 +324,8 @@ class AboutPage(SmoothScrollArea):
         author_info_layout.addWidget(author_link2)
         author_info_layout.addWidget(author_link3)
 
-        layout.addWidget(self.info_area)
-        layout.addStretch()
+        self.content_layout.addWidget(self.info_area)
+        self.content_layout.addStretch()
 
 
 class CIStatus(Enum):
@@ -300,10 +341,10 @@ class AutomationStatusBar(QWidget):
         super().__init__()
         self.manager = manager
 
-        self.setFixedHeight(42)
+        self.setFixedHeight(54)
         layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        layout.setContentsMargins(16, 4, 16, 0)
+        layout.setContentsMargins(16, 0, 16, 0)
 
         self.status_badge = DotInfoBadge.error()
         self.status_label = BodyLabel("未初始化")
@@ -314,7 +355,7 @@ class AutomationStatusBar(QWidget):
 
         self.option_button = TransparentPushButton(icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项")
 
-        layout.addWidget(StrongBodyLabel("ClassIsland"))
+        layout.addWidget(SubtitleLabel("ClassIsland 自动化编辑"))
         layout.addSpacing(12)
         layout.addWidget(self.status_badge)
         layout.addWidget(self.status_label)
@@ -1062,6 +1103,7 @@ class AutomationPage(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self.status_bar = AutomationStatusBar(self.manager)
 
@@ -1147,15 +1189,17 @@ class AutomationPage(QWidget):
 
 class MainSettingsWindow(FluentWindow):
     def __init__(self):
+        logging.debug("初始化主设置窗口")
         super().__init__()
 
         self.config_page = ConfigPage()
         self.automation_page = AutomationPage()
-        # self.overlay_page = SettingsUI("3")
         self.about_page = AboutPage()
 
         self.initNavigation()
         self.initWindow()
+
+        logging.info("主设置窗口初始化完成")
 
     def initNavigation(self):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
@@ -1167,17 +1211,16 @@ class MainSettingsWindow(FluentWindow):
         self.navigationInterface.setExpandWidth(180)
 
     def initWindow(self):
-        logging.debug("初始化主设置窗口")
+        self.setMinimumSize(720, 480)
         self.resize(960, 640)
         self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
         self.setWindowTitle("EasiAuto")
-        logging.info("主设置窗口初始化完成")
 
 
 # os.environ['QT_SCALE_FACTOR'] = ...
 QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
+QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
 
 app = QApplication(sys.argv)
 translator = FluentTranslator()
