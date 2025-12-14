@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import weakref
 from enum import Enum, auto
-from typing import Any, Literal, assert_never
+from typing import Any, assert_never
 
 import qt_pydantic as qtp
 from annotated_types import Ge, Gt, Le, Lt
@@ -228,7 +228,7 @@ class SettingCard(QFrame):
         self.card_type: CardType = card_type
         self.config_item: ConfigItem | ConfigGroup | None = config_item
         self.is_item: bool = is_item
-        self.control: QWidget  # 主控件
+        self._widget: QWidget  # 主控件
         self._initialized = False
 
         if self.config_item:
@@ -257,16 +257,19 @@ class SettingCard(QFrame):
         self.contentLabel = QLabel(content or "", self)
         self.contentLabel.setObjectName("contentLabel")
 
+        height = 70
         if not content:
-            self.contentLabel.hide()
+            height -= 24
+        elif self.is_item:
+            height -= 10
+        self.setFixedHeight(height)
 
-        self.setFixedHeight(70 if content else 50)
         # 布局
         self.hBoxLayout = QHBoxLayout(self)
         self.vBoxLayout = QVBoxLayout()
 
         self.hBoxLayout.setSpacing(0)
-        self.hBoxLayout.setContentsMargins(16, 0, 0, 0)
+        self.hBoxLayout.setContentsMargins(48 if self.is_item else 16, 0, 0, 0)
         self.hBoxLayout.setAlignment(Qt.AlignVCenter)
 
         self.vBoxLayout.setSpacing(0)
@@ -279,7 +282,8 @@ class SettingCard(QFrame):
 
         self.hBoxLayout.addLayout(self.vBoxLayout)
         self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignLeft)
-        self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignLeft)
+        if content:
+            self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignLeft)
 
         self.hBoxLayout.addSpacing(16)
         self.hBoxLayout.addStretch(1)
@@ -325,32 +329,32 @@ class SettingCard(QFrame):
         """根据类型创建控件"""
         match card_type:
             case CardType.SWITCH:
-                self.control = self.switchButton = SwitchButton(self)
+                self._widget = self.switchButton = SwitchButton(self)
                 if self.config_item:
-                    self.control.setChecked(self.config_item.value)
-                self.control.checkedChanged.connect(self._on_value_changed)
+                    self._widget.setChecked(self.config_item.value)
+                self._widget.checkedChanged.connect(self._on_value_changed)
 
             case CardType.SPIN:
-                self.control = SpinBox(self)
+                self._widget = SpinBox(self)
                 if range := self.parse_range_int():
-                    self.control.setRange(*range)
-                self.control.valueChanged.connect(self._on_value_changed)
+                    self._widget.setRange(*range)
+                self._widget.valueChanged.connect(self._on_value_changed)
 
             case CardType.DOUBLE_SPIN:
-                self.control = DoubleSpinBox(self)
+                self._widget = DoubleSpinBox(self)
                 if range := self.parse_range_float():
-                    self.control.setRange(*range)
-                self.control.valueChanged.connect(self._on_value_changed)
+                    self._widget.setRange(*range)
+                self._widget.valueChanged.connect(self._on_value_changed)
 
             case CardType.EDIT:
-                self.control = LineEdit(self)
+                self._widget = LineEdit(self)
                 if self.config_item:
                     extra = self.config_item.json_schema_extra or {}
                     if text := extra.get("placeholder_text"):
-                        self.control.setPlaceholderText(text)
+                        self._widget.setPlaceholderText(text)
                     else:
-                        self.control.setPlaceholderText(self.config_item.field_info.default)
-                self.control.textChanged.connect(self._on_value_changed)
+                        self._widget.setPlaceholderText(self.config_item.field_info.default)
+                self._widget.textChanged.connect(self._on_value_changed)
 
             case CardType.COLOR:
                 enable_alpha = False
@@ -359,8 +363,8 @@ class SettingCard(QFrame):
                     if value := extra.get("enable_alpha"):
                         enable_alpha = value
                 initial_color = self.config_item.field_info.default if self.config_item else QColor()
-                self.control = ColorPickerButton(initial_color, title, self, enable_alpha)
-                self.control.colorChanged.connect(self._on_value_changed)
+                self._widget = ColorPickerButton(initial_color, title, self, enable_alpha)
+                self._widget.colorChanged.connect(self._on_value_changed)
 
             case CardType.RANGE:
                 self._create_range_widget()
@@ -373,35 +377,35 @@ class SettingCard(QFrame):
                 assert_never(unreachable)
 
         # 添加控件到布局
-        self.hBoxLayout.addWidget(self.control, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
     def _create_range_widget(self):
         """创建滑条控件（特殊布局）"""
-        self.control = Slider(Qt.Horizontal, self)
+        self._widget = Slider(Qt.Horizontal, self)
         self.valueLabel = QLabel(self)
         self.valueLabel.setObjectName("valueLabel")
 
-        self.control.setMinimumWidth(268)
-        self.control.setSingleStep(1)
+        self._widget.setMinimumWidth(268)
+        self._widget.setSingleStep(1)
 
         if self.config_item:
             if range := self.parse_range_int():
-                self.control.setRange(*range)
-            self.control.setValue(self.config_item.value)
+                self._widget.setRange(*range)
+            self._widget.setValue(self.config_item.value)
             self.valueLabel.setNum(self.config_item.value)
 
         self.hBoxLayout.addStretch(1)
         self.hBoxLayout.addWidget(self.valueLabel, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(6)
-        self.hBoxLayout.addWidget(self.control, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
-        self.control.valueChanged.connect(self._on_value_changed)
+        self._widget.valueChanged.connect(self._on_value_changed)
 
     def _create_combo_box(self):
         """创建下拉框控件"""
-        self.control = ComboBox(self)
+        self._widget = ComboBox(self)
 
         if self.config_item and issubclass(self.config_item.type_, Enum):
             # 加载枚举项
@@ -410,7 +414,7 @@ class SettingCard(QFrame):
             for option in options:
                 name = getattr(option, "display_name", option.name)
                 self.options_index.append(option)
-                self.control.addItem(name, userData=option)
+                self._widget.addItem(name, userData=option)
 
             # 设置当前值
             current_value: Enum = self.config_item.value
@@ -420,11 +424,9 @@ class SettingCard(QFrame):
                     current_index = i
                     break
             if current_index >= 0:
-                self.control.setCurrentIndex(current_index)
+                self._widget.setCurrentIndex(current_index)
 
-        self.control.currentIndexChanged.connect(
-            lambda i: self._on_value_changed(self.options_index[i])
-        )
+        self._widget.currentIndexChanged.connect(lambda i: self._on_value_changed(self.options_index[i]))
 
     def _on_value_changed(self, value: Any):
         """值变化处理"""
@@ -446,35 +448,35 @@ class SettingCard(QFrame):
     def setValue(self, value: Any):
         match self.card_type:
             case CardType.SWITCH:
-                self.control.setChecked(value)
+                self._widget.setChecked(value)
             case CardType.SPIN | CardType.DOUBLE_SPIN:
-                self.control.setValue(value)
+                self._widget.setValue(value)
             case CardType.EDIT:
-                self.control.setText(value)
+                self._widget.setText(value)
             case CardType.COLOR:
-                self.control.setColor(value)
+                self._widget.setColor(value)
             case CardType.RANGE:
-                self.control.setValue(value)
+                self._widget.setValue(value)
                 self.valueLabel.setNum(value)
                 self.valueLabel.adjustSize()
             case CardType.ENUM:
                 name = getattr(value, "display_name", value.name)
-                self.control.setCurrentText(name)
+                self._widget.setCurrentText(name)
             case unreachable:
                 assert_never(unreachable)
 
     def getValue(self) -> Any:
         match self.card_type:
             case CardType.SWITCH:
-                return self.control.isChecked()
+                return self._widget.isChecked()
             case CardType.SPIN | CardType.DOUBLE_SPIN | CardType.RANGE:
-                return self.control.value()
+                return self._widget.value()
             case CardType.EDIT:
-                return self.control.text()
+                return self._widget.text()
             case CardType.COLOR:
-                return self.control.color
+                return self._widget.color
             case CardType.ENUM:
-                return self.control.currentData()
+                return self._widget.currentData()
             case unreachable:
                 assert_never(unreachable)
         return None
@@ -489,7 +491,7 @@ class SettingCard(QFrame):
     def isChecked(self) -> bool:
         """获取开关状态（仅 SWITCH 类型）"""
         if self.card_type == CardType.SWITCH:
-            return self.control.isChecked()
+            return self._widget.isChecked()
         raise TypeError("isChecked() only available for SWITCH type")
 
     def setChecked(self, checked: bool):
@@ -523,7 +525,7 @@ class SettingCard(QFrame):
     @property
     def widget(self):
         """获取主控件，用于自定义操作"""
-        return self.control
+        return self._widget
 
     def paintEvent(self, e):
         painter = QPainter(self)
