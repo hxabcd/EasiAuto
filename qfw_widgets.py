@@ -1,19 +1,20 @@
 """重写的 QFluentWidgets 组件"""
 
-from typing import List
-
 from PySide6.QtCore import Property, QModelIndex, Qt
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QListView,
     QListWidget,
     QStyleOptionViewItem,
+    QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
+    ExpandLayout,
     FluentStyleSheet,
     IconWidget,
     SmoothScrollDelegate,
+    StrongBodyLabel,
     TableItemDelegate,
     drawIcon,
     isDarkTheme,
@@ -89,7 +90,6 @@ class ListBase:
         """set hovered row"""
         # self.delegate.setHoverRow(row)
         # self.viewport().update()
-        pass
 
     def _setPressedRow(self, row: int):
         """set pressed row"""
@@ -98,9 +98,8 @@ class ListBase:
 
         # self.delegate.setPressedRow(row)
         # self.viewport().update()
-        pass
 
-    def _setSelectedRows(self, indexes: List[QModelIndex]):
+    def _setSelectedRows(self, indexes: list[QModelIndex]):
         if self.selectionMode() == QListView.SelectionMode.NoSelection:
             return
 
@@ -186,3 +185,43 @@ class ListWidget(ListBase, QListWidget):
         self._isSelectRightClickedRow = isSelect
 
     selectRightClickedRow = Property(bool, isSelectRightClickedRow, setSelectRightClickedRow)
+
+
+class SettingCardGroup(QWidget):
+    """Setting card group"""
+
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent=parent)
+        # self.titleLabel = QLabel(title, self)
+        self.titleLabel = StrongBodyLabel(title, self)
+        self.vBoxLayout = QVBoxLayout(self)
+        self.cardLayout = ExpandLayout()
+
+        self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
+        self.vBoxLayout.setAlignment(Qt.AlignTop)
+        self.vBoxLayout.setSpacing(0)
+        self.cardLayout.setContentsMargins(0, 0, 0, 0)
+        self.cardLayout.setSpacing(2)
+
+        self.vBoxLayout.addWidget(self.titleLabel)
+        self.vBoxLayout.addSpacing(12)
+        self.vBoxLayout.addLayout(self.cardLayout, 1)
+
+        FluentStyleSheet.SETTING_CARD_GROUP.apply(self)
+        # setFont(self.titleLabel, 20)
+        # self.titleLabel.adjustSize()
+
+    def addSettingCard(self, card: QWidget):
+        """add setting card to group"""
+        card.setParent(self)
+        self.cardLayout.addWidget(card)
+        self.adjustSize()
+
+    def addSettingCards(self, cards: list[QWidget]):
+        """add setting cards to group"""
+        for card in cards:
+            self.addSettingCard(card)
+
+    def adjustSize(self):
+        h = self.cardLayout.heightForWidth(self.width()) + 46
+        return self.resize(self.width(), h)
