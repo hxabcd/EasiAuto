@@ -974,20 +974,21 @@ class CiRunningWarnSubpage(QWidget):
 
     ciClosed = Signal()
 
-    label_text_1 = "ClassIsland 正在运行"
-    label_desc_1 = "<span style='font-size: 15px;'>需要关闭 ClassIsland 才能编辑自动化</span>"
-    label_text_1e = "唔，看起来 ClassIsland 还在运行呢"
-    label_desc_1e = "<span style='font-size: 15px;'>这种坏事要偷偷地干啦，让 ClassIsland 大姐姐看到就不好了哦~</span>"
+    label_running_text = "ClassIsland 正在运行"
+    label_running_desc = "<span style='font-size: 15px;'>需要关闭 ClassIsland 才能编辑自动化</span>"
+    labelE_running_text = "唔，看起来 ClassIsland 还在运行呢"
+    labelE_running_desc = (
+        "<span style='font-size: 15px;'>这种坏事要偷偷地干啦，让 ClassIsland 大姐姐看到就不好了哦~</span>"
+    )
 
-    label_text_2 = "无法终止 ClassIsland"
-    label_desc_2 = "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
-    label_text_2e = "诶诶，情况好像不太对？！"
-    lalbel_desc_2e = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
+    label_failed_text = "无法终止 ClassIsland"
+    label_failed_desc = "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
+    labelE_failed_text = "诶诶，情况好像不太对？！"
+    lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
-    def __init__(self, manager: CiAutomationManager | None = None, easter_egg: bool = False):
+    def __init__(self, manager: CiAutomationManager | None = None):
         super().__init__()
         self.manager = manager
-        self.easter_egg_enabled = easter_egg
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1009,25 +1010,26 @@ class CiRunningWarnSubpage(QWidget):
         layout.addWidget(self.action_button)
 
         self.set_text()
+        SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
 
     def set_text(self, failed: bool = False):
         if not failed:
             self.hint_icon.setPixmap(Icon(FluentIcon.BROOM).pixmap(96, 96))
-            if self.easter_egg_enabled:
-                self.hint_label.setText(self.label_text_1e)
-                self.hint_desc.setText(self.label_desc_1e)
+            if config.App.EasterEggEnabled:
+                self.hint_label.setText(self.labelE_running_text)
+                self.hint_desc.setText(self.labelE_running_desc)
             else:
-                self.hint_label.setText(self.label_text_1)
-                self.hint_desc.setText(self.label_desc_1)
+                self.hint_label.setText(self.label_running_text)
+                self.hint_desc.setText(self.label_running_desc)
                 self.action_button.show()
         else:
             self.hint_icon.setPixmap(Icon(FluentIcon.QUESTION).pixmap(96, 96))
-            if self.easter_egg_enabled:
-                self.hint_label.setText(self.label_text_2e)
-                self.hint_desc.setText(self.label_text_2e)
+            if config.App.EasterEggEnabled:
+                self.hint_label.setText(self.labelE_failed_text)
+                self.hint_desc.setText(self.labelE_failed_text)
             else:
-                self.hint_label.setText(self.label_text_2)
-                self.hint_desc.setText(self.label_desc_2)
+                self.hint_label.setText(self.label_failed_text)
+                self.hint_desc.setText(self.label_failed_desc)
             self.action_button.hide()
 
     def terminate_ci(self):
