@@ -169,29 +169,6 @@ class WarningBanner(QWidget):
             x += text_width
 
 
-class Separator(QWidget):
-    """通用分隔符"""
-
-    def __init__(self, direction: Literal["vertical", "horizontal"] = "horizontal", parent=None):
-        super().__init__(parent=parent)
-        self.direction = direction
-        if direction == "vertical":
-            self.setFixedWidth(3)
-        else:
-            self.setFixedHeight(3)
-
-    def paintEvent(self, e):
-        painter = QPainter(self)
-        c = 255 if isDarkTheme() else 0
-        pen = QPen(QColor(c, c, c, 15))
-        pen.setCosmetic(True)
-        painter.setPen(pen)
-        if self.direction == "vertical":
-            painter.drawLine(1, 0, 1, self.height())
-        else:
-            painter.drawLine(0, 1, self.width(), 1)
-
-
 class CardType(Enum):
     """设置卡片类型"""
 
