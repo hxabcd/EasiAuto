@@ -330,7 +330,7 @@ class AutomationStatusBar(QWidget):
             if self.manager:
                 status = CIStatus.RUNNING if self.manager.is_ci_running else CIStatus.DIED
             else:
-                status = CIStatus.DIED
+                status = CIStatus.UNINITIALIZED
 
         logging.debug(f"更新 ClassIsland 状态: {status}")
         match status:
