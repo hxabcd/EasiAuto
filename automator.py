@@ -107,6 +107,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.login()
 
                 self.finished.emit("登录完成")
+                return
             except Exception as e:
                 retries += 1
                 if retries <= self.max_retries:
@@ -116,6 +117,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 else:
                     logging.critical(f"[X] {retries}次尝试均登录失败")
                     self.finished.emit("登录失败")
+                    return
 
 
 class CVAutomator(BaseAutomator):

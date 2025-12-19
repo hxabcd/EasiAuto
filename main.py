@@ -24,7 +24,7 @@ except Exception:  # 回退基本日志
     )
 
 
-def cmd_login(args, manual: bool = False):
+def cmd_login(args):
     """login 子命令 - 执行自动登录"""
 
     # 若临时禁用，则退出程序
@@ -37,7 +37,7 @@ def cmd_login(args, manual: bool = False):
     logging.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
-    if not manual and config.Warning.Enabled:
+    if config.Warning.Enabled:
         try:
             msgbox = WarningPopupWindow()
             if msgbox.countdown(config.Warning.Timeout) == 0:
@@ -46,6 +46,8 @@ def cmd_login(args, manual: bool = False):
             logging.info("用户确认或超时，继续执行")
         except Exception:
             logging.exception("显示警告弹窗时出错，跳过警告")
+
+    # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
 
     # 显示警示横幅
     if config.Banner.Enabled:
@@ -70,11 +72,8 @@ def cmd_login(args, manual: bool = False):
     automator = automator_type(args.account, args.password, config.Login, config.App.MaxRetries)
 
     automator.start()
-    if manual:
-        automator.finished.connect(banner.close)
-    else:
-        automator.finished.connect(app.quit)
-        sys.exit(app.exec())
+    automator.finished.connect(app.quit)
+    sys.exit(app.exec())
 
 
 def cmd_settings(_):

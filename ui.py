@@ -667,20 +667,21 @@ class AutomationManageSubpage(QWidget):
 
         logging.info(f"开始运行自动化: {automation.item_display_name}")
 
+        from automator import CVAutomator, FixedAutomator, UIAAutomator
+        from components import WarningBanner
+
         # 最小化设置界面
-        app = QApplication.instance() or QApplication([])
         main_window = app.activeWindow()
         if main_window:
             main_window.showMinimized()
 
-        from automator import CVAutomator, FixedAutomator, UIAAutomator
-        from components import WarningBanner
+        # NOTE: 下方运行逻辑在 main.py cmd_login() 中存在相同实现，如更改需同步替换
 
         # 显示警示横幅
         if config.Banner.Enabled:
             try:
                 screen = app.primaryScreen().geometry()
-                self.banner = WarningBanner(config.Banner)
+                self.banner = WarningBanner(config.Banner.Style)
                 self.banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
                 self.banner.show()
             except Exception:
@@ -696,16 +697,17 @@ class AutomationManageSubpage(QWidget):
             case LoginMethod.FIXED_POSITION:
                 automator_type = FixedAutomator
 
-        automator = automator_type(automation.account, automation.password, config.Login, config.App.MaxRetries)
+        self.automator = automator_type(automation.account, automation.password, config.Login, config.App.MaxRetries)
 
-        automator.start()
-        automator.finished.connect(self._clean_up_after_run)
+        self.automator.start()
+        self.automator.finished.connect(self._clean_up_after_run)
 
     def _clean_up_after_run(self):
         """清理运行后的资源"""
         if hasattr(self, "banner"):
             self.banner.close()
             del self.banner
+        self.automator.terminate()  # 保险起见 双重退出
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
