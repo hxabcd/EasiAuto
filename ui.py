@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -20,17 +20,19 @@ from PySide6.QtWidgets import (
 )
 from qfluentwidgets import (
     Action,
+    AvatarWidget,
     BodyLabel,
+    CaptionLabel,
     CardWidget,
     ComboBox,
     CommandBar,
     DotInfoBadge,
-    ExpandSettingCard,
+    ExpandGroupSettingCard,
     FluentIcon,
     FluentTranslator,
     FluentWindow,
     HorizontalSeparator,
-    HyperlinkLabel,
+    HyperlinkCard,
     Icon,
     IconInfoBadge,
     ImageLabel,
@@ -69,7 +71,7 @@ def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
 
         def handle_check_change(checked: bool):
             widget.setEnabled(checked)
-            if not checked and isinstance(widget, ExpandSettingCard):
+            if not checked and isinstance(widget, ExpandGroupSettingCard):
                 widget.setExpand(False)
 
         switch.checkedChanged.connect(handle_check_change)
@@ -78,7 +80,7 @@ def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
 
         def handle_check_change(checked: bool):
             widget.setDisabled(checked)
-            if checked and isinstance(widget, ExpandSettingCard):
+            if checked and isinstance(widget, ExpandGroupSettingCard):
                 widget.setExpand(False)
 
         switch.checkedChanged.connect(handle_check_change)
@@ -214,118 +216,6 @@ class ConfigPage(QWidget):
                 duration=3000,
                 parent=self,
             )
-
-
-class AboutPage(SmoothScrollArea):
-    """设置 - 关于页"""
-
-    def __init__(self):
-        super().__init__()
-        self.setObjectName("AboutPage")
-        self.setStyleSheet("border: none; background-color: transparent;")
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        title = TitleLabel("关于")
-        title.setContentsMargins(36, 10, 0, 16)
-        layout.addWidget(title)
-
-        # 创建滚动区域
-        self.scroll_area = SmoothScrollArea(self)
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
-
-        layout.addWidget(self.scroll_area)
-
-        # 居中容器
-        self.scroll_container = QWidget()
-        self.scroll_area.setWidget(self.scroll_container)
-
-        self.scroll_container_layout = QHBoxLayout(self.scroll_container)
-        self.scroll_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.scroll_container_layout.setAlignment(Qt.AlignHCenter)
-
-        self.content_widget = QWidget()
-        self.content_widget.setMaximumWidth(640)
-        self.scroll_container_layout.addWidget(self.content_widget)
-
-        # 内容容器
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(40, 0, 40, 20)
-        self.content_layout.setSpacing(28)
-
-        # Banner
-        self.banner_area = CardWidget()
-        banner_layout = QVBoxLayout(self.banner_area)
-
-        banner_layout.setContentsMargins(0, 0, 0, 0)
-        banner_layout.setSpacing(0)
-        banner_layout.setAlignment(Qt.AlignTop)
-
-        self._banner_img_orig = QPixmap(get_resource("banner.png"))
-        self.banner_image = ImageLabel(self._banner_img_orig)
-
-        self.banner_image.setBorderRadius(8, 8, 0, 0)  # TODO: 圆角显示不正确
-        # self.banner_image.setScaledContents(True)
-        # self.banner_image.setFixedHeight(180)
-        self.banner_image.scaledToWidth(640)
-
-        banner_layout.addWidget(self.banner_image)
-
-        text_container = QWidget()
-        text_layout = QHBoxLayout(text_container)
-        text_layout.setAlignment(Qt.AlignBottom)
-
-        text_layout.setContentsMargins(24, 16, 24, 16)
-
-        title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel("版本 1.0.1", self)
-
-        text_layout.addWidget(title)
-        text_layout.addSpacing(8)
-        text_layout.addWidget(subtitle)
-        text_layout.addStretch(1)
-
-        # 将文字容器加入主布局
-        banner_layout.addWidget(text_container)
-
-        self.content_layout.addWidget(self.banner_area)
-
-        # Product Info
-        self.product_info_area = CardWidget()
-        product_info_layout = QVBoxLayout(self.product_info_area)
-        product_info_layout.setAlignment(Qt.AlignTop)
-        product_info_layout.setContentsMargins(24, 16, 24, 16)
-
-        product_text = BodyLabel("一个用于自动登录希沃白板的小工具")
-        product_info_layout.addWidget(product_text)
-
-        github_link = HyperlinkLabel(QUrl("https://github.com/hxabcd/easiauto"), "GitHub 仓库")
-        product_info_layout.addWidget(github_link)
-
-        self.content_layout.addWidget(self.product_info_area)
-
-        # Author Info
-        self.info_area = CardWidget()
-        author_info_layout = QVBoxLayout(self.info_area)
-        author_info_layout.setAlignment(Qt.AlignTop)
-        author_info_layout.setContentsMargins(24, 16, 24, 16)
-
-        author_text = BodyLabel("作者：HxAbCd")
-        author_link1 = HyperlinkLabel(QUrl("https://0xabcd.dev"), "Website")
-        author_link2 = HyperlinkLabel(QUrl("https://space.bilibili.com/336325343"), "Bilibili")
-        author_link3 = HyperlinkLabel(QUrl("https://github.com/hxabcd"), "Github")
-
-        author_info_layout.addWidget(author_text)
-        author_info_layout.addWidget(author_link1)
-        author_info_layout.addWidget(author_link2)
-        author_info_layout.addWidget(author_link3)
-
-        self.content_layout.addWidget(self.info_area)
-        self.content_layout.addStretch()
 
 
 class CIStatus(Enum):
@@ -1185,6 +1075,182 @@ class AutomationPage(QWidget):
         self.manager_page.set_manager(self.manager)
 
         self.start_watchdog()
+
+
+class AboutPage(SmoothScrollArea):
+    """设置 - 关于页"""
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("AboutPage")
+        self.setStyleSheet("border: none; background-color: transparent;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        title = TitleLabel("关于")
+        title.setContentsMargins(36, 10, 0, 16)
+        layout.addWidget(title)
+
+        # 创建滚动区域
+        self.scroll_area = SmoothScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)  # 触摸适配
+
+        layout.addWidget(self.scroll_area)
+
+        # 居中容器
+        self.scroll_container = QWidget()
+        self.scroll_area.setWidget(self.scroll_container)
+
+        self.scroll_container_layout = QHBoxLayout(self.scroll_container)
+        self.scroll_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_container_layout.setAlignment(Qt.AlignHCenter)
+
+        self.content_widget = QWidget()
+        self.content_widget.setMaximumWidth(600)
+        self.scroll_container_layout.addWidget(self.content_widget)
+
+        # 内容容器
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 20)
+        self.content_layout.setSpacing(28)
+
+        # 产品信息卡片
+        self.banner_container = CardWidget()
+        banner_container_layout = QVBoxLayout(self.banner_container)
+        banner_container_layout.setContentsMargins(0, 0, 0, 0)
+        banner_container_layout.setAlignment(Qt.AlignTop)
+
+        # 主视觉图
+        _banner_img_src = QPixmap(get_resource("banner.png"))
+        banner_image = ImageLabel(_banner_img_src)
+        banner_image.setFixedWidth(600)
+        banner_image.scaledToWidth(600)
+        banner_image.setBorderRadius(8, 8, 0, 0)
+        banner_container_layout.addWidget(banner_image)
+
+        banner_layout = QVBoxLayout()
+        banner_layout.setAlignment(Qt.AlignTop)
+        banner_layout.setContentsMargins(20, 0, 20, 12)
+        banner_layout.setSpacing(16)
+
+        # 应用描述
+        title_layout = QHBoxLayout()
+        title_layout.setAlignment(Qt.AlignBottom)
+        title = TitleLabel("EasiAuto", self)
+        subtitle = SubtitleLabel("版本 1.0.1", self)
+        title_layout.addWidget(title)
+        title_layout.addSpacing(6)
+        title_layout.addWidget(subtitle)
+        title_layout.addStretch(1)
+
+        banner_layout.addLayout(title_layout)
+
+        description_layout = QVBoxLayout()
+        product_text = BodyLabel("一款自动登录希沃白板的小工具")
+        github_link = HyperlinkCard(
+            icon=FluentIcon.GITHUB,
+            title="GitHub 仓库",
+            content="不妨点个 Star 支持一下？  (≧∇≦)ﾉ★",
+            url="https://github.com/hxabcd/easiauto",
+            text="查看",
+        )
+        additional_info = ExpandGroupSettingCard(
+            icon=FluentIcon.INFO, title="其他信息", content="开源协议、第三方库、鸣谢"
+        )
+        additional_info.viewLayout.setContentsMargins(16, 8, 16, 12)
+        additional_info.viewLayout.setSpacing(6)
+        additional_info.addGroupWidget(BodyLabel("本项自基于 GNU General Public License v3.0 (GPLv3) 获得许可"))
+        additional_info.addGroupWidget(
+            BodyLabel(
+                "\n  - ".join(
+                    [
+                        "本项目使用到的第三方库（仅列出部分）：",
+                        "PySide6",
+                        "qfluentwidget",
+                        "Pydantic",
+                        "pywinauto",
+                        "pyautogui",
+                    ]
+                )
+            )
+        )
+        additional_info.addGroupWidget(
+            BodyLabel(
+                "\n  - ".join(
+                    [
+                        "特别感谢：",
+                        "智教联盟 对本项目的宣传",
+                        "Class-Widget 对本项目代码提供参考",
+                        "ClassIsland 「自动化」 对本项目提供载体",
+                        "我的初中英语老师 为本项目提供动机",
+                    ]
+                )
+                + "\n\n    以及——愿意使用 EasiAuto 的你"
+            )
+        )
+        description_layout.addWidget(product_text)
+        description_layout.addWidget(github_link)
+        description_layout.addWidget(additional_info)  # NOTE: 不知道为什么折叠的时候会抽搐，之后再修吧
+        banner_layout.addLayout(description_layout)
+
+        banner_container_layout.addLayout(banner_layout)
+        self.content_layout.addWidget(self.banner_container)
+
+        # 作者信息卡片
+        self.author_area = CardWidget()
+        author_layout = QVBoxLayout(self.author_area)
+        author_layout.setAlignment(Qt.AlignTop)
+        author_layout.setContentsMargins(24, 16, 24, 16)
+
+        author_info_layout = QHBoxLayout()
+
+        author_avatar = AvatarWidget(QPixmap(get_resource("author_avatar.jpg")))
+        author_avatar.setRadius(24)
+
+        sub_layout = QVBoxLayout()
+        sub_layout.setSpacing(0)
+        author_name = SubtitleLabel("HxAbCd")
+        author_content = CaptionLabel("Just be yourself.")
+        author_content.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        sub_layout.addWidget(author_name)
+        sub_layout.addWidget(author_content)
+
+        author_info_layout.addWidget(author_avatar)
+        author_info_layout.addSpacing(4)
+        author_info_layout.addLayout(sub_layout)
+        author_info_layout.addStretch(1)
+
+        author_link1 = HyperlinkCard(
+            icon=FluentIcon.GLOBE,
+            title="个人网站",
+            url="https://0xabcd.dev",
+            text="访问",
+        )
+        author_link2 = HyperlinkCard(
+            icon=FluentIcon.HOME_FILL,
+            title="哔哩哔哩主页",
+            url="https://space.bilibili.com/336325343",
+            text="访问",
+        )
+        author_link3 = HyperlinkCard(
+            icon=FluentIcon.GITHUB,
+            title="Github 主页",
+            url="https://github.com/hxabcd",
+            text="访问",
+        )
+
+        author_layout.addLayout(author_info_layout)
+        author_layout.addSpacing(4)
+        author_layout.addWidget(author_link1)
+        author_layout.addWidget(author_link2)
+        author_layout.addWidget(author_link3)
+
+        self.content_layout.addWidget(self.author_area)
+        self.content_layout.addStretch(1)
 
 
 class MainSettingsWindow(FluentWindow):
