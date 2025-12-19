@@ -51,7 +51,7 @@ def cmd_login(args, manual: bool = False):
     if config.Banner.Enabled:
         try:
             screen = app.primaryScreen().geometry()
-            banner = WarningBanner(config.Banner)
+            banner = WarningBanner(config.Banner.Style)
             banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
             banner.show()
         except Exception:
