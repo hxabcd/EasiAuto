@@ -31,7 +31,7 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from config import BannerConfig, ConfigGroup, ConfigItem
+from config import BannerStyleConfig, ConfigGroup, ConfigItem
 from qfw_widgets import SettingIconWidget
 from utils import get_resource
 
@@ -85,7 +85,7 @@ class WarningPopupWindow(QMessageBox):
 class WarningBanner(QWidget):
     """顶部警示横幅"""
 
-    def __init__(self, config: BannerConfig):
+    def __init__(self, config: BannerStyleConfig):
         super().__init__()
         self.config = config
 
@@ -95,11 +95,7 @@ class WarningBanner(QWidget):
         # 置顶、无边框、点击穿透
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
 
-        # 滚动文字
-        self.text = self.config.Text
         self.text_x = 0
-        self.text_speed = self.config.TextSpeed
-        self.text_y_offset = self.config.YOffset
 
         font_families = ["Microsoft YaHei UI", "sans-serif"]
         if self.config.TextFont != "":
@@ -126,9 +122,9 @@ class WarningBanner(QWidget):
         self.offset = (self.offset + 1) % self.stripe.width()
 
         # 文字滚动
-        self.text_x -= self.text_speed
+        self.text_x -= self.config.TextSpeed
         # 文字总长度
-        total_text_width = QFontMetrics(self.text_font).horizontalAdvance(self.text)
+        total_text_width = QFontMetrics(self.text_font).horizontalAdvance(self.config.Text)
         if self.text_x < -total_text_width:
             self.text_x += total_text_width  # 循环滚动，不跳空
         self.update()
@@ -162,10 +158,10 @@ class WarningBanner(QWidget):
         # 滚动文字（循环绘制多份）
         painter.setFont(self.text_font)
         painter.setPen(QColor(self.config.TextColor))
-        text_width = painter.fontMetrics().horizontalAdvance(self.text)
+        text_width = painter.fontMetrics().horizontalAdvance(self.config.Text)
         x = self.text_x
         while x < self.width():
-            painter.drawText(x, int(self.height() / 2 + self.text_y_offset), self.text)
+            painter.drawText(x, int(self.height() / 2 + self.config.YOffset), self.config.Text)
             x += text_width
 
 
