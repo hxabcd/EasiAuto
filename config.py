@@ -105,7 +105,7 @@ class LoginConfig(ConfigModel):
     )
     KillAgent: bool = Field(
         default=True,
-        title="终止 SeewoAgent 服务",
+        title="终止 EasiAgent 服务",
         description="可避免某些情况下自动登录被希沃的快捷登录打断",
         json_schema_extra={"icon": "PowerButton"},
     )
