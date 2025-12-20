@@ -50,7 +50,7 @@ def cmd_login(args):
                         time.sleep(config.Warning.Delay)
                         continue
         except Exception:
-            logger.exception("显示警告弹窗时出错，跳过警告")
+            logger.error("显示警告弹窗时出错，跳过警告")
 
     # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
 
@@ -62,7 +62,7 @@ def cmd_login(args):
             banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
             banner.show()
         except Exception:
-            logger.exception("显示横幅时出错，跳过横幅")
+            logger.error("显示横幅时出错，跳过横幅")
 
     # 执行登录
     logger.debug(f"当前设置的登录方案: {config.Login.Method}")
@@ -92,7 +92,7 @@ def cmd_settings(_):
 def cmd_skip(_):
     """skip 子命令 - 跳过下一次登录"""
     config.Login.SkipOnce = True
-    logger.info("已更新配置文件，正在退出")
+    logger.success("已更新配置文件，正在退出")
     utils.stop()
 
 

@@ -6,7 +6,7 @@ import sys
 import traceback
 import winsound
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import psutil
 import win32com.client
@@ -264,7 +264,7 @@ def get_window_by_title(title: str):
     win32gui.EnumWindows(callback, hwnds)
 
     if hwnds:
-        logger.info(f"已找到标题包含 '{title}' 的窗口")
+        logger.success(f"已找到标题包含 '{title}' 的窗口")
         return hwnds
     logger.warning(f"未找到标题包含 '{title}' 的窗口")
     return None
@@ -355,3 +355,7 @@ def stop(status: int = 0) -> None:
     logger.debug(f"程序退出({status})")
     if not app:
         os._exit(status)
+
+def crash() -> NoReturn:
+    """崩溃程序"""
+    raise Exception("Crash Test")

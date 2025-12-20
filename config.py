@@ -96,7 +96,7 @@ class LoginConfig(ConfigModel):
         default=LoginMethod.UI_AUTOMATION,
         title="登录方式",
         description="选择用于进行自动登录的方式\n可选项：UI Automation - 定位页面元素（推荐，最稳定）、OpenCV - 图像识别、Fixed - 固定位置",
-        json_schema_extra={"icon": "DeveloperTools"},
+        json_schema_extra={"icon": "Application"},
     )
     SkipOnce: bool = Field(
         default=False,
@@ -296,7 +296,9 @@ class BannerStyleConfig(ConfigModel):
         description="横幅文本滚动的速度",
         json_schema_extra={"icon": "RightArrow", "style": "slider"},
     )
-    YOffset: int = Field(default=20, title="垂直偏移", description="横幅距离屏幕顶部的像素偏移量")
+    YOffset: int = Field(
+        default=20, title="垂直偏移", description="横幅距离屏幕顶部的像素偏移量", json_schema_extra={"icon": "Down"}
+    )
 
 
 class AppConfig(ConfigModel):
@@ -310,15 +312,20 @@ class AppConfig(ConfigModel):
     )
     LogEnabled: bool = Field(
         default=True,
-        title="启用日志",
-        description="在应用 Logs 目录记录日志文件",
-        json_schema_extra={"icon": "DeveloperTools"},
+        title="启用日志记录",
+        description="在应用 /Logs 目录记录日志文件",
+        json_schema_extra={"icon": "Document"},
     )
     EasterEggEnabled: bool = Field(
         default=False,
         title="启用彩蛋",
         description="唔……似乎某些地方有点不对劲的说喵？",
-        json_schema_extra={"icon": "Question"},
+        json_schema_extra={"icon": "Question", "hidden": True},
+    )
+    DebugMode: bool = Field(
+        default=False,
+        title="启用开发选项",
+        json_schema_extra={"icon": "DeveloperTools", "hidden": True},
     )
 
 

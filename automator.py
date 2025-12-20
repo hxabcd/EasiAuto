@@ -81,7 +81,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         while elapsed < timeout:
             self.hwnd = win32gui.FindWindow(None, window_title)
             if self.hwnd:
-                logger.info(f"窗口已打开：{window_title}")
+                logger.success(f"窗口已打开：{window_title}")
                 self.task_update.emit("等待登录")
                 self.progress_update.emit("希沃白板已启动")
 
@@ -111,7 +111,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             except Exception as e:
                 retries += 1
                 if retries <= self.max_retries:
-                    logger.exception(f"登录过程中发生错误\n{e}")
+                    logger.error(f"登录过程中发生错误\n{e}")
                     logger.warning(f"将在2s后重试（第{retries}次重试）")
                     time.sleep(2)
                 else:
@@ -171,7 +171,7 @@ class CVAutomator(BaseAutomator):
                 button_button = pyautogui.locateCenterOnScreen(button_img_selected, confidence=0.8)
                 assert button_button
             except (pyautogui.ImageNotFoundException, AssertionError) as e:
-                logger.exception("未能识别到账号登录按钮")
+                logger.error("未能识别到账号登录按钮")
                 raise e
 
         # 输入账号
@@ -200,7 +200,7 @@ class CVAutomator(BaseAutomator):
             agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img, confidence=0.8)
             assert agree_checkbox
         except (pyautogui.ImageNotFoundException, AssertionError) as e:
-            logger.exception("未能识别到用户协议复选框")
+            logger.error("未能识别到用户协议复选框")
             raise e
 
         logger.info("识别到用户协议复选框，正在点击")

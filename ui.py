@@ -57,11 +57,12 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
+import utils
 from ci_automation_manager import CiAutomationManager, EasiAutomation
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, config
 from qfw_widgets import ListWidget, SettingCardGroup
-from utils import EA_EXECUTABLE, create_script, get_ci_executable, get_resource
+from utils import EA_EXECUTABLE, get_resource
 
 
 def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
@@ -171,14 +172,16 @@ class ConfigPage(QWidget):
             text="崩溃",
         )
 
-        collapse_card.clicked.connect(lambda: 1 / 0)
+        collapse_card.clicked.connect(utils.crash)
         self.content_layout.addWidget(collapse_card)
+        collapse_card.setVisible(config.App.DebugMode)
+        SettingCard.index["App.DebugMode"].valueChanged.connect(collapse_card.setVisible)
 
         # 额外属性
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
-                    card.widget.setMinimumWidth(200)
+                    card.widget.setMinimumWidth(180)
                 case n if n.startswith("Login.Timeout."):
                     card.widget.setMinimumWidth(160)
                 case "Login.EasiNote.Path" | "Login.EasiNote.ProcessName" | "Login.EasiNote.WindowTitle":
@@ -632,7 +635,7 @@ class AutomationManageSubpage(QWidget):
         try:
             logger.debug("保存自动化数据")
             self._save_form()
-            logger.info("自动化数据保存成功")
+            logger.success("自动化数据保存成功")
             # 更新状态
             self.current_automation = self.manager.get_automation_by_guid(self.current_automation.guid)
             self.is_new_automation = False
@@ -665,7 +668,7 @@ class AutomationManageSubpage(QWidget):
         if self.manager:
             self.manager.update_automation(guid, enabled=enabled)
 
-    def _handle_action_run(self, guid: str):  # TODO: 疑似无法正常运行
+    def _handle_action_run(self, guid: str):
         """操作 - 运行自动化"""
         if not self.manager:
             logger.warning("无法运行自动化: 管理器未初始化")
@@ -696,7 +699,7 @@ class AutomationManageSubpage(QWidget):
                 self.banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
                 self.banner.show()
             except Exception:
-                logger.exception("显示横幅时出错，跳过横幅")
+                logger.error("显示横幅时出错，跳过横幅")
 
         # 执行登录
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
@@ -719,6 +722,7 @@ class AutomationManageSubpage(QWidget):
             self.banner.close()
             del self.banner
         self.automator.terminate()  # 保险起见 双重退出
+        logger.success("自动化运行结束")
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
@@ -740,8 +744,8 @@ cd /d "{EA_EXECUTABLE.parent}"
 """
             name = automation.item_display_name + ".bat"
             logger.debug(f"创建脚本文件: {name}")
-            create_script(bat_content=content, file_name=name)
-            logger.info(f"导出脚本成功: {name}")
+            utils.create_script(bat_content=content, file_name=name)
+            logger.success(f"导出脚本成功: {name}")
 
             InfoBar.success(
                 title="创建成功",
@@ -753,7 +757,7 @@ cd /d "{EA_EXECUTABLE.parent}"
                 parent=self,
             )
         except Exception as e:
-            logger.exception(f"创建脚本失败: {e}")
+            logger.error(f"创建脚本失败: {e}")
             InfoBar.error(
                 title="创建失败",
                 content=str(e),
@@ -786,7 +790,7 @@ cd /d "{EA_EXECUTABLE.parent}"
             logger.error(f"无法获取新创建的自动化: {guid}")
             return
 
-        logger.info(f"自动化已创建: {automation.item_display_name}")
+        logger.success(f"自动化已创建: {automation.item_display_name}")
         # 添加到列表
         item = self._add_automation_item(automation)
         # 如果是新建的自动化，自动选中
@@ -993,8 +997,8 @@ class AutomationPage(QWidget):
 
         # 初始化CI自动化管理器
         self.manager = None
-        if exe_path := get_ci_executable():
-            logger.info("自动化管理器初始化成功")
+        if exe_path := utils.get_ci_executable():
+            logger.success("自动化管理器初始化成功")
             logger.debug(f"ClassIsland 程序位置: {exe_path}")
             self.manager = CiAutomationManager(exe_path)
         else:
@@ -1069,7 +1073,7 @@ class AutomationPage(QWidget):
         logger.info(f"尝试使用新路径初始化管理器: {path}")
         try:
             self.manager = CiAutomationManager(path)
-            logger.info("自动化管理器重新初始化成功")
+            logger.success("自动化管理器重新初始化成功")
         except Exception as e:
             logger.error(f"自动化管理器初始化失败: {e}")
             InfoBar.error(
@@ -1278,7 +1282,7 @@ class MainSettingsWindow(FluentWindow):
         self.initNavigation()
         self.initWindow()
 
-        logger.info("主设置窗口初始化完成")
+        logger.success("主设置窗口初始化完成")
 
     def initNavigation(self):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
