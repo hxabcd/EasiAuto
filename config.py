@@ -213,8 +213,24 @@ class WarningConfig(ConfigModel):
         ge=5,
         le=600,
         title="超时时长",
-        description="要等待的超时时长",
+        description="要等待的超时时长（秒）",
         json_schema_extra={"icon": "RemoveFrom"},
+    )
+    MaxDelays: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        title="最大推迟次数",
+        description="最多可以推迟登录的次数",
+        json_schema_extra={"icon": "Pause"},
+    )
+    Delay: int = Field(
+        default=150,
+        ge=5,
+        le=300,
+        title="推迟时长",
+        description="选择推迟时要等待的时长（秒）",
+        json_schema_extra={"icon": "History"},
     )
 
 

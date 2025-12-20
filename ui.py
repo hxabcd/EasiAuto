@@ -197,9 +197,11 @@ class ConfigPage(QWidget):
         # 从属关系
         set_enable_by(
             SettingCard.index["Login.EasiNote.Path"],
-            SettingCard.index["Login.EasiNote.AutoPath"].widget,
-        )  # type: ignore
+            SettingCard.index["Login.EasiNote.AutoPath"].widget,  # type: ignore
+        )
         set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
+        set_enable_by(SettingCard.index["Warning.MaxDelays"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
+        set_enable_by(SettingCard.index["Warning.Delay"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
         set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
 
     def reset_config(self):
