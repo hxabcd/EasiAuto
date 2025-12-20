@@ -1,15 +1,16 @@
 import sys
+import time
 from argparse import ArgumentParser
 
 from loguru import logger
 
+import utils
 from automator import CVAutomator, FixedAutomator, UIAAutomator
-from components import WarningBanner, WarningPopupWindow
+from components import DialogResponse, PreRunPopup, WarningBanner
 from config import LoginMethod, config
 from ui import MainSettingsWindow, app
-from utils import init_exception_handler
 
-init_exception_handler()
+utils.init_exception_handler()
 
 def cmd_login(args):
     """login 子命令 - 执行自动登录"""
@@ -19,18 +20,35 @@ def cmd_login(args):
         logger.info("已通过配置文件禁用，正在退出")
         config.Login.SkipOnce = False
 
-        sys.exit(0)
+        utils.stop()
 
     logger.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
     if config.Warning.Enabled:
         try:
-            msgbox = WarningPopupWindow()
-            if msgbox.countdown(config.Warning.Timeout) == 0:
-                logger.info("用户取消操作，正在退出")
-                sys.exit(0)
-            logger.info("用户确认或超时，继续执行")
+            msgbox = PreRunPopup()
+            delays = 0
+            while True:
+                if delays >= config.Warning.MaxDelays:
+                    msgbox.delay_btn.hide()
+                response = msgbox.countdown(config.Warning.Timeout)
+                match response:
+                    case DialogResponse.CANCEL:
+                        logger.info("用户取消操作，正在退出")
+                        utils.stop()
+                        sys.exit(0)
+                    case DialogResponse.CONTINUE:
+                        logger.info("用户确认继续，继续执行")
+                        break
+                    case DialogResponse.TIMEOUT:
+                        logger.info("等待超时，继续执行")
+                        break
+                    case DialogResponse.DELAY:
+                        logger.info(f"用户选择推迟，等待 {config.Warning.Delay} 秒...")
+                        delays += 1
+                        time.sleep(config.Warning.Delay)
+                        continue
         except Exception:
             logger.exception("显示警告弹窗时出错，跳过警告")
 
@@ -75,7 +93,7 @@ def cmd_skip(_):
     """skip 子命令 - 跳过下一次登录"""
     config.Login.SkipOnce = True
     logger.info("已更新配置文件，正在退出")
-    sys.exit(0)
+    utils.stop()
 
 
 def main():
