@@ -1,8 +1,10 @@
 import atexit
 import datetime as dt
 import os
+import signal
 import sys
 import traceback
+import winsound
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +13,24 @@ import win32com.client
 import win32con
 import win32gui
 from loguru import logger
-from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QPoint, Qt, QtMsgType, QUrl, qInstallMessageHandler
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+)
+from qfluentwidgets import (
+    CheckBox,
+    Dialog,
+    FluentIcon,
+    Flyout,
+    FlyoutAnimationType,
+    ImageLabel,
+    InfoBarIcon,
+    PlainTextEdit,
+    PrimaryPushButton,
+    PushButton,
+)
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
@@ -46,6 +65,113 @@ def qt_message_handler(mode, context, message):  # noqa
         logger.complete()
 
 
+class ErrorDialog(Dialog):  # 重大错误提示框
+    def __init__(
+        self,
+        error_details: str = 'Traceback (most recent call last):',
+        parent: Any | None = None,
+    ) -> None:
+        # KeyboardInterrupt 直接 exit
+        if error_details.endswith(('KeyboardInterrupt', 'KeyboardInterrupt\n')):
+            stop()
+
+        global error_dialog
+
+        super().__init__(
+            'EasiAuto 崩溃报告',
+            '抱歉！EasiAuto 发生了严重的错误从而无法正常运行。您可以保存下方的错误信息并向他人求助。'
+            + '若您认为这是程序的Bug，请点击“报告此问题”或联系开发者。',
+            parent,
+        )
+
+        error_dialog = True
+
+        self.is_dragging = False
+        self.drag_position = QPoint()
+        self.title_bar_height = 30
+
+        self.title_layout = QHBoxLayout()
+
+        self.iconLabel = ImageLabel()
+        self.iconLabel.setImage(get_resource("easiauto.ico"))
+        self.error_log = PlainTextEdit()
+        self.report_problem = PushButton(FluentIcon.FEEDBACK, '报告此问题')
+        self.copy_log_btn = PushButton(FluentIcon.COPY, '复制日志')
+        self.ignore_error_btn = PushButton(FluentIcon.INFO, '忽略错误')
+        self.ignore_same_error = CheckBox()
+        self.ignore_same_error.setText('在下次启动之前，忽略此错误')
+        self.restart_btn = PrimaryPushButton(FluentIcon.SYNC, '重新启动')
+
+        self.iconLabel.setScaledContents(True)
+        self.iconLabel.setFixedSize(50, 50)
+        self.titleLabel.setText('出错啦！ヽ(*。>Д<)o゜')
+        self.titleLabel.setStyleSheet("font-family: Microsoft YaHei UI; font-size: 25px; font-weight: bold;")
+        self.error_log.setReadOnly(True)  # 只读模式
+        self.error_log.setPlainText(error_details)
+        self.error_log.setMinimumHeight(200)
+        self.error_log.setTextInteractionFlags(
+            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard  # 允许鼠标和键盘选择文本
+        )
+        self.restart_btn.setFixedWidth(150)
+        self.yesButton.hide()
+        self.cancelButton.hide()  # 隐藏取消按钮
+        self.title_layout.setSpacing(12)
+        self.resize(650, 450)
+        QApplication.processEvents()
+
+        # 按钮事件
+        self.report_problem.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl('https://github.com/hxabcd/easiauto/issues/'))
+        )
+        self.copy_log_btn.clicked.connect(self.copy_log)
+        self.ignore_error_btn.clicked.connect(self.ignore_error)
+        self.restart_btn.clicked.connect(restart)
+
+        self.title_layout.addWidget(self.iconLabel)  # 标题布局
+        self.title_layout.addWidget(self.titleLabel)
+        self.textLayout.insertLayout(0, self.title_layout)  # 页面
+        self.textLayout.addWidget(self.error_log)
+        self.textLayout.addWidget(self.ignore_same_error)
+        self.buttonLayout.insertStretch(0, 1)  # 按钮布局
+        self.buttonLayout.insertWidget(0, self.copy_log_btn)
+        self.buttonLayout.insertWidget(1, self.report_problem)
+        self.buttonLayout.insertStretch(1)
+        self.buttonLayout.insertWidget(4, self.ignore_error_btn)
+        self.buttonLayout.insertWidget(5, self.restart_btn)
+
+    def copy_log(self) -> None:  # 复制日志
+        QApplication.clipboard().setText(self.error_log.toPlainText())
+        Flyout.create(
+            icon=InfoBarIcon.SUCCESS,
+            title=self.tr('复制成功！ヾ(^▽^*)))'),
+            content=self.tr("日志已成功复制到剪贴板。"),
+            target=self.copy_log_btn,
+            parent=self,
+            isClosable=True,
+            aniType=FlyoutAnimationType.PULL_UP,
+        )
+
+    def ignore_error(self) -> None:
+        if self.ignore_same_error.isChecked():
+            ignore_errors.append("\n".join(self.error_log.toPlainText().splitlines()[2:]) + "\n")
+        self.close()
+        global error_dialog
+        error_dialog = False
+
+    def mousePressEvent(self, event: Any) -> None:
+        if event.button() == Qt.LeftButton and event.y() <= self.title_bar_height:
+            self.is_dragging = True
+            self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event: Any) -> None:
+        if self.is_dragging:
+            self.move(event.globalPos() - self.drag_position)
+
+    def mouseReleaseEvent(self, event: Any) -> None:
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = False
+
+
 @logger.catch
 def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
     # 增加安全模式判断？
@@ -73,13 +199,14 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
 ├─发生位置: {file_name}:{line_no} in {func_name}
 ├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
 └─详细堆栈信息:"""
-        tip_msg = f"""运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
-└─异常类型: {exc_type.__name__} {exc_type}"""
+        tip_msg = f"""异常类型: {exc_type.__name__} {exc_type}
+└─发生位置: {file_name}:{line_no} in {func_name}"""
         logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
         logger.complete()
-        # if not error_dialog:
-        #     w = ErrorDialog(f'{tip_msg}\n{error_details}')
-        #     w.exec()
+        if not error_dialog:
+            w = ErrorDialog(f'{tip_msg}\n{error_details}')
+            winsound.MessageBeep(winsound.MB_ICONHAND)
+            w.exec()
 
 
 def init_exception_handler():
@@ -140,6 +267,7 @@ def get_window_by_title(title: str):
         logger.info(f"已找到标题包含 '{title}' 的窗口")
         return hwnds
     logger.warning(f"未找到标题包含 '{title}' 的窗口")
+    return None
 
 
 def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int | None:
@@ -182,3 +310,48 @@ def get_ci_executable() -> Path | None:
     except Exception as e:
         logger.error(f"获取 ClassIsland 路径时出错: {e}")
         return None
+
+def setup_signal_handlers_optimized() -> None:
+    """退出信号处理器"""
+
+    def signal_handler(signum, _):
+        logger.debug(f'收到信号 {signal.Signals(signum).name},退出...')
+        stop(0)
+
+    signal.signal(signal.SIGTERM, signal_handler)  # taskkill
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+
+
+def _reset_signal_handlers() -> None:
+    """重置信号处理器为默认状态"""
+    try:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+    except (AttributeError, ValueError):
+        pass
+
+
+def restart() -> None:
+    """重启程序"""
+    logger.debug('重启程序')
+
+    app = QApplication.instance()
+    if app:
+        _reset_signal_handlers()
+        app.quit()
+        app.processEvents()
+
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
+
+def stop(status: int = 0) -> None:
+    """退出程序"""
+    logger.debug('退出程序...')
+    app = QApplication.instance()
+    if app:
+        app.quit()
+        app.processEvents()
+
+    logger.debug(f"程序退出({status})")
+    if not app:
+        os._exit(status)
