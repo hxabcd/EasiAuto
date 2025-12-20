@@ -1,51 +1,38 @@
-import logging
 import sys
 from argparse import ArgumentParser
+
+from loguru import logger
 
 from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import WarningBanner, WarningPopupWindow
 from config import LoginMethod, config
 from ui import MainSettingsWindow, app
+from utils import init_exception_handler
 
-try:  # 使用彩色日志
-    import coloredlogs
-
-    coloredlogs.install(
-        level=config.App.LogLevel.value,
-        fmt="[%(asctime)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
-except Exception:  # 回退基本日志
-    logging.basicConfig(
-        level=config.App.LogLevel.value,
-        format="[%(asctime)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-        force=True,
-    )
-
+init_exception_handler()
 
 def cmd_login(args):
     """login 子命令 - 执行自动登录"""
 
     # 若临时禁用，则退出程序
     if config.Login.SkipOnce:
-        logging.info("已通过配置文件禁用，正在退出")
+        logger.info("已通过配置文件禁用，正在退出")
         config.Login.SkipOnce = False
 
         sys.exit(0)
 
-    logging.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
+    logger.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
     if config.Warning.Enabled:
         try:
             msgbox = WarningPopupWindow()
             if msgbox.countdown(config.Warning.Timeout) == 0:
-                logging.info("用户取消操作，正在退出")
+                logger.info("用户取消操作，正在退出")
                 sys.exit(0)
-            logging.info("用户确认或超时，继续执行")
+            logger.info("用户确认或超时，继续执行")
         except Exception:
-            logging.exception("显示警告弹窗时出错，跳过警告")
+            logger.exception("显示警告弹窗时出错，跳过警告")
 
     # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
 
@@ -57,10 +44,10 @@ def cmd_login(args):
             banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
             banner.show()
         except Exception:
-            logging.exception("显示横幅时出错，跳过横幅")
+            logger.exception("显示横幅时出错，跳过横幅")
 
     # 执行登录
-    logging.debug(f"当前设置的登录方案: {config.Login.Method}")
+    logger.debug(f"当前设置的登录方案: {config.Login.Method}")
     match config.Login.Method:  # 选择登录方案
         case LoginMethod.UI_AUTOMATION:
             automator_type = UIAAutomator
@@ -87,7 +74,7 @@ def cmd_settings(_):
 def cmd_skip(_):
     """skip 子命令 - 跳过下一次登录"""
     config.Login.SkipOnce = True
-    logging.info("已更新配置文件，正在退出")
+    logger.info("已更新配置文件，正在退出")
     sys.exit(0)
 
 
