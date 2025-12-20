@@ -13,8 +13,8 @@ wheels/
 *.dist/
 *.onefile-build/
 
+Logs
 config.json
 test*.py
 
-launcher/
 TODO

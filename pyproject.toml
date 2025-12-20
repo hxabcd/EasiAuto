@@ -1,5 +1,7 @@
 [dependency-groups]
-dev = ["coloredlogs>=15.0.1", "nuitka>=2.8.9"]
+dev = [
+ "nuitka>=2.8.9",
+]
 
 [project]
 name = "easiauto"
@@ -8,6 +10,7 @@ description = "自动登录希沃白板的小工具"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "loguru>=0.7.3",
     "opencv-python>=4.12.0.88",
     "pillow>=12.0.0",
     "psutil>=7.1.3",

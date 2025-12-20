@@ -1,20 +1,108 @@
-import logging
+import atexit
+import datetime as dt
 import os
 import sys
+import traceback
 from pathlib import Path
+from typing import Any
 
+import psutil
 import win32com.client
 import win32con
 import win32gui
+from loguru import logger
+from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+
+error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
+ignore_errors = []
+last_error_time = dt.datetime.now() - error_cooldown  # 上一次错误
+error_dialog = None
+
+
+class StreamToLogger:
+    """重定向 print() 到 loguru"""
+
+    def write(self, message):
+        msg = message.strip()
+        if msg:
+            logger.opt(depth=1).info(msg)
+
+    def flush(self):
+        pass
+
+
+def qt_message_handler(mode, context, message):  # noqa
+    """Qt 消息转发到 loguru"""
+    msg = message.strip()
+    if not msg:
+        return
+    if mode == QtMsgType.QtCriticalMsg:
+        logger.error(msg)
+        logger.complete()
+    elif mode == QtMsgType.QtFatalMsg:
+        logger.critical(msg)
+        logger.complete()
+    else:
+        logger.complete()
+
+
+@logger.catch
+def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
+    # 增加安全模式判断？
+    error_details = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    if error_details in ignore_errors:
+        return
+    global last_error_time, error_dialog
+    current_time = dt.datetime.now()
+    if current_time - last_error_time > error_cooldown:
+        last_error_time = current_time
+        # 获取异常抛出位置
+        tb_last = exc_tb
+        while tb_last.tb_next:  # 找到最后一帧
+            tb_last = tb_last.tb_next
+        frame = tb_last.tb_frame
+        file_name = Path(frame.f_code.co_filename).name
+        line_no = tb_last.tb_lineno
+        func_name = frame.f_code.co_name
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        thread_count = process.num_threads()
+        log_msg = f"""发生全局异常:
+├─异常类型: {exc_type.__name__} {exc_type}
+├─异常信息: {exc_value}
+├─发生位置: {file_name}:{line_no} in {func_name}
+├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
+└─详细堆栈信息:"""
+        tip_msg = f"""运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
+└─异常类型: {exc_type.__name__} {exc_type}"""
+        logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
+        logger.complete()
+        # if not error_dialog:
+        #     w = ErrorDialog(f'{tip_msg}\n{error_details}')
+        #     w.exec()
+
+
+def init_exception_handler():
+    logger.add(
+        EA_EXECUTABLE.parent / "Logs" / "EasiAuto_{time}.log",
+        rotation="1 MB",
+        retention="1 minute",
+        encoding="utf-8",
+        enqueue=True,
+        backtrace=True,
+        diagnose=True,
+    )
+    sys.stdout = StreamToLogger()
+    sys.stderr = StreamToLogger()
+    qInstallMessageHandler(qt_message_handler)
+    atexit.register(logger.complete)
+
+    sys.excepthook = global_exceptHook
 
 
 def get_resource(file: str):
     """获取资源路径"""
-    if hasattr(sys, "frozen"):
-        base_path = Path(getattr(sys, "_MEIPASS"))
-    else:
-        base_path = Path(__file__).resolve().parent
-    return str(base_path / "resources" / file)
+    return str(EA_EXECUTABLE.parent / "resources" / file)
 
 
 EA_EXECUTABLE = Path(sys.argv[0]).resolve().parent / "EasiAuto.exe"
@@ -49,10 +137,9 @@ def get_window_by_title(title: str):
     win32gui.EnumWindows(callback, hwnds)
 
     if hwnds:
-        logging.info(f"已找到标题包含 '{title}' 的窗口")
+        logger.info(f"已找到标题包含 '{title}' 的窗口")
         return hwnds
-    else:
-        logging.warning(f"未找到标题包含 '{title}' 的窗口")
+    logger.warning(f"未找到标题包含 '{title}' 的窗口")
 
 
 def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int | None:
@@ -93,5 +180,5 @@ def get_ci_executable() -> Path | None:
         return Path(target).resolve()
 
     except Exception as e:
-        logging.error(f"获取 ClassIsland 路径时出错: {e}")
+        logger.error(f"获取 ClassIsland 路径时出错: {e}")
         return None
