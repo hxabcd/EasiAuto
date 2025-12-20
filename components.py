@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
 import weakref
 from enum import Enum, auto
 from typing import Any, assert_never
 
 import qt_pydantic as qtp
 from annotated_types import Ge, Gt, Le, Lt
+from loguru import logger
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -427,7 +427,7 @@ class SettingCard(QFrame):
     def _on_value_changed(self, value: Any):
         """值变化处理"""
         if self.config_item and self._initialized:
-            logging.debug(f"设置修改：({self.config_item.path}) {self.config_item.value} -> {value}")
+            logger.debug(f"设置修改：({self.config_item.path}) {self.config_item.value} -> {value}")
             self.config_item.value = value
         if self.card_type == CardType.RANGE:  # 同步数值标签
             self.valueLabel.setNum(value)

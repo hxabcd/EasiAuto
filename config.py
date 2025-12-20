@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import qt_pydantic as qtp
+from loguru import logger
 from pydantic import BaseModel, Field, PrivateAttr
 from pydantic.fields import FieldInfo
 from PySide6.QtGui import QColor
@@ -18,11 +18,12 @@ from utils import EA_EXECUTABLE
 
 
 class LogLevelEnum(Enum):
-    CRITICAL = (logging.CRITICAL, "灾难")
-    ERROR = (logging.ERROR, "错误")
-    WARNING = (logging.WARNING, "警告")
-    INFO = (logging.INFO, "信息")
-    DEBUG = (logging.DEBUG, "调试")
+    TRACE = (5, "追踪")
+    DEBUG = (10, "调试")
+    INFO = (20, "信息")
+    WARNING = (30, "警告")
+    ERROR = (40, "错误")
+    CRITICAL = (50, "灾难")
 
     def __init__(self, value, display_name):
         self.display_name = display_name
@@ -58,7 +59,7 @@ class ConfigModel(BaseModel):
     def save(self):
         root = self._root()
         if root._file is None:
-            logging.warning("配置文件路径为空，无法保存")
+            logger.warning("配置文件路径为空，无法保存")
             return
         data = root.model_dump(mode="json")
         root._file.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
@@ -291,10 +292,10 @@ class AppConfig(ConfigModel):
         description="自动登录失败时的最大重试次数",
         json_schema_extra={"icon": "Sync"},
     )
-    LogLevel: LogLevelEnum = Field(
-        default=LogLevelEnum.WARNING,
-        title="日志级别",
-        description="应用的日志记录级别",
+    LogEnabled: bool = Field(
+        default=True,
+        title="启用日志",
+        description="在应用 Logs 目录记录日志文件",
         json_schema_extra={"icon": "DeveloperTools"},
     )
     EasterEggEnabled: bool = Field(
@@ -320,13 +321,13 @@ class Config(ConfigModel):
                 data = json.loads(path.read_text(encoding="utf-8"))
                 cfg = cls(**data)
             except Exception as e:
-                logging.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
+                logger.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
                 sys.exit(1)
         else:
             cfg = cls()
             data = cfg.model_dump(mode="json")
             path.write_text(json.dumps(data), encoding="utf-8")
-            logging.info(f"配置文件 {file} 不存在，自动生成")
+            logger.info(f"配置文件 {file} 不存在，自动生成")
 
         cfg.attach(path)
 
@@ -334,7 +335,7 @@ class Config(ConfigModel):
 
     def reset_all(self):
         """重置所有配置为默认值并保存"""
-        logging.info("正在重置配置为默认值")
+        logger.info("正在重置配置为默认值")
         self._initialized = False
 
         default_instance = Config()
@@ -345,7 +346,7 @@ class Config(ConfigModel):
 
         self._initialized = True
         self.save()
-        logging.info("已重置")
+        logger.info("已重置")
 
 
 @dataclass
