@@ -1250,7 +1250,7 @@ class AboutPage(SmoothScrollArea):
         author_link2 = HyperlinkCard(
             icon=FluentIcon.HOME_FILL,
             title="哔哩哔哩主页",
-            url="https://space.bilibili.com/336325343",
+            url="https://space.bilibili.com/401002238",
             text="访问",
         )
         author_link3 = HyperlinkCard(
