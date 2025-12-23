@@ -1301,10 +1301,6 @@ class MainSettingsWindow(FluentWindow):
 
 
 # os.environ['QT_SCALE_FACTOR'] = ...
-QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
-QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
-
 app = QApplication(sys.argv)
 translator = FluentTranslator()
 app.installTranslator(translator)
