@@ -18,6 +18,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
+    QWidget,
 )
 from qfluentwidgets import (
     CheckBox,
@@ -26,7 +27,9 @@ from qfluentwidgets import (
     Flyout,
     FlyoutAnimationType,
     ImageLabel,
+    InfoBar,
     InfoBarIcon,
+    InfoBarPosition,
     PlainTextEdit,
     PrimaryPushButton,
     PushButton,
@@ -211,7 +214,7 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
 
 def init_exception_handler():
     logger.add(
-        EA_EXECUTABLE.parent / "Logs" / "EasiAuto_{time}.log",
+        EA_EXECUTABLE.parent / "logs" / "EasiAuto_{time}.log",
         rotation="1 MB",
         retention="1 minute",
         encoding="utf-8",
@@ -232,11 +235,15 @@ def get_resource(file: str):
     return str(EA_EXECUTABLE.parent / "resources" / file)
 
 
-EA_EXECUTABLE = Path(sys.argv[0]).resolve().parent / "EasiAuto.exe"
+EA_EXECUTABLE = (
+    Path(sys.executable)
+    if getattr(sys, "frozen", False) or getattr(sys, "nuitka_version", None) is not None
+    else Path(sys.argv[0])
+).resolve()
 
 
-def create_script(bat_content: str, file_name: str):
-    """在桌面创建脚本"""
+def create_file_on_desktop(bat_content: str, file_name: str):
+    """在桌面创建文件"""
     shell = win32com.client.Dispatch("WScript.Shell")
     desktop_path = Path(shell.SpecialFolders("Desktop"))
 
@@ -244,6 +251,41 @@ def create_script(bat_content: str, file_name: str):
 
     with bat_path.open("w", encoding="utf-8") as f:
         f.write(bat_content)
+
+
+def create_script(command: str, name: str, show_message_to: QWidget | None = None):
+    """创建脚本文件"""
+    try:
+        logger.info(f"在桌面创建脚本: {name}.bat")
+        content = f"""@echo off
+chcp 65001 >nul
+cd /d "{EA_EXECUTABLE.parent}"
+{EA_EXECUTABLE} {command}
+"""
+        create_file_on_desktop(bat_content=content, file_name=f"{name}.bat")
+        logger.success("创建成功")
+        if show_message_to:
+            InfoBar.success(
+                title="成功",
+                content=f"已在桌面创建 {name}.bat",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=show_message_to,
+            )
+    except Exception as e:
+        logger.error(f"创建脚本失败: {e}")
+        if show_message_to:
+            InfoBar.error(
+                title="创建失败",
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=show_message_to,
+            )
 
 
 def switch_window(hwnd: int):
@@ -351,7 +393,10 @@ def stop(status: int = 0) -> None:
     if app:
         app.quit()
         app.processEvents()
+    clean_up(status)
 
+def clean_up(status):
+    app = QApplication.instance()
     logger.debug(f"程序退出({status})")
     if not app:
         os._exit(status)
