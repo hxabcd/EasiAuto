@@ -13,8 +13,9 @@ wheels/
 *.dist/
 *.onefile-build/
 
-Logs
-config.json
-test*.py
-
 TODO
+
+logs
+cache
+config.json
+test*

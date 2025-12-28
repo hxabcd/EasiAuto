@@ -95,7 +95,7 @@ class LoginConfig(ConfigModel):
     Method: LoginMethod = Field(
         default=LoginMethod.UI_AUTOMATION,
         title="登录方式",
-        description="选择用于进行自动登录的方式\n可选项：UI Automation - 定位页面元素（推荐，最稳定）、OpenCV - 图像识别、Fixed - 固定位置",
+        description="选择用于进行自动登录的方式（OpenCV仅支持常规分辨率与缩放）\nUIA 最稳定 / OpenCV 较快 / 固定位置暂不可用",
         json_schema_extra={"icon": "Application"},
     )
     SkipOnce: bool = Field(
@@ -313,7 +313,7 @@ class AppConfig(ConfigModel):
     LogEnabled: bool = Field(
         default=True,
         title="启用日志记录",
-        description="在应用 /Logs 目录记录日志文件",
+        description="在应用 /logs 目录记录日志文件",
         json_schema_extra={"icon": "Document"},
     )
     EasterEggEnabled: bool = Field(
