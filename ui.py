@@ -29,7 +29,6 @@ from qfluentwidgets import (
     ComboBox,
     CommandBar,
     DotInfoBadge,
-    ElevatedCardWidget,
     ExpandGroupSettingCard,
     FlowLayout,
     FluentIcon,
@@ -1137,7 +1136,7 @@ class AutomationPage(QWidget):
         self.start_watchdog()
 
 
-class HighlightedChangeLogCard(ElevatedCardWidget):
+class HighlightedChangeLogCard(CardWidget):
     def __init__(self, name: str, description: str):
         super().__init__()
 
