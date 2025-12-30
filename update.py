@@ -155,6 +155,7 @@ class UpdateChecker(QObject):
         self._threads: list[QThread] = []
         self._cancel_download_flag: bool = False
         self._active_response: requests.Response | None = None
+        self._update_script_path: Path | None = None
 
     # ================== 同步 API ==================
 
@@ -295,17 +296,21 @@ class UpdateChecker(QObject):
             ),
             "",
             f'xcopy "{extract_root}" "%TARGET_DIR%\\" /E /Y /I >nul',
-            f'start "" "{relaunch_exe}" {" ".join(self._quote(a) for a in relaunch_args)}',
+            f'"{relaunch_exe}" {" ".join(self._quote(a) for a in relaunch_args)}',
             "endlocal",
         ]
 
         script.write_text("\r\n".join(script_content), encoding="utf-8")
+        self._update_script_path = script
         return script
 
-    def apply_script(self, script_path: Path) -> None:
+    def apply_script(self) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
+        if self._update_script_path is None:
+            logger.error("更新脚本路径未设置，无法应用更新")
+            return
         subprocess.Popen(
-            f'cmd /c start /min "" "{script_path}"',
+            f'cmd /c start /min "" "{self._update_script_path}"',
             shell=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
