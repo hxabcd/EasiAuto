@@ -238,7 +238,7 @@ def get_resource(file: str):
 EA_EXECUTABLE = (
     Path(sys.executable)
     if getattr(sys, "frozen", False) or getattr(sys, "nuitka_version", None) is not None
-    else Path(sys.argv[0])
+    else Path(__file__).parent / "EasiAuto.exe"
 ).resolve()
 
 
