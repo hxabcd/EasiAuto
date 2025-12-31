@@ -1150,6 +1150,8 @@ class UpdateContentView(QWidget):
 
         scroll_layout = QVBoxLayout(container)
 
+        self.description = BodyLabel()
+
         self.highlights_title = SubtitleLabel("✨ 亮点")
         self.highlights_layout = FlowLayout()
 
@@ -1206,6 +1208,7 @@ class UpdateContentView(QWidget):
 
     def set_change_log(self, change_log: ChangeLog | None):
         """允许初始化后传入/更新 changelog。"""
+        self.description.setText("")
         self.highlights_layout.takeAllWidgets()
         while self.others_layout.count():
             w = self.others_layout.takeAt(0).widget()
@@ -1213,6 +1216,7 @@ class UpdateContentView(QWidget):
                 w.deleteLater()
 
         self.placeholder_label.setVisible(not bool(change_log))
+        self.description.setVisible(bool(getattr(change_log, "description", None)))
         self.highlights_title.setVisible(bool(getattr(change_log, "highlights", None)))
         self.others_title.setVisible(bool(getattr(change_log, "others", None)))
 
@@ -1220,6 +1224,8 @@ class UpdateContentView(QWidget):
             return
 
         try:
+            self.description.setText(change_log.description)
+
             for item in change_log.highlights:
                 card = HighlightedChangeLogCard(item["name"], item["description"])
                 self.highlights_layout.addWidget(card)
@@ -1255,6 +1261,7 @@ class UpdateStatus(Enum):
     CHECKING = "checking"
     DOWNLOAD = "download"
     DOWNLOADING = "downloading"
+    DOWNLOAD_CANCELED = "downloadCanceled"
     INSTALL = "install"
 
 
@@ -1279,7 +1286,8 @@ class UpdatePage(QWidget):
         self._update_file: str = "EasiAuto_Unknown.zip"
         self._last_check: str | None = None
         self._last_error: str | None = None
-        self._connected: bool = False
+        self._signal_connected: bool = False
+        self._tried_downloads: int = 0
 
         self.init_ui()
         self.action = UpdateStatus.CHECK
@@ -1325,6 +1333,7 @@ class UpdatePage(QWidget):
         text_layout.addWidget(self.progress_bar)
         text_layout.addWidget(self.download_progress_bar)
         status_layout.addLayout(text_layout)
+        status_layout.addSpacing(8)
         status_layout.addWidget(self.action_button, alignment=Qt.AlignRight)
 
         self.content_widget = UpdateContentView()
@@ -1366,12 +1375,21 @@ class UpdatePage(QWidget):
                 self.action_button.setEnabled(False)
             case UpdateStatus.DOWNLOAD:
                 if not self._decision:
+                    self._last_error = "无可用更新"
                     self.action = UpdateStatus.FAILED
                     return
-                logger.info(f"更新可用：{self._decision.target_version}")
-                self.title.setText(f"更新可用：{self._decision.target_version}")
+                logger.info(
+                    f"更新可用：{self._decision.target_version}"
+                    if not self._decision.confirm_required
+                    else f"需要确认的更新：{self._decision.target_version}"
+                )
+                self.title.setText(
+                    f"更新可用：{self._decision.target_version}"
+                    if not self._decision.confirm_required
+                    else f"需要确认的更新：{self._decision.target_version}"
+                )
                 windows11toast.notify(
-                    title="更新可用",
+                    title="更新可用" if not self._decision.confirm_required else "存在需要确认的更新",
                     body=f"新版本：{self._decision.target_version}\n打开应用查看详细信息",
                     icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                     icon_hint_crop=windows11toast.IconCrop.NONE,
@@ -1381,14 +1399,29 @@ class UpdatePage(QWidget):
                 self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
                 self.action_button.setText("下载")
                 self.content_widget.set_change_log(self._decision.change_log)
-                if config.Update.Mode.value >= UpdateMode.CHECK_AND_DOWNLOAD.value:
+                if (
+                    config.Update.Mode.value >= UpdateMode.CHECK_AND_DOWNLOAD.value
+                    and not self._decision.confirm_required
+                ):
                     update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
             case UpdateStatus.DOWNLOADING:
                 logger.info("正在下载更新")
                 self.title.setText("正在下载更新……")
                 self.download_progress_bar.show()
+                self.action_button.setText("取消")
+            case UpdateStatus.DOWNLOAD_CANCELED:
+                if not self._decision:
+                    self._last_error = "无可用更新"
+                    self.action = UpdateStatus.FAILED
+                    return
+                self.title.setText(f"更新可用：{self._decision.target_version}")
+                self.detail.show()
+                self.detail.setText(
+                    "若多次尝试后仍下载缓慢或无法下载，可启用镜像下载源"
+                    if self._tried_downloads >= 2
+                    else f"上次检查时间：{self._last_check or '暂未检查'}"
+                )
                 self.action_button.setText("下载")
-                self.action_button.setEnabled(False)
             case UpdateStatus.INSTALL:
                 logger.success("更新已就绪")
                 self.title.setText("更新已就绪")
@@ -1399,7 +1432,7 @@ class UpdatePage(QWidget):
                             zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
                         ),
                     )
-                    self._connected = True
+                    self._signal_connected = True
                     self.detail.setText("应用退出后将自动应用更新，或者你也可以现在重启以应用更新")
                 else:
                     self.detail.setText("需要手动确认以应用更新")
@@ -1424,14 +1457,16 @@ class UpdatePage(QWidget):
             case UpdateStatus.CHECK | UpdateStatus.FAILED:
                 update_checker.check_async()
                 self._last_check = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            case UpdateStatus.DOWNLOAD:
+            case UpdateStatus.DOWNLOAD | UpdateStatus.DOWNLOAD_CANCELED:
                 if not self._decision:
-                    self._last_error = "无可下载的更新"
+                    self._last_error = "无可用更新"
                     self.action = UpdateStatus.FAILED
                     return
                 update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
+            case UpdateStatus.DOWNLOADING:  # 取消下载
+                update_checker.cancel_download()
             case UpdateStatus.INSTALL:
-                if not self._connected:
+                if not self._signal_connected:
                     app.aboutToQuit.connect(
                         lambda: update_checker.apply_script(
                             zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
@@ -1443,7 +1478,7 @@ class UpdatePage(QWidget):
         self.action = UpdateStatus.CHECKING
 
     def check_finished(self, decision: UpdateDecision):
-        if decision.available:
+        if decision.available and len(decision.downloads) > 0:
             self._decision = decision
             self._update_file = f"EasiAuto_{decision.target_version or 'Unknown'}.zip"
             self.action = UpdateStatus.DOWNLOAD
@@ -1464,8 +1499,12 @@ class UpdatePage(QWidget):
         self.action = UpdateStatus.INSTALL
 
     def download_failed(self, error):
-        self._last_error = error
-        self.action = UpdateStatus.FAILED
+        if "取消" in error:
+            self.download_progress_bar.setValue(0)
+            self.action = UpdateStatus.DOWNLOAD_CANCELED
+        else:
+            self._last_error = error
+            self.action = UpdateStatus.FAILED
 
 
 class AboutPage(SmoothScrollArea):

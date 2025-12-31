@@ -23,7 +23,7 @@ def after_login():
         if decision.available and decision.downloads:
             if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
                 file = update_checker.download_update(decision.downloads[0])
-                app.aboutToQuit.connect(lambda: update_checker.apply_script(file))
+                app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
             else:  # 其他情形仅通知
                 windows11toast.notify(
                     title="更新可用",
