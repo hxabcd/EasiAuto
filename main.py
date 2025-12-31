@@ -2,15 +2,39 @@ import sys
 import time
 from argparse import ArgumentParser
 
+import windows11toast
 from loguru import logger
 
 import utils
 from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import DialogResponse, PreRunPopup, WarningBanner
-from config import LoginMethod, config
-from ui import MainSettingsWindow, app
+from config import LoginMethod, UpdateMode, config
+from ui import MainWindow, app
+from update import update_checker
 
 utils.init_exception_handler()
+utils.init_exit_signal_handlers()
+
+
+def after_login():
+    # 检查更新
+    if config.Update.CheckAfterLogin and config.Update.Mode.value > UpdateMode.NEVER.value:
+        decision = update_checker.check()
+        if decision.available and decision.downloads:
+            if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
+                file = update_checker.download_update(decision.downloads[0])
+                app.aboutToQuit.connect(lambda: update_checker.apply_script(file))
+            else:  # 其他情形仅通知
+                windows11toast.notify(
+                    title="更新可用",
+                    body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
+                    icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                    icon_hint_crop=windows11toast.IconCrop.NONE,
+                    icon_src=utils.get_resource("easiauto.ico"),
+                )
+
+    utils.stop()
+
 
 def cmd_login(args):
     """login 子命令 - 执行自动登录"""
@@ -22,7 +46,7 @@ def cmd_login(args):
 
         utils.stop()
 
-    logger.debug(f"传入的参数：\n{"\n".join([f" - {key}: {value}" for key, value in vars(args).items()])}")
+    logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
     if config.Warning.Enabled:
@@ -77,14 +101,14 @@ def cmd_login(args):
     automator = automator_type(args.account, args.password, config.Login, config.App.MaxRetries)
 
     automator.start()
-    automator.finished.connect(app.quit)
+    automator.finished.connect(after_login)
     sys.exit(app.exec())
 
 
 def cmd_settings(_):
     """settings 子命令 - 打开设置界面"""
 
-    window = MainSettingsWindow()
+    window = MainWindow()
     window.show()
     sys.exit(app.exec())
 

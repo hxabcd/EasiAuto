@@ -71,19 +71,19 @@ def qt_message_handler(mode, context, message):  # noqa
 class ErrorDialog(Dialog):  # 重大错误提示框
     def __init__(
         self,
-        error_details: str = 'Traceback (most recent call last):',
+        error_details: str = "Traceback (most recent call last):",
         parent: Any | None = None,
     ) -> None:
         # KeyboardInterrupt 直接 exit
-        if error_details.endswith(('KeyboardInterrupt', 'KeyboardInterrupt\n')):
+        if error_details.endswith(("KeyboardInterrupt", "KeyboardInterrupt\n")):
             stop()
 
         global error_dialog
 
         super().__init__(
-            'EasiAuto 崩溃报告',
-            '抱歉！EasiAuto 发生了严重的错误从而无法正常运行。您可以保存下方的错误信息并向他人求助。'
-            + '若您认为这是程序的Bug，请点击“报告此问题”或联系开发者。',
+            "EasiAuto 崩溃报告",
+            "抱歉！EasiAuto 发生了严重的错误从而无法正常运行。您可以保存下方的错误信息并向他人求助。"
+            + "若您认为这是程序的Bug，请点击“报告此问题”或联系开发者。",
             parent,
         )
 
@@ -98,16 +98,16 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         self.iconLabel = ImageLabel()
         self.iconLabel.setImage(get_resource("easiauto.ico"))
         self.error_log = PlainTextEdit()
-        self.report_problem = PushButton(FluentIcon.FEEDBACK, '报告此问题')
-        self.copy_log_btn = PushButton(FluentIcon.COPY, '复制日志')
-        self.ignore_error_btn = PushButton(FluentIcon.INFO, '忽略错误')
+        self.report_problem = PushButton(FluentIcon.FEEDBACK, "报告此问题")
+        self.copy_log_btn = PushButton(FluentIcon.COPY, "复制日志")
+        self.ignore_error_btn = PushButton(FluentIcon.INFO, "忽略错误")
         self.ignore_same_error = CheckBox()
-        self.ignore_same_error.setText('在下次启动之前，忽略此错误')
-        self.restart_btn = PrimaryPushButton(FluentIcon.SYNC, '重新启动')
+        self.ignore_same_error.setText("在下次启动之前，忽略此错误")
+        self.restart_btn = PrimaryPushButton(FluentIcon.SYNC, "重新启动")
 
         self.iconLabel.setScaledContents(True)
         self.iconLabel.setFixedSize(50, 50)
-        self.titleLabel.setText('出错啦！ヽ(*。>Д<)o゜')
+        self.titleLabel.setText("出错啦！ヽ(*。>Д<)o゜")
         self.titleLabel.setStyleSheet("font-family: Microsoft YaHei UI; font-size: 25px; font-weight: bold;")
         self.error_log.setReadOnly(True)  # 只读模式
         self.error_log.setPlainText(error_details)
@@ -124,7 +124,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 
         # 按钮事件
         self.report_problem.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl('https://github.com/hxabcd/easiauto/issues/'))
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/hxabcd/easiauto/issues/"))
         )
         self.copy_log_btn.clicked.connect(self.copy_log)
         self.ignore_error_btn.clicked.connect(self.ignore_error)
@@ -146,7 +146,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         QApplication.clipboard().setText(self.error_log.toPlainText())
         Flyout.create(
             icon=InfoBarIcon.SUCCESS,
-            title=self.tr('复制成功！ヾ(^▽^*)))'),
+            title=self.tr("复制成功！ヾ(^▽^*)))"),
             content=self.tr("日志已成功复制到剪贴板。"),
             target=self.copy_log_btn,
             parent=self,
@@ -178,7 +178,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 @logger.catch
 def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
     # 增加安全模式判断？
-    error_details = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    error_details = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     if error_details in ignore_errors:
         return
     global last_error_time, error_dialog
@@ -207,12 +207,13 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
         logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
         logger.complete()
         if not error_dialog:
-            w = ErrorDialog(f'{tip_msg}\n{error_details}')
+            w = ErrorDialog(f"{tip_msg}\n{error_details}")
             winsound.MessageBeep(winsound.MB_ICONHAND)
             w.exec()
 
 
 def init_exception_handler():
+    """初始化异常处理与日志"""
     logger.add(
         EA_EXECUTABLE.parent / "logs" / "EasiAuto_{time}.log",
         rotation="1 MB",
@@ -353,11 +354,12 @@ def get_ci_executable() -> Path | None:
         logger.error(f"获取 ClassIsland 路径时出错: {e}")
         return None
 
-def setup_signal_handlers_optimized() -> None:
+
+def init_exit_signal_handlers() -> None:
     """退出信号处理器"""
 
     def signal_handler(signum, _):
-        logger.debug(f'收到信号 {signal.Signals(signum).name},退出...')
+        logger.debug(f"收到信号 {signal.Signals(signum).name}，退出...")
         stop(0)
 
     signal.signal(signal.SIGTERM, signal_handler)  # taskkill
@@ -375,7 +377,7 @@ def _reset_signal_handlers() -> None:
 
 def restart() -> None:
     """重启程序"""
-    logger.debug('重启程序')
+    logger.debug("重启程序")
 
     app = QApplication.instance()
     if app:
@@ -386,20 +388,22 @@ def restart() -> None:
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 
+def clean_up(status):
+    app = QApplication.instance()
+    logger.debug(f"程序退出({status})")
+    if not app:
+        os._exit(status)
+
+
 def stop(status: int = 0) -> None:
     """退出程序"""
-    logger.debug('退出程序...')
+    logger.debug("退出程序...")
     app = QApplication.instance()
     if app:
         app.quit()
         app.processEvents()
     clean_up(status)
 
-def clean_up(status):
-    app = QApplication.instance()
-    logger.debug(f"程序退出({status})")
-    if not app:
-        os._exit(status)
 
 def crash() -> NoReturn:
     """崩溃程序"""
