@@ -28,3 +28,6 @@ dependencies = [
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
 
+[tool.ruff]
+line-length = 120
+target-version = "py313"

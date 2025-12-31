@@ -67,9 +67,9 @@ class PreRunPopup(Dialog):
 
         self.iconLabel = ImageLabel()
         self.iconLabel.setImage(get_resource("easiauto.ico"))
-        self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, '取消')
-        self.delay_btn = PushButton(FluentIcon.PAUSE, '推迟')
-        self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, '立即执行')
+        self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, "取消")
+        self.delay_btn = PushButton(FluentIcon.PAUSE, "推迟")
+        self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, "立即执行")
 
         self.iconLabel.setScaledContents(True)
         self.iconLabel.setFixedSize(50, 50)
@@ -617,7 +617,11 @@ class SettingCard(QFrame):
 
         icon: FluentIcon | QIcon | None = None
         if icon_name := extra.get("icon"):
-            icon = FluentIcon(icon_name)
+            try:
+                icon = FluentIcon(icon_name)
+            except ValueError:
+                logger.warning(f"无法加载图标：{icon_name}")
+                icon = None
 
         kwargs: dict[str, Any] = {}
         supported_args = []  # 暂时弃用，已被动态注入（应该算吧？）取代

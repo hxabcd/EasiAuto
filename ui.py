@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import sys
 import time
 import weakref
 from enum import Enum
 from pathlib import Path
 
+import windows11toast
 from loguru import logger
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPixmap
@@ -13,7 +16,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLayout,
     QListWidgetItem,
     QScroller,
     QStackedWidget,
@@ -54,12 +56,14 @@ from qfluentwidgets import (
     PushSettingCard,
     SmoothScrollArea,
     SpinBox,
+    SplashScreen,
     SubtitleLabel,
     SwitchButton,
     Theme,
     TitleLabel,
     TransparentPushButton,
     VerticalSeparator,
+    setFont,
     setTheme,
     setThemeColor,
 )
@@ -67,16 +71,16 @@ from qfluentwidgets import (
 import utils
 from ci_automation_manager import CiAutomationManager, EasiAutomation
 from components import SettingCard
-from config import ConfigGroup, LoginMethod, config
+from config import ConfigGroup, LoginMethod, UpdateMode, config
 from qfw_widgets import ListWidget, SettingCardGroup
-from update import ChangeLog, UpdateDecision, update_checker
+from update import VERSION, ChangeLog, UpdateDecision, update_checker
 from utils import EA_EXECUTABLE, get_resource
 
 
 def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
     """通过开关启用组件"""
     if not reverse:
-        widget.setEnabled(switch.checked)  # type: ignore
+        widget.setEnabled(switch.isChecked())
 
         def handle_check_change(checked: bool):
             widget.setEnabled(checked)
@@ -85,7 +89,7 @@ def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
 
         switch.checkedChanged.connect(handle_check_change)
     else:
-        widget.setDisabled(switch.checked)  # type: ignore
+        widget.setDisabled(switch.isChecked())
 
         def handle_check_change(checked: bool):
             widget.setDisabled(checked)
@@ -102,9 +106,7 @@ class ConfigPage(QWidget):
         super().__init__()
         logger.debug("初始化配置页")
 
-        self.menu_index: weakref.WeakValueDictionary[str, SettingCardGroup] = (
-            weakref.WeakValueDictionary()
-        )
+        self.menu_index: weakref.WeakValueDictionary[str, SettingCardGroup] = weakref.WeakValueDictionary()
 
         self.init_ui()
 
@@ -117,16 +119,14 @@ class ConfigPage(QWidget):
         layout.setSpacing(0)
 
         title = TitleLabel("设置")
-        title.setContentsMargins(36, 10, 0, 16)
+        title.setContentsMargins(36, 8, 0, 12)
         layout.addWidget(title)
 
-        # 创建滚动区域
         self.scroll_area = SmoothScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(
-            self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture
-        )  # 触摸适配
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        layout.addWidget(self.scroll_area)
 
         # 创建内容容器
         self.content_widget = QWidget(self.scroll_area)
@@ -138,12 +138,11 @@ class ConfigPage(QWidget):
         self.content_layout.setSpacing(28)
 
         # 添加设置组
-        for group in config.iter_items():
+        for group in config.iter_items(exclude="Update"):
             self._add_config_menu(group)  # type: ignore
         self.apply_attachment()
 
         self.content_layout.addStretch()
-        layout.addWidget(self.scroll_area)
 
     def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""
@@ -187,9 +186,7 @@ class ConfigPage(QWidget):
         collapse_card.clicked.connect(utils.crash)
         self.content_layout.addWidget(collapse_card)
         collapse_card.setVisible(config.App.DebugMode)
-        SettingCard.index["App.DebugMode"].valueChanged.connect(
-            collapse_card.setVisible
-        )
+        SettingCard.index["App.DebugMode"].valueChanged.connect(collapse_card.setVisible)
 
         # 额外属性
         for name, card in SettingCard.index.items():
@@ -201,25 +198,19 @@ class ConfigPage(QWidget):
                     if fixed_index != -1:
                         card.widget.setItemEnabled(fixed_index, False)
                 case "Login.SkipOnce":
-                    button = TransparentPushButton(
-                        icon=FluentIcon.SHARE, text="创建快捷方式"
-                    )
+                    button = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button.clicked.connect(
                         lambda: utils.create_script(
                             command="skip",
                             name="跳过下次自动登录",
-                            show_message_to=MainSettingsWindow.container,
+                            show_message_to=MainWindow.container,
                         )
                     )
                     card.hBoxLayout.insertWidget(5, button)
                     card.hBoxLayout.insertSpacing(6, 12)
                 case n if n.startswith("Login.Timeout."):
                     card.widget.setMinimumWidth(160)
-                case (
-                    "Login.EasiNote.Path"
-                    | "Login.EasiNote.ProcessName"
-                    | "Login.EasiNote.WindowTitle"
-                ):
+                case "Login.EasiNote.Path" | "Login.EasiNote.ProcessName" | "Login.EasiNote.WindowTitle":
                     card.widget.setFixedWidth(400)
                 case "Login.EasiNote.Args":
                     card.widget.setFixedWidth(400)
@@ -263,7 +254,7 @@ class ConfigPage(QWidget):
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=MainSettingsWindow.container,
+                parent=MainWindow.container,
             )
 
 
@@ -292,9 +283,7 @@ class AutomationStatusBar(QWidget):
         self.action_button.clicked.connect(self.handle_action_button_clicked)
         self.action_button.setEnabled(False)
 
-        self.option_button = TransparentPushButton(
-            icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项"
-        )
+        self.option_button = TransparentPushButton(icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项")
 
         layout.addWidget(SubtitleLabel("ClassIsland 自动化编辑"))
         layout.addSpacing(12)
@@ -310,9 +299,7 @@ class AutomationStatusBar(QWidget):
     def update_status(self, status: CIStatus | None = None):
         if status is None:
             if self.manager:
-                status = (
-                    CIStatus.RUNNING if self.manager.is_ci_running else CIStatus.DIED
-                )
+                status = CIStatus.RUNNING if self.manager.is_ci_running else CIStatus.DIED
             else:
                 status = CIStatus.UNINITIALIZED
 
@@ -460,9 +447,7 @@ class AutomationManageSubpage(QWidget):
 
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.action_bar.addAction(
-            Action(FluentIcon.ADD, "添加", triggered=self._add_automation)
-        )
+        self.action_bar.addAction(Action(FluentIcon.ADD, "添加", triggered=self._add_automation))
         self.action_bar.addAction(
             Action(
                 FluentIcon.SYNC,
@@ -473,9 +458,7 @@ class AutomationManageSubpage(QWidget):
 
         self.auto_list = ListWidget()
         self.auto_list.setSpacing(3)
-        QScroller.grabGesture(
-            self.auto_list.viewport(), QScroller.LeftMouseButtonGesture
-        )
+        QScroller.grabGesture(self.auto_list.viewport(), QScroller.LeftMouseButtonGesture)
 
         self.selector_layout.addWidget(self.action_bar)
         self.selector_layout.addWidget(self.auto_list)
@@ -688,9 +671,7 @@ class AutomationManageSubpage(QWidget):
             self._save_form()
             logger.success("自动化数据保存成功")
             # 更新状态
-            self.current_automation = self.manager.get_automation_by_guid(
-                self.current_automation.guid
-            )
+            self.current_automation = self.manager.get_automation_by_guid(self.current_automation.guid)
             self.is_new_automation = False
             if self.current_automation:
                 self._update_editor(self.current_automation)
@@ -703,7 +684,7 @@ class AutomationManageSubpage(QWidget):
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=MainSettingsWindow.container,
+                parent=MainWindow.container,
             )
 
     def _on_item_clicked(self, item: QListWidgetItem):
@@ -764,9 +745,7 @@ class AutomationManageSubpage(QWidget):
             case LoginMethod.FIXED_POSITION:
                 automator_type = FixedAutomator
 
-        self.automator = automator_type(
-            automation.account, automation.password, config.Login, config.App.MaxRetries
-        )
+        self.automator = automator_type(automation.account, automation.password, config.Login, config.App.MaxRetries)
 
         self.automator.start()
         self.automator.finished.connect(self._clean_up_after_run)
@@ -793,7 +772,7 @@ class AutomationManageSubpage(QWidget):
         utils.create_script(
             command=f'login -a "{automation.account}" -p "{automation.password}"',
             name=f"{automation.item_display_name}.bat",
-            show_message_to=MainSettingsWindow.container,
+            show_message_to=MainWindow.container,
         )
 
     def _handle_action_remove(self, item: QListWidgetItem):
@@ -900,9 +879,7 @@ class PathSelectSubpage(QWidget):
 
         hint_icon = QLabel(pixmap=Icon(FluentIcon.REMOVE_FROM).pixmap(96, 96))
         hint_label = TitleLabel("未能获取到 ClassIsland 路径")
-        hint_desc = BodyLabel(
-            "<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>"
-        )
+        hint_desc = BodyLabel("<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>")
         hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -911,13 +888,9 @@ class PathSelectSubpage(QWidget):
         actions_layout = QHBoxLayout(actions)
         actions_layout.setSpacing(10)
 
-        get_ci_button = PrimaryPushButton(
-            icon=FluentIcon.DOWNLOAD, text="获取 ClassIsland"
-        )
+        get_ci_button = PrimaryPushButton(icon=FluentIcon.DOWNLOAD, text="获取 ClassIsland")
         get_ci_button.setFixedWidth(150)
-        get_ci_button.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://classisland.tech"))
-        )
+        get_ci_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://classisland.tech")))
 
         browse_button = PushButton(icon=FluentIcon.FOLDER_ADD, text="选择已有路径")
         browse_button.setFixedWidth(150)
@@ -957,20 +930,16 @@ class CiRunningWarnSubpage(QWidget):
     ciClosed = Signal()
 
     label_running_text = "ClassIsland 正在运行"
-    label_running_desc = (
-        "<span style='font-size: 15px;'>需要关闭 ClassIsland 才能编辑自动化</span>"
-    )
+    label_running_desc = "<span style='font-size: 15px;'>需要关闭 ClassIsland 才能编辑自动化</span>"
     labelE_running_text = "唔，看起来 ClassIsland 还在运行呢"
-    labelE_running_desc = "<span style='font-size: 15px;'>这种坏事要偷偷地干啦，让 ClassIsland 大姐姐看到就不好了哦~</span>"
+    labelE_running_desc = (
+        "<span style='font-size: 15px;'>这种坏事要偷偷地干啦，让 ClassIsland 大姐姐看到就不好了哦~</span>"
+    )
 
     label_failed_text = "无法终止 ClassIsland"
-    label_failed_desc = (
-        "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
-    )
+    label_failed_desc = "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
     labelE_failed_text = "诶诶，情况好像不太对？！"
-    lalbelE_failed_desc = (
-        "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
-    )
+    lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
     def __init__(self, manager: CiAutomationManager | None = None):
         super().__init__()
@@ -985,9 +954,7 @@ class CiRunningWarnSubpage(QWidget):
         self.hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.action_button = PrimaryPushButton(
-            icon=FluentIcon.POWER_BUTTON, text="终止 ClassIsland"
-        )
+        self.action_button = PrimaryPushButton(icon=FluentIcon.POWER_BUTTON, text="终止 ClassIsland")
         self.action_button.clicked.connect(self.terminate_ci)
 
         layout.addWidget(self.hint_icon)
@@ -998,9 +965,7 @@ class CiRunningWarnSubpage(QWidget):
         layout.addWidget(self.action_button)
 
         self.set_text()
-        SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(
-            lambda _: self.set_text()
-        )
+        SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
 
     def set_text(self, failed: bool = False):
         if not failed:
@@ -1125,7 +1090,7 @@ class AutomationPage(QWidget):
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=MainSettingsWindow.container,
+                parent=MainWindow.container,
             )
             return
 
@@ -1156,43 +1121,34 @@ class HighlightedChangeLogCard(CardWidget):
 class UpdateContentView(QWidget):
     def __init__(self, change_log: ChangeLog | None = None):
         super().__init__()
-        self.pivot = Pivot(self)
-        self.stackedWidget = QStackedWidget(self)
-        self.vBoxLayout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 0, 30, 0)
+        layout.setSpacing(2)
 
-        # UI
-        self._init_change_log_interface()  # 先创建空的 changelog 页
-        self.settings_interface = QLabel("更新设置", self)  # TODO
+        self.pivot = Pivot()
+        self.stacked_widget = QStackedWidget()
 
-        # tabs
-        self.addSubInterface(self.log_container, "changeLogInterface", "更新日志")
-        self.addSubInterface(self.settings_interface, "settingsInterface", "更新设置")
+        self.change_log_container = self._init_change_log_interface()
+        self.settings_container = self._init_update_settings()
 
-        # signals + default page
-        self.stackedWidget.currentChanged.connect(self.onCurrentIndexChanged)
-        self.stackedWidget.setCurrentWidget(self.log_container)
-        self.pivot.setCurrentItem(self.log_container.objectName())
+        self.addSubInterface(self.change_log_container, "changeLogContainer", "更新日志")
+        self.addSubInterface(self.settings_container, "settingsContainer", "更新设置")
 
-        self.vBoxLayout.setContentsMargins(30, 0, 30, 30)
-        self.vBoxLayout.addWidget(self.pivot, 0, Qt.AlignLeft)
-        self.vBoxLayout.addWidget(self.stackedWidget)
+        # qfluentwidgets 的 PivotItem 字号高达 18，丑爆了……
+        for item in self.pivot.items.values():
+            setFont(item, 15)
 
-        self.set_change_log(change_log)
+        self.stacked_widget.currentChanged.connect(self.onCurrentIndexChanged)
+        self.stacked_widget.setCurrentWidget(self.change_log_container)
+        self.pivot.setCurrentItem(self.change_log_container.objectName())
 
-        self.resize(400, 400)
+        layout.addWidget(self.pivot, 0, Qt.AlignLeft)
+        layout.addWidget(self.stacked_widget)
 
     def _init_change_log_interface(self):
-        self.log_container = SmoothScrollArea(self)
-        self.log_container.setWidgetResizable(True)
-        self.log_container.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(
-            self.log_container.viewport(), QScroller.LeftMouseButtonGesture
-        )
+        container = QWidget()
 
-        self._scroll_content = QWidget()
-        self.log_container.setWidget(self._scroll_content)
-
-        self.scroll_layout = QVBoxLayout(self._scroll_content)
+        scroll_layout = QVBoxLayout(container)
 
         self.highlights_title = SubtitleLabel("✨ 亮点")
         self.highlights_layout = FlowLayout()
@@ -1204,18 +1160,57 @@ class UpdateContentView(QWidget):
         self.placeholder_label.setAlignment(Qt.AlignCenter)
         self.placeholder_label.setWordWrap(True)
 
-        self.scroll_layout.addWidget(self.placeholder_label)
-        self.scroll_layout.addWidget(self.highlights_title)
-        self.scroll_layout.addLayout(self.highlights_layout)
-        self.scroll_layout.addSpacing(20)
-        self.scroll_layout.addWidget(self.others_title)
-        self.scroll_layout.addLayout(self.others_layout)
-        self.scroll_layout.addStretch(1)
+        scroll_layout.addWidget(self.placeholder_label)
+        scroll_layout.addWidget(self.highlights_title)
+        scroll_layout.addLayout(self.highlights_layout)
+        scroll_layout.addSpacing(20)
+        scroll_layout.addWidget(self.others_title)
+        scroll_layout.addLayout(self.others_layout)
+        scroll_layout.addStretch(1)
+
+        # Make it scrollable!
+        scroll_area = SmoothScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        scroll_area.setWidget(container)
+
+        return scroll_area
+
+    def _init_update_settings(self):
+        container = QWidget()
+        scroll_layout = QVBoxLayout(container)
+
+        for item in config.iter_items(only="Update")[0].children:
+            scroll_layout.addWidget(SettingCard.from_config(item))
+
+        reset_card = PushSettingCard(
+            text="强制检查",
+            icon=FluentIcon.ASTERISK,
+            title="强制检查更新",
+            content="强制将应用更新到当前通道及分支上的最新版本，可以通过这种方式切换分支",
+        )
+        reset_card.clicked.connect(lambda: update_checker.check_async(force=True))
+        scroll_layout.addWidget(reset_card)
+
+        scroll_layout.addStretch(1)
+
+        # Make it scrollable again!
+        scroll_area = SmoothScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        QScroller.grabGesture(scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        scroll_area.setWidget(container)
+
+        return scroll_area
 
     def set_change_log(self, change_log: ChangeLog | None):
         """允许初始化后传入/更新 changelog。"""
-        self._clear_layout_widgets(self.highlights_layout)
-        self._clear_layout_widgets(self.others_layout)
+        self.highlights_layout.takeAllWidgets()
+        while self.others_layout.count():
+            w = self.others_layout.takeAt(0).widget()
+            if w:
+                w.deleteLater()
 
         self.placeholder_label.setVisible(not bool(change_log))
         self.highlights_title.setVisible(bool(getattr(change_log, "highlights", None)))
@@ -1239,28 +1234,18 @@ class UpdateContentView(QWidget):
             self.highlights_title.setVisible(False)
             self.others_title.setVisible(False)
 
-    def _clear_layout_widgets(self, layout: QLayout):
-        while layout.count():
-            item = layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-            child_layout = item.layout()
-            if child_layout is not None:
-                self._clear_layout_widgets(child_layout)
-
     def addSubInterface(self, widget: QWidget, objectName: str, text: str):
         widget.setObjectName(objectName)
 
-        self.stackedWidget.addWidget(widget)
+        self.stacked_widget.addWidget(widget)
         self.pivot.addItem(
             routeKey=objectName,
             text=text,
-            onClick=lambda: self.stackedWidget.setCurrentWidget(widget),
+            onClick=lambda: self.stacked_widget.setCurrentWidget(widget),
         )
 
     def onCurrentIndexChanged(self, index):
-        widget = self.stackedWidget.widget(index)
+        widget = self.stacked_widget.widget(index)
         self.pivot.setCurrentItem(widget.objectName())
 
 
@@ -1291,23 +1276,28 @@ class UpdatePage(QWidget):
 
         self._action: UpdateStatus
         self._decision: UpdateDecision | None = None
+        self._update_file: str = "EasiAuto_Unknown.zip"
+        self._last_check: str | None = None
+        self._last_error: str | None = None
+        self._connected: bool = False
 
         self.init_ui()
         self.action = UpdateStatus.CHECK
-        update_checker.check_async()
+        if config.Update.Mode.value > UpdateMode.NEVER.value:
+            update_checker.check_async()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(0)
 
         title = TitleLabel("更新")
-        title.setContentsMargins(36, 10, 0, 16)
+        title.setContentsMargins(36, 8, 0, 12)
         layout.addWidget(title)
 
         status_widget = QWidget()
         status_widget.setFixedHeight(96)
-        status_widget.setContentsMargins(32, 4, 32, 4)
+        status_widget.setContentsMargins(36, 0, 36, 0)
         status_layout = QHBoxLayout(status_widget)
 
         icon = IconWidget(FluentIcon.SYNC)
@@ -1351,6 +1341,7 @@ class UpdatePage(QWidget):
 
     @action.setter
     def action(self, new: UpdateStatus):
+        """更新状态管理"""
         self._action = new
 
         self.title.setText("TITLE")
@@ -1365,7 +1356,7 @@ class UpdatePage(QWidget):
             case UpdateStatus.CHECK:
                 self.title.setText("你使用的是最新版本")
                 self.detail.show()
-                self.detail.setText("上次检查时间：暂未检查")
+                self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
                 self.action_button.setText("检查更新")
                 self.content_widget.set_change_log(None)
             case UpdateStatus.CHECKING:
@@ -1378,42 +1369,74 @@ class UpdatePage(QWidget):
                     self.action = UpdateStatus.FAILED
                     return
                 logger.info(f"更新可用：{self._decision.target_version}")
-                self.title.setText("更新可用")
-                self.detail.show()
-                self.detail.setText(
-                    f"上次检查时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}"
+                self.title.setText(f"更新可用：{self._decision.target_version}")
+                windows11toast.notify(
+                    title="更新可用",
+                    body=f"新版本：{self._decision.target_version}\n打开应用查看详细信息",
+                    icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                    icon_hint_crop=windows11toast.IconCrop.NONE,
+                    icon_src=utils.get_resource("easiauto.ico"),
                 )
+                self.detail.show()
+                self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
                 self.action_button.setText("下载")
                 self.content_widget.set_change_log(self._decision.change_log)
+                if config.Update.Mode.value >= UpdateMode.CHECK_AND_DOWNLOAD.value:
+                    update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
             case UpdateStatus.DOWNLOADING:
+                logger.info("正在下载更新")
                 self.title.setText("正在下载更新……")
                 self.download_progress_bar.show()
                 self.action_button.setText("下载")
                 self.action_button.setEnabled(False)
             case UpdateStatus.INSTALL:
+                logger.success("更新已就绪")
                 self.title.setText("更新已就绪")
                 self.detail.show()
-                self.detail.setText(
-                    "应用退出后将自动应用更新，或者你也可以现在重启以应用更新"
-                )
+                if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
+                    app.aboutToQuit.connect(
+                        lambda: update_checker.apply_script(
+                            zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
+                        ),
+                    )
+                    self._connected = True
+                    self.detail.setText("应用退出后将自动应用更新，或者你也可以现在重启以应用更新")
+                else:
+                    self.detail.setText("需要手动确认以应用更新")
                 self.action_button.setText("重启并应用更新")
+
             case UpdateStatus.FAILED:
                 logger.error("检查更新时发生错误")
                 self.title.setText("发生错误")
                 self.detail.show()
-                self.detail.setText("请重试或向开发者报告问题")
+                if self._last_error:
+                    self.detail.setText(f"错误信息：{self._last_error}")
+                    self._last_error = None
+                else:
+                    self.detail.setText("未知错误，请重试或向开发者报告问题")
                 self.action_button.setText("重试")
 
+    # NOTE: 上下部分逻辑重合，需要同步修改
+
     def handle_button_action(self):
+        """响应更新各步骤的操作"""
         match self.action:
             case UpdateStatus.CHECK | UpdateStatus.FAILED:
                 update_checker.check_async()
+                self._last_check = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             case UpdateStatus.DOWNLOAD:
                 if not self._decision:
+                    self._last_error = "无可下载的更新"
                     self.action = UpdateStatus.FAILED
                     return
-                update_checker.download_async(self._decision.downloads[0])
+                update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
             case UpdateStatus.INSTALL:
+                if not self._connected:
+                    app.aboutToQuit.connect(
+                        lambda: update_checker.apply_script(
+                            zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
+                        ),
+                    )
                 utils.stop()
 
     def check_started(self):
@@ -1422,11 +1445,13 @@ class UpdatePage(QWidget):
     def check_finished(self, decision: UpdateDecision):
         if decision.available:
             self._decision = decision
+            self._update_file = f"EasiAuto_{decision.target_version or 'Unknown'}.zip"
             self.action = UpdateStatus.DOWNLOAD
         else:
             self.action = UpdateStatus.CHECK
 
-    def check_failed(self, error_message: str):
+    def check_failed(self, error: str):
+        self._last_error = error
         self.action = UpdateStatus.FAILED
 
     def download_started(self):
@@ -1436,14 +1461,10 @@ class UpdatePage(QWidget):
         self.download_progress_bar.setValue(round(100 * downloaded / total))
 
     def download_finished(self):
-        update_checker.create_update_script(
-            zip_path=EA_EXECUTABLE.parent / "cache" / "EasiAuto.zip",
-            relaunch_exe=EA_EXECUTABLE,
-        )
-        app.aboutToQuit.connect(update_checker.apply_script)
         self.action = UpdateStatus.INSTALL
 
-    def download_failed(self):
+    def download_failed(self, error):
+        self._last_error = error
         self.action = UpdateStatus.FAILED
 
 
@@ -1461,17 +1482,13 @@ class AboutPage(SmoothScrollArea):
         layout.setSpacing(0)
 
         title = TitleLabel("关于")
-        title.setContentsMargins(36, 10, 0, 16)
+        title.setContentsMargins(36, 8, 0, 12)
         layout.addWidget(title)
 
-        # 创建滚动区域
         self.scroll_area = SmoothScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        QScroller.grabGesture(
-            self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture
-        )  # 触摸适配
-
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
         layout.addWidget(self.scroll_area)
 
         # 居中容器
@@ -1514,7 +1531,7 @@ class AboutPage(SmoothScrollArea):
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignBottom)
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel("版本 1.0.1", self)
+        subtitle = SubtitleLabel(f"版本 {str(VERSION)}", self)
         title_layout.addWidget(title)
         title_layout.addSpacing(6)
         title_layout.addWidget(subtitle)
@@ -1536,9 +1553,7 @@ class AboutPage(SmoothScrollArea):
         )
         additional_info.viewLayout.setContentsMargins(16, 8, 16, 12)
         additional_info.viewLayout.setSpacing(6)
-        additional_info.addGroupWidget(
-            BodyLabel("本项自基于 GNU General Public License v3.0 (GPLv3) 获得许可")
-        )
+        additional_info.addGroupWidget(BodyLabel("本项自基于 GNU General Public License v3.0 (GPLv3) 获得许可"))
         additional_info.addGroupWidget(
             BodyLabel(
                 "\n  - ".join(
@@ -1570,9 +1585,7 @@ class AboutPage(SmoothScrollArea):
         )
         description_layout.addWidget(product_text)
         description_layout.addWidget(github_link)
-        description_layout.addWidget(
-            additional_info
-        )  # NOTE: 不知道为什么折叠的时候会抽搐，之后再修吧
+        description_layout.addWidget(additional_info)  # NOTE: 不知道为什么折叠的时候会抽搐，之后再修吧
         banner_layout.addLayout(description_layout)
 
         banner_container_layout.addLayout(banner_layout)
@@ -1631,23 +1644,28 @@ class AboutPage(SmoothScrollArea):
         self.content_layout.addStretch(1)
 
 
-class MainSettingsWindow(MSFluentWindow):
+class MainWindow(MSFluentWindow):
     container: QWidget | None = None
 
     def __init__(self):
-        logger.debug("初始化主设置窗口")
+        logger.debug("初始化界面")
         super().__init__()
+        self.initWindow()
+
+        # 启动页面
+        self.splashScreen = SplashScreen(self.windowIcon(), self)
+        self.splashScreen.setIconSize(QSize(102, 102))
+        self.show()
 
         self.config_page = ConfigPage()
         self.automation_page = AutomationPage()
         self.update_page = UpdatePage()
         self.about_page = AboutPage()
-
         self.initNavigation()
-        self.initWindow()
 
-        logger.success("主设置窗口初始化完成")
-        MainSettingsWindow.container = self.stackedWidget
+        logger.success("界面初始化完成")
+        self.splashScreen.finish()
+        MainWindow.container = self.stackedWidget
 
     def initNavigation(self):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
