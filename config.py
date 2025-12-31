@@ -351,16 +351,22 @@ class UpdateConfig(ConfigModel):
         description="设置应用的更新模式",
         json_schema_extra={"icon": "Application"},
     )
-    CheckAfterLogin: bool = Field(
-        default=True,
-        title="登录后更新",
-        description="登录完成后，尝试按照设置的更新模式检查更新，安装时将会静默",
-        json_schema_extra={"icon": "Megaphone"},
-    )
     Channal: UpdateChannal = Field(
         default=UpdateChannal.RELEASE,
         title="更新通道",
         description="控制应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
+        json_schema_extra={"icon": "Tag"},
+    )
+    CheckAfterLogin: bool = Field(
+        default=True,
+        title="登录后更新",
+        description="登录完成后，尝试按照设置的更新模式检查更新（安装时将会静默）",
+        json_schema_extra={"icon": "Megaphone"},
+    )
+    UseMirror: bool = Field(
+        default=False,
+        title="使用镜像",
+        description="下载较慢时，可尝试启用镜像源下载 (ghproxy)",
         json_schema_extra={"icon": "Download"},
     )
 
