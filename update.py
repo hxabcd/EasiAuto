@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import subprocess
+import sys
 import tempfile
 import zipfile
 from collections.abc import Callable
@@ -21,8 +22,7 @@ from utils import EA_EXECUTABLE
 VERSION = Version("1.1.0")
 MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
-# MIRROR = "https://ghproxy.net/"
-MIRROR = ""
+MIRROR = "https://ghproxy.net/"
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,7 @@ class DownloadItem:
 
 @dataclass
 class ChangeLog:
+    description: str
     highlights: list[dict[Literal["name", "description"], str]]
     others: list[str]
 
@@ -100,7 +101,7 @@ class DownloadWorker(QObject):
 
     @Slot()
     def run(self):
-        full_url = MIRROR + self.item.url
+        full_url = (MIRROR + self.item.url) if config.Update.UseMirror else self.item.url
         self.started.emit(full_url)
         try:
             # 定义回调函数将进度转发给信号
@@ -187,7 +188,7 @@ class UpdateChecker(QObject):
             return out_path
 
         # 2. 准备下载
-        url = MIRROR + item.url
+        url = (MIRROR + item.url) if config.Update.UseMirror else item.url
         total = -1
         done = 0
         logger.info(f"开始下载更新包: {url}")
@@ -243,7 +244,7 @@ class UpdateChecker(QObject):
 
         return out_path
 
-    def create_update_script(self, zip_path: Path) -> Path:
+    def create_update_script(self, zip_path: Path, reopen: bool = True) -> Path:
         """解压更新包并生成批处理脚本"""
         staging = Path(tempfile.mkdtemp(prefix="easiauto_update_"))
         extract_dir = staging / "extract"
@@ -265,8 +266,9 @@ class UpdateChecker(QObject):
         # 注意：这里保留了 config.json, logs, cache
         script_content = [
             "@echo off",
+            "chcp 65001",
             "setlocal enabledelayedexpansion",
-            "timeout /t 1 /nobreak >nul",  # 等待主程序完全退出
+            "timeout /t 1 /nobreak",  # 等待主程序完全退出
             "",
             f"set TARGET_DIR={target_dir}",
             "",
@@ -279,8 +281,8 @@ class UpdateChecker(QObject):
                 r'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"'
             ),
             "",
-            f'xcopy "{extract_root}" "%TARGET_DIR%\\" /E /Y /I >nul',
-            f'"{EA_EXECUTABLE}"',
+            f'robocopy "{extract_root}" "%TARGET_DIR%" /E /MOV',
+            f'"{EA_EXECUTABLE}"' if reopen else "",
             "endlocal",
         ]
 
@@ -290,10 +292,14 @@ class UpdateChecker(QObject):
         self._update_script_path = script
         return script
 
-    def apply_script(self, zip_path: Path) -> None:
+    def apply_script(self, zip_path: Path, reopen: bool = True) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
 
-        path = self._update_script_path or self.create_update_script(zip_path)
+        if sys.argv[0].endswith(".py"):
+            logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")
+            return
+
+        path = self._update_script_path or self.create_update_script(zip_path, reopen=reopen)
 
         subprocess.Popen(
             str(path),
@@ -372,10 +378,9 @@ class UpdateChecker(QObject):
         self._cancel_download_flag = True
         # 强制关闭连接，使 requests 立即抛出异常，不用等待 chunk 读取
         if self._active_response:
-            try:
+            with contextlib.suppress(Exception):
                 self._active_response.close()
-            except Exception:
-                pass
+
 
     # ================== 内部辅助方法 ==================
 
@@ -432,7 +437,7 @@ class UpdateChecker(QObject):
     ) -> ChangeLog | None:
         versions = manifest.get("versions", {})
         # 获取所有大于当前版本且小于等于目标版本的信息
-        in_range = []
+        in_range: list[str] = []
         for v_str in versions:
             try:
                 v = Version(v_str)
@@ -447,16 +452,22 @@ class UpdateChecker(QObject):
         if not in_range:
             return None
 
+        descriptions = []
         highlights = []
         others = []
         for v in in_range:
-            info = versions[v]
+            info: dict = versions[v]
+            if bool(info.get("is_dev")) == (config.Update.Channal == UpdateChannal.DEV):  # 不读取不同通道的更新日志
+                continue
+
+            if d := info.get("description"):
+                descriptions.extend(f"[{v}] {d}")
             if h := info.get("highlights"):
                 highlights.extend(h)
             if o := info.get("others"):
                 others.extend(o)
 
-        return ChangeLog(highlights=highlights, others=others)
+        return ChangeLog(description="\n".join(descriptions), highlights=highlights, others=others)
 
     def _extract_downloads(self, version_info: dict[str, Any]) -> list[DownloadItem]:
         raw_list = version_info.get("downloads", [])
