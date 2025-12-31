@@ -16,9 +16,10 @@ from loguru import logger
 from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from config import UpdateChannal, config
 from utils import EA_EXECUTABLE
 
-VERSION = Version("0.0.1")
+VERSION = Version("1.1.0")
 MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
@@ -142,12 +143,10 @@ class UpdateChecker(QObject):
     def __init__(
         self,
         *,
-        update_channel: str = "release",  # "release" | "dev"
         package_channel: str = "default",  # default/no_cv/...
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.update_channel = update_channel
         self.package_channel = package_channel
         self.session = requests.Session()
 
@@ -159,10 +158,10 @@ class UpdateChecker(QObject):
 
     # ================== 同步 API ==================
 
-    def check(self) -> UpdateDecision:
+    def check(self, force: bool = False) -> UpdateDecision:
         """检查更新"""
         manifest = self._fetch_manifest()
-        return self._decide(manifest)
+        return self._decide(manifest, force)
 
     def download_update(
         self,
@@ -179,11 +178,7 @@ class UpdateChecker(QObject):
         out_path = dest_dir / (filename or Path(item.url).name)
 
         # 1. 检查本地是否存在
-        if (
-            out_path.exists()
-            and item.sha256
-            and self._check_sha256(out_path, item.sha256)
-        ):
+        if out_path.exists() and item.sha256 and self._check_sha256(out_path, item.sha256):
             logger.info(f"文件已存在且校验通过，跳过下载: {out_path}")
             if on_progress:
                 # 模拟进度完成
@@ -250,9 +245,8 @@ class UpdateChecker(QObject):
 
     def create_update_script(
         self,
-        *,
         zip_path: Path,
-        relaunch_exe: Path | None = None,
+        *,
         relaunch_args: list[str] | None = None,
     ) -> Path:
         """解压更新包并生成批处理脚本"""
@@ -269,8 +263,6 @@ class UpdateChecker(QObject):
 
         extract_root = self._normalize_extract_root(extract_dir)
 
-        if relaunch_exe is None:
-            relaunch_exe = Path(sys.executable)
         if relaunch_args is None:
             relaunch_args = list(sys.argv)
 
@@ -296,7 +288,7 @@ class UpdateChecker(QObject):
             ),
             "",
             f'xcopy "{extract_root}" "%TARGET_DIR%\\" /E /Y /I >nul',
-            f'"{relaunch_exe}" {" ".join(self._quote(a) for a in relaunch_args)}',
+            f'"{EA_EXECUTABLE}" {" ".join(self._quote(a) for a in relaunch_args)}',
             "endlocal",
         ]
 
@@ -304,11 +296,15 @@ class UpdateChecker(QObject):
         self._update_script_path = script
         return script
 
-    def apply_script(self) -> None:
+    def apply_script(self, zip_path: Path) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
+
         if self._update_script_path is None:
-            logger.error("更新脚本路径未设置，无法应用更新")
-            return
+            update_checker.create_update_script(zip_path)
+            if self._update_script_path is None:
+                logger.error("更新脚本路径未设置，无法应用更新")
+                return
+
         subprocess.Popen(
             f'cmd /c start /min "" "{self._update_script_path}"',
             shell=True,
@@ -317,12 +313,12 @@ class UpdateChecker(QObject):
 
     # ================== 异步 API ==================
 
-    def check_async(self) -> None:
+    def check_async(self, force: bool = False) -> None:
         self._cleanup_threads()
 
         thread = QThread()
         # 将 check 方法传入 Worker
-        worker = CheckWorker(self.check)
+        worker = CheckWorker(lambda: self.check(force))
         worker.moveToThread(thread)
         thread._worker_ref = worker  # 保存引用
 
@@ -347,7 +343,7 @@ class UpdateChecker(QObject):
         self,
         item: DownloadItem,
         *,
-        filename: str | None = None,
+        filename: str,
         chunk_size: int = 1024 * 1024,
     ) -> None:
         """启动异步下载线程"""
@@ -416,36 +412,33 @@ class UpdateChecker(QObject):
         except ValueError as e:
             raise UpdateError(f"manifest JSON 解析失败：{e!s}") from e
 
-    def _decide(self, manifest: dict[str, Any]) -> UpdateDecision:
-        target_key = "latest_dev" if self.update_channel == "dev" else "latest"
+    def _decide(self, manifest: dict[str, Any], force: bool = False) -> UpdateDecision:
+        target_key = "latest_dev" if config.Update.Channal == UpdateChannal.DEV else "latest"
         target_ver_str = manifest.get(target_key)
 
         if not target_ver_str:
             return UpdateDecision(False, None, False, None, ())
 
-        try:
-            if not Version(target_ver_str) > VERSION:
-                return UpdateDecision(False, target_ver_str, False, None, ())
-        except Exception:
-            # 版本号解析失败视为无更新
+        if not force and Version(target_ver_str) <= VERSION:  # 强制检查忽略版本
             return UpdateDecision(False, target_ver_str, False, None, ())
 
         versions = manifest.get("versions", {})
         target_info = versions.get(target_ver_str, {})
 
         confirm_required = bool(target_info.get("confirm_required", False))
-        changelog = self._build_changelog(manifest, Version(target_ver_str))
+        changelog = self._build_changelog(manifest, Version(target_ver_str), force=force)
 
         all_downloads = self._extract_downloads(target_info)
         # 筛选符合当前 package_channel 的下载项
         downloads = tuple(d for d in all_downloads if d.channel == self.package_channel)
 
-        return UpdateDecision(
-            True, target_ver_str, confirm_required, changelog, downloads
-        )
+        return UpdateDecision(True, target_ver_str, confirm_required, changelog, downloads)
 
     def _build_changelog(
-        self, manifest: dict[str, Any], target_version: Version
+        self,
+        manifest: dict[str, Any],
+        target_version: Version,
+        force: bool = False,
     ) -> ChangeLog | None:
         versions = manifest.get("versions", {})
         # 获取所有大于当前版本且小于等于目标版本的信息
@@ -453,7 +446,7 @@ class UpdateChecker(QObject):
         for v_str in versions:
             try:
                 v = Version(v_str)
-                if VERSION < v <= target_version:
+                if (VERSION < v <= target_version) or (force and v == target_version):  # 强制获取时，至少展示最新版日志
                     in_range.append(v_str)
             except Exception:
                 continue

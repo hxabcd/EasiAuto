@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -17,7 +16,15 @@ from PySide6.QtGui import QColor
 from utils import EA_EXECUTABLE
 
 
-class LogLevelEnum(Enum):
+class InformativeEnum(Enum):
+    """带显示名称的枚举类"""
+
+    def __init__(self, value, display_name):
+        self.display_name = display_name
+        self._value_ = value
+
+
+class LogLevelEnum(InformativeEnum):
     TRACE = (5, "追踪")
     DEBUG = (10, "调试")
     INFO = (20, "信息")
@@ -25,19 +32,23 @@ class LogLevelEnum(Enum):
     ERROR = (40, "错误")
     CRITICAL = (50, "灾难")
 
-    def __init__(self, value, display_name):
-        self.display_name = display_name
-        self._value_ = value
 
-
-class LoginMethod(Enum):
+class LoginMethod(InformativeEnum):
     UI_AUTOMATION = (0, "UIA 自动定位")
     OPENCV = (1, "OpenCV 图像识别")
     FIXED_POSITION = (2, "固定位置")
 
-    def __init__(self, value, display_name):
-        self.display_name = display_name
-        self._value_ = value
+
+class UpdateMode(InformativeEnum):
+    NEVER = (0, "从不自动更新")
+    CHECK_AND_NOTIFY = (1, "自动检查更新并通知")
+    CHECK_AND_DOWNLOAD = (2, "自动检查更新并下载")
+    CHECK_AND_INSTALL = (3, "自动检查更新并安装")
+
+
+class UpdateChannal(InformativeEnum):
+    RELEASE = ("release", "稳定通道")
+    DEV = ("dev", "测试通道")
 
 
 class ConfigModel(BaseModel):
@@ -87,8 +98,12 @@ class ConfigModel(BaseModel):
             target = getattr(target, key)
         setattr(target, parts[-1], value)
 
-    def iter_items(self) -> Iterable[ConfigItem | ConfigGroup]:
-        return iter_config_items(self)
+    def iter_items(
+        self,
+        only: str | None = None,
+        exclude: str | None = None,
+    ) -> list[ConfigItem | ConfigGroup]:
+        return iter_config_items(self, only=only, exclude=exclude)
 
 
 class LoginConfig(ConfigModel):
@@ -329,11 +344,34 @@ class AppConfig(ConfigModel):
     )
 
 
+class UpdateConfig(ConfigModel):
+    Mode: UpdateMode = Field(
+        default=UpdateMode.CHECK_AND_INSTALL,
+        title="更新模式",
+        description="设置应用的更新模式",
+        json_schema_extra={"icon": "Application"},
+    )
+    CheckAfterLogin: bool = Field(
+        default=True,
+        title="登录后更新",
+        description="登录完成后，尝试按照设置的更新模式检查更新，安装时将会静默",
+        json_schema_extra={"icon": "Megaphone"},
+    )
+    Channal: UpdateChannal = Field(
+        default=UpdateChannal.RELEASE,
+        title="更新通道",
+        description="控制应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
+        json_schema_extra={"icon": "Download"},
+    )
+
+
 class Config(ConfigModel):
     Login: LoginConfig = Field(default_factory=lambda: LoginConfig(), title="登录选项")
     Warning: WarningConfig = Field(default_factory=lambda: WarningConfig(), title="警告弹窗")
     Banner: BannerConfig = Field(default_factory=lambda: BannerConfig(), title="警示横幅")
     App: AppConfig = Field(default_factory=lambda: AppConfig(), title="应用设置")
+
+    Update: UpdateConfig = Field(default_factory=lambda: UpdateConfig(), title="更新设置")
 
     @classmethod
     def load(cls, file: str | Path) -> Config:
@@ -442,7 +480,12 @@ class ConfigGroup:
 
 
 def iter_config_items(
-    obj: ConfigModel, prefix: str = "", group: str | None = None, root: ConfigModel | None = None
+    obj: ConfigModel,
+    prefix: str = "",
+    group: str | None = None,
+    root: ConfigModel | None = None,
+    only: str | None = None,
+    exclude: str | None = None,
 ) -> list[ConfigItem | ConfigGroup]:
     """
     从任意 ConfigModel 实例递归地枚举出所有字段，并保留层级结构。
@@ -460,9 +503,12 @@ def iter_config_items(
         value = getattr(obj, name)
         path = f"{prefix}.{name}" if prefix else name
 
+        if (only and only not in path) or (exclude and exclude in path):
+            continue
+
         if isinstance(value, ConfigModel):
             # 递归获取子节点
-            children = iter_config_items(value, prefix=path, group=group, root=root)
+            children = iter_config_items(value, prefix=path, group=group, root=root, only=only, exclude=exclude)
 
             group_node = ConfigGroup(
                 path=path,
