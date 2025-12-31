@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import subprocess
-import sys
 import tempfile
 import zipfile
 from collections.abc import Callable
@@ -22,7 +21,8 @@ from utils import EA_EXECUTABLE
 VERSION = Version("1.1.0")
 MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
-MIRROR = "https://ghproxy.net/"
+# MIRROR = "https://ghproxy.net/"
+MIRROR = ""
 
 
 @dataclass(frozen=True)
@@ -243,12 +243,7 @@ class UpdateChecker(QObject):
 
         return out_path
 
-    def create_update_script(
-        self,
-        zip_path: Path,
-        *,
-        relaunch_args: list[str] | None = None,
-    ) -> Path:
+    def create_update_script(self, zip_path: Path) -> Path:
         """解压更新包并生成批处理脚本"""
         staging = Path(tempfile.mkdtemp(prefix="easiauto_update_"))
         extract_dir = staging / "extract"
@@ -262,9 +257,6 @@ class UpdateChecker(QObject):
             raise UpdateError(f"解压失败，文件可能已损坏: {e}")
 
         extract_root = self._normalize_extract_root(extract_dir)
-
-        if relaunch_args is None:
-            relaunch_args = list(sys.argv)
 
         target_dir = str(EA_EXECUTABLE.parent)
         script = staging / "apply_update.bat"
@@ -282,31 +274,29 @@ class UpdateChecker(QObject):
             (
                 r'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "'
                 r"$t = '%TARGET_DIR%'; "
-                r"$keep = @('config.json','logs','cache'); "
+                r"$keep = @('config.json','logs'); "
                 r"Get-ChildItem -LiteralPath $t -Force | Where-Object { $keep -notcontains $_.Name } | "
                 r'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"'
             ),
             "",
             f'xcopy "{extract_root}" "%TARGET_DIR%\\" /E /Y /I >nul',
-            f'"{EA_EXECUTABLE}" {" ".join(self._quote(a) for a in relaunch_args)}',
+            f'"{EA_EXECUTABLE}"',
             "endlocal",
         ]
 
         script.write_text("\r\n".join(script_content), encoding="utf-8")
+        logger.info(f"已生成脚本： {script} ")
+
         self._update_script_path = script
         return script
 
     def apply_script(self, zip_path: Path) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
 
-        if self._update_script_path is None:
-            update_checker.create_update_script(zip_path)
-            if self._update_script_path is None:
-                logger.error("更新脚本路径未设置，无法应用更新")
-                return
+        path = self._update_script_path or self.create_update_script(zip_path)
 
         subprocess.Popen(
-            f'cmd /c start /min "" "{self._update_script_path}"',
+            str(path),
             shell=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
