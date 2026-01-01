@@ -15,7 +15,7 @@
                 "--follow-imports",
                 "--output-dir=\"build\"",
                 "--windows-console-mode=\"disable\"",
-                "--windows-icon-from-ico=\"resources/easiauto.ico\"",
+                "--windows-icon-from-ico=\"resources/EasiAuto.ico\"",
                 "--company-name=\"HxAbCd\"",
                 "--product-name=\"EasiAuto\"",
                 "--product-version=\"1.0.1\"",

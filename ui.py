@@ -1393,7 +1393,7 @@ class UpdatePage(QWidget):
                     body=f"新版本：{self._decision.target_version}\n打开应用查看详细信息",
                     icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                     icon_hint_crop=windows11toast.IconCrop.NONE,
-                    icon_src=utils.get_resource("easiauto.ico"),
+                    icon_src=utils.get_resource("EasiAuto.ico"),
                 )
                 self.detail.show()
                 self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
@@ -1584,7 +1584,7 @@ class AboutPage(SmoothScrollArea):
             icon=FluentIcon.GITHUB,
             title="GitHub 仓库",
             content="不妨点个 Star 支持一下？  (≧∇≦)ﾉ★",
-            url="https://github.com/hxabcd/easiauto",
+            url="https://github.com/hxabcd/EasiAuto",
             text="查看",
         )
         additional_info = ExpandGroupSettingCard(
@@ -1718,7 +1718,7 @@ class MainWindow(MSFluentWindow):
         )
 
     def initWindow(self):
-        self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
+        self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
         self.setWindowTitle("EasiAuto")
         self.setMinimumSize(800, 500)
         self.resize(960, 640)

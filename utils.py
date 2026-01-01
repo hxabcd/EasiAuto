@@ -96,7 +96,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         self.title_layout = QHBoxLayout()
 
         self.iconLabel = ImageLabel()
-        self.iconLabel.setImage(get_resource("easiauto.ico"))
+        self.iconLabel.setImage(get_resource("EasiAuto.ico"))
         self.error_log = PlainTextEdit()
         self.report_problem = PushButton(FluentIcon.FEEDBACK, "报告此问题")
         self.copy_log_btn = PushButton(FluentIcon.COPY, "复制日志")
@@ -124,7 +124,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 
         # 按钮事件
         self.report_problem.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://github.com/hxabcd/easiauto/issues/"))
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/hxabcd/EasiAuto/issues/"))
         )
         self.copy_log_btn.clicked.connect(self.copy_log)
         self.ignore_error_btn.clicked.connect(self.ignore_error)

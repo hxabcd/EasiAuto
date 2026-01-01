@@ -7,7 +7,7 @@ EasiAuto 是一款自动登录希沃白板的小工具，可以通过一行命�
 
 推荐与 [ClassIsland](https://github.com/ClassIsland/ClassIsland/) 的 **「自动化」** 功能结合使用，可实现在指定课程开始时自动登录至任课老师的希沃账号。具体自动化配置方案，详见 <https://forum.smart-teach.cn/d/725>
 
-系统需求：Windows 10 及以上版本 | [下载](https://github.com/hxabcd/easiauto/releases/latest)
+系统需求：Windows 10 及以上版本 | [下载](https://github.com/hxabcd/EasiAuto/releases/latest)
 
 ## ✨亮点
 
