@@ -105,7 +105,7 @@ wheels = [
 ]
 
 [[package]]
-name = "easiauto"
+name = "EasiAuto"
 version = "1.0.1"
 source = { virtual = "." }
 dependencies = [

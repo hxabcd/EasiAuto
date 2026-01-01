@@ -30,7 +30,7 @@ def after_login():
                     body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
                     icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                     icon_hint_crop=windows11toast.IconCrop.NONE,
-                    icon_src=utils.get_resource("easiauto.ico"),
+                    icon_src=utils.get_resource("EasiAuto.ico"),
                 )
 
     utils.stop()

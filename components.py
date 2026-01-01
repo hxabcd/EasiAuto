@@ -57,7 +57,7 @@ class PreRunPopup(Dialog):
             title="EasiAuto",
             content="将在 N/A 秒后继续执行",
         )
-        self.setWindowIcon(QIcon(get_resource("easiauto.ico")))
+        self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
 
         self.is_dragging = False
         self.drag_position = QPoint()
@@ -66,7 +66,7 @@ class PreRunPopup(Dialog):
         self.title_layout = QHBoxLayout()
 
         self.iconLabel = ImageLabel()
-        self.iconLabel.setImage(get_resource("easiauto.ico"))
+        self.iconLabel.setImage(get_resource("EasiAuto.ico"))
         self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, "取消")
         self.delay_btn = PushButton(FluentIcon.PAUSE, "推迟")
         self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, "立即执行")

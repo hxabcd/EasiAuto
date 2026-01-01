@@ -246,7 +246,7 @@ class UpdateChecker(QObject):
 
     def create_update_script(self, zip_path: Path, reopen: bool = True) -> Path:
         """解压更新包并生成批处理脚本"""
-        staging = Path(tempfile.mkdtemp(prefix="easiauto_update_"))
+        staging = Path(tempfile.mkdtemp(prefix="EasiAuto_update_"))
         extract_dir = staging / "extract"
         extract_dir.mkdir(parents=True, exist_ok=True)
 
