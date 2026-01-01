@@ -18,7 +18,7 @@
                 "--windows-icon-from-ico=\"resources/EasiAuto.ico\"",
                 "--company-name=\"HxAbCd\"",
                 "--product-name=\"EasiAuto\"",
-                "--product-version=\"1.0.1\"",
+                "--product-version=\"1.1.0\"",
                 "--enable-plugins=\"pyside6\"",
                 "--main=\"main.py\"",
                 "--include-data-dir=resources=resources",
