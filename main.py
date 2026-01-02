@@ -4,13 +4,14 @@ from argparse import ArgumentParser
 
 import windows11toast
 from loguru import logger
+from packaging.version import Version
 
 import utils
 from automator import CVAutomator, FixedAutomator, UIAAutomator
 from components import DialogResponse, PreRunPopup, WarningBanner
 from config import LoginMethod, UpdateMode, config
 from ui import MainWindow, app
-from update import update_checker
+from update import VERSION, update_checker
 
 utils.init_exception_handler()
 utils.init_exit_signal_handlers()
@@ -122,7 +123,7 @@ def cmd_skip(_):
 
 def main():
     # 解析命令行参数
-    parser = ArgumentParser(prog="EasiAuto", description="自动登录希沃白板的CLI工具")
+    parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
     subparsers = parser.add_subparsers(title="子命令", dest="command")
 
     # login 子命令
@@ -142,6 +143,22 @@ def main():
     args = parser.parse_args()
 
     if hasattr(args, "func"):
+        if args.func != cmd_skip:
+            if config.Update.LastVersion != "Unknown":
+                try:
+                    last_version = Version(config.Update.LastVersion)
+                except Exception as e:
+                    logger.warning(f"解析上个版本时发生异常：{e}")
+                else:
+                    if last_version < VERSION:
+                        windows11toast.notify(
+                            title=f"已更新至 {str(VERSION)}",
+                            body=f"{config.Update.LastVersion} -> {str(VERSION)}",
+                            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                            icon_hint_crop=windows11toast.IconCrop.NONE,
+                            icon_src=utils.get_resource("EasiAuto.ico"),
+                        )
+            config.Update.LastVersion = str(VERSION)
         args.func(args)
     else:
         cmd_settings(args)
