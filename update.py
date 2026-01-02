@@ -457,17 +457,18 @@ class UpdateChecker(QObject):
         others = []
         for v in in_range:
             info: dict = versions[v]
-            if bool(info.get("is_dev")) == (config.Update.Channal == UpdateChannal.DEV):  # 不读取不同通道的更新日志
+            if bool(info.get("is_dev")) != (config.Update.Channal == UpdateChannal.DEV):  # 不读取不同通道的更新日志
                 continue
 
             if d := info.get("description"):
-                descriptions.extend(f"[{v}] {d}")
+                descriptions.append(f"[{v}] {d}")
             if h := info.get("highlights"):
                 highlights.extend(h)
             if o := info.get("others"):
                 others.extend(o)
+        description = "\n".join(descriptions)
 
-        return ChangeLog(description="\n".join(descriptions), highlights=highlights, others=others)
+        return ChangeLog(description=description, highlights=highlights, others=others)
 
     def _extract_downloads(self, version_info: dict[str, Any]) -> list[DownloadItem]:
         raw_list = version_info.get("downloads", [])

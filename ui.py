@@ -1150,7 +1150,7 @@ class UpdateContentView(QWidget):
 
         scroll_layout = QVBoxLayout(container)
 
-        self.description = BodyLabel()
+        self.description_label = BodyLabel()
 
         self.highlights_title = SubtitleLabel("✨ 亮点")
         self.highlights_layout = FlowLayout()
@@ -1163,6 +1163,8 @@ class UpdateContentView(QWidget):
         self.placeholder_label.setWordWrap(True)
 
         scroll_layout.addWidget(self.placeholder_label)
+        scroll_layout.addWidget(self.description_label)
+        scroll_layout.addSpacing(10)
         scroll_layout.addWidget(self.highlights_title)
         scroll_layout.addLayout(self.highlights_layout)
         scroll_layout.addSpacing(20)
@@ -1208,7 +1210,7 @@ class UpdateContentView(QWidget):
 
     def set_change_log(self, change_log: ChangeLog | None):
         """允许初始化后传入/更新 changelog。"""
-        self.description.setText("")
+        self.description_label.setText("")
         self.highlights_layout.takeAllWidgets()
         while self.others_layout.count():
             w = self.others_layout.takeAt(0).widget()
@@ -1216,7 +1218,7 @@ class UpdateContentView(QWidget):
                 w.deleteLater()
 
         self.placeholder_label.setVisible(not bool(change_log))
-        self.description.setVisible(bool(getattr(change_log, "description", None)))
+        self.description_label.setVisible(bool(getattr(change_log, "description", None)))
         self.highlights_title.setVisible(bool(getattr(change_log, "highlights", None)))
         self.others_title.setVisible(bool(getattr(change_log, "others", None)))
 
@@ -1224,7 +1226,7 @@ class UpdateContentView(QWidget):
             return
 
         try:
-            self.description.setText(change_log.description)
+            self.description_label.setText(change_log.description)
 
             for item in change_log.highlights:
                 card = HighlightedChangeLogCard(item["name"], item["description"])
