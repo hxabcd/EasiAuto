@@ -4,7 +4,7 @@ dev = ["nuitka>=2.8.9"]
 [project]
 name = "EasiAuto"
 version = "1.1.0a1"
-description = "自动登录希沃白板的小工具"
+description = "一款自动登录希沃白板的小工具"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
