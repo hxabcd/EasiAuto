@@ -137,6 +137,19 @@ class PreRunPopup(Dialog):
         timer.stop()
         return self.response
 
+    def mousePressEvent(self, event: Any) -> None:
+        if event.button() == Qt.LeftButton and event.y() <= self.title_bar_height:
+            self.is_dragging = True
+            self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event: Any) -> None:
+        if self.is_dragging:
+            self.move(event.globalPos() - self.drag_position)
+
+    def mouseReleaseEvent(self, event: Any) -> None:
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = False
+
 
 class WarningBanner(QWidget):
     """顶部警示横幅"""
