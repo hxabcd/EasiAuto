@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from config import UpdateChannal, config
 from utils import EA_EXECUTABLE
 
-VERSION = Version("1.1.0")
+VERSION = Version("1.1.0a2")
 MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
