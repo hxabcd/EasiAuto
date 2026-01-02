@@ -1458,7 +1458,6 @@ class UpdatePage(QWidget):
         match self.action:
             case UpdateStatus.CHECK | UpdateStatus.FAILED:
                 update_checker.check_async()
-                self._last_check = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             case UpdateStatus.DOWNLOAD | UpdateStatus.DOWNLOAD_CANCELED:
                 if not self._decision:
                     self._last_error = "无可用更新"
@@ -1480,6 +1479,8 @@ class UpdatePage(QWidget):
         self.action = UpdateStatus.CHECKING
 
     def check_finished(self, decision: UpdateDecision):
+        self._last_check = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
         if decision.available and len(decision.downloads) > 0:
             self._decision = decision
             self._update_file = f"EasiAuto_{decision.target_version or 'Unknown'}.zip"
