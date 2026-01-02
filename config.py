@@ -335,7 +335,7 @@ class AppConfig(ConfigModel):
         default=False,
         title="启用彩蛋",
         description="唔……似乎某些地方有点不对劲的说喵？",
-        json_schema_extra={"icon": "Question", "hidden": True},
+        json_schema_extra={"icon": "Question"},
     )
     DebugMode: bool = Field(
         default=False,
@@ -368,6 +368,13 @@ class UpdateConfig(ConfigModel):
         title="使用镜像",
         description="下载较慢时，可尝试启用镜像源下载 (ghproxy)",
         json_schema_extra={"icon": "Download"},
+    )
+
+    LastVersion: str = Field(
+        default="Unknown",
+        title="上个版本",
+        description="用于在更新完成后下一次启动应用显示更新成功提示",
+        json_schema_extra={"hidden": True},
     )
 
 
@@ -511,6 +518,10 @@ def iter_config_items(
 
         if (only and only not in path) or (exclude and exclude in path):
             continue
+
+        if extra := field_info.json_schema_extra:
+            if extra.get("hidden", False):  # type: ignore
+                continue
 
         if isinstance(value, ConfigModel):
             # 递归获取子节点
