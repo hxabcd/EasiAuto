@@ -283,6 +283,8 @@ class AutomationStatusBar(QWidget):
         self.action_button.setEnabled(False)
 
         self.option_button = TransparentPushButton(icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项")
+        self.option_button.setEnabled(False)
+        # TODO: 完善高级设置对话框
 
         layout.addWidget(SubtitleLabel("ClassIsland 自动化编辑"))
         layout.addSpacing(12)
@@ -1186,6 +1188,7 @@ class UpdateContentView(QWidget):
     def _init_update_settings(self):
         container = QWidget()
         scroll_layout = QVBoxLayout(container)
+        scroll_layout.setSpacing(2)
 
         for item in config.iter_items(only="Update")[0].children:
             scroll_layout.addWidget(SettingCard.from_config(item))
