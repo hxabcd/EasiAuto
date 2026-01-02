@@ -535,6 +535,9 @@ class AutomationManageSubpage(QWidget):
         if reload:
             self.manager.reload_config()
 
+        self.current_list_item = None
+        self._clear_editor()
+
         self.auto_list.clear()
 
         for _, automation in self.manager.automations.items():
