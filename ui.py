@@ -69,7 +69,7 @@ from qfluentwidgets import (
 )
 
 import utils
-from ci_automation_manager import CiAutomationManager, EasiAutomation
+from ci_manager import CiManager, EasiAutomation
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, UpdateMode, config
 from qfw_widgets import ListWidget, SettingCardGroup
@@ -266,7 +266,7 @@ class CIStatus(Enum):
 class AutomationStatusBar(QWidget):
     """自动化页 - 状态栏"""
 
-    def __init__(self, manager: CiAutomationManager | None = None):
+    def __init__(self, manager: CiManager | None = None):
         super().__init__()
         self.manager = manager
 
@@ -430,7 +430,7 @@ class AutomationCard(CardWidget):
 class AutomationManageSubpage(QWidget):
     """自动化页 - 自动化管理 子页面"""
 
-    def __init__(self, manager: CiAutomationManager | None):
+    def __init__(self, manager: CiManager | None):
         super().__init__()
         self.manager = manager
         self.current_automation: EasiAutomation | None = None
@@ -853,7 +853,7 @@ class AutomationManageSubpage(QWidget):
                 logger.info(f"自动化已删除: {automation_name}")
                 break
 
-    def set_manager(self, manager: CiAutomationManager):
+    def set_manager(self, manager: CiManager):
         """重设自动化管理器"""
         # 退订信号
         if self.manager:
@@ -945,7 +945,7 @@ class CiRunningWarnSubpage(QWidget):
     labelE_failed_text = "诶诶，情况好像不太对？！"
     lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
-    def __init__(self, manager: CiAutomationManager | None = None):
+    def __init__(self, manager: CiManager | None = None):
         super().__init__()
         self.manager = manager
 
@@ -1011,12 +1011,12 @@ class AutomationPage(QWidget):
         if exe_path := utils.get_ci_executable():
             logger.success("自动化管理器初始化成功")
             logger.debug(f"ClassIsland 程序位置: {exe_path}")
-            self.manager = CiAutomationManager(exe_path)
+            self.manager = CiManager(exe_path)
         else:
             logger.warning("无法找到 ClassIsland 程序，自动化管理器初始化失败")
 
         self.init_ui()
-        self.start_watchdog()
+        self.start_watcher()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -1045,7 +1045,7 @@ class AutomationPage(QWidget):
         layout.addWidget(HorizontalSeparator())
         layout.addWidget(self.main_widget)
 
-    def start_watchdog(self):
+    def start_watcher(self):
         """启动CI运行状态监听"""
         if not self.manager:
             logger.debug("管理器未初始化，跳过状态监听")
@@ -1058,9 +1058,9 @@ class AutomationPage(QWidget):
         logger.info("启动 ClassIsland 状态监听")
         self.check_status()
 
-        self.watchdog = QTimer(self)
-        self.watchdog.timeout.connect(self.check_status)
-        self.watchdog.start(1000)
+        self.watcher = QTimer(self)
+        self.watcher.timeout.connect(self.check_status)
+        self.watcher.start(1000)
 
     def check_status(self):
         """检查状态并切换页面"""
@@ -1083,7 +1083,7 @@ class AutomationPage(QWidget):
         """重设自动化管理器"""
         logger.info(f"尝试使用新路径初始化管理器: {path}")
         try:
-            self.manager = CiAutomationManager(path)
+            self.manager = CiManager(path)
             logger.success("自动化管理器重新初始化成功")
         except Exception as e:
             logger.error(f"自动化管理器初始化失败: {e}")
@@ -1102,7 +1102,7 @@ class AutomationPage(QWidget):
         self.ci_running_warn_page.manager = self.manager
         self.manager_page.set_manager(self.manager)
 
-        self.start_watchdog()
+        self.start_watcher()
 
 
 class HighlightedChangeLogCard(CardWidget):
