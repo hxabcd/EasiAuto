@@ -51,7 +51,7 @@ class EasiAutomation(BaseModel):
         return self.display_name
 
 
-class CiAutomationManager(QObject):
+class CiManager(QObject):
     """ClassIsland自动化管理器"""
 
     # 数据变更信号，参数为 GUID
