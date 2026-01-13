@@ -70,9 +70,9 @@ def cmd_login(args):
                         logger.info("等待超时，继续执行")
                         break
                     case DialogResponse.DELAY:
-                        logger.info(f"用户选择推迟，等待 {config.Warning.Delay} 秒...")
+                        logger.info(f"用户选择推迟，等待 {config.Warning.DelayTime} 秒...")
                         delays += 1
-                        time.sleep(config.Warning.Delay)
+                        time.sleep(config.Warning.DelayTime)
                         continue
         except Exception:
             logger.error("显示警告弹窗时出错，跳过警告")

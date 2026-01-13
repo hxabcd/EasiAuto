@@ -69,7 +69,7 @@ from qfluentwidgets import (
 )
 
 import utils
-from ci_manager import CiManager, EasiAutomation
+from ci_manager import EasiAutomation, manager, set_manager_path
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, UpdateMode, config
 from qfw_widgets import ListWidget, SettingCardGroup
@@ -229,7 +229,7 @@ class ConfigPage(QWidget):
         )
         set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
         set_enable_by(SettingCard.index["Warning.MaxDelays"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
-        set_enable_by(SettingCard.index["Warning.Delay"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
+        set_enable_by(SettingCard.index["Warning.DelayTime"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
         set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
 
     def reset_config(self):
@@ -266,9 +266,8 @@ class CIStatus(Enum):
 class AutomationStatusBar(QWidget):
     """自动化页 - 状态栏"""
 
-    def __init__(self, manager: CiManager | None = None):
+    def __init__(self):
         super().__init__()
-        self.manager = manager
 
         self.setFixedHeight(54)
         layout = QHBoxLayout(self)
@@ -299,8 +298,8 @@ class AutomationStatusBar(QWidget):
 
     def update_status(self, status: CIStatus | None = None):
         if status is None:
-            if self.manager:
-                status = CIStatus.RUNNING if self.manager.is_ci_running else CIStatus.DIED
+            if manager:
+                status = CIStatus.RUNNING if manager.is_ci_running else CIStatus.DIED
             else:
                 status = CIStatus.UNINITIALIZED
 
@@ -325,13 +324,14 @@ class AutomationStatusBar(QWidget):
                 self.action_button.setEnabled(True)
 
     def handle_action_button_clicked(self):
-        assert self.manager
-        if self.manager.is_ci_running:
+        if not manager:
+            return
+        if manager.is_ci_running:
             logger.info("用户点击终止 ClassIsland")
-            self.manager.close_ci()
+            manager.close_ci()
         else:
             logger.info("用户点击启动 ClassIsland")
-            self.manager.open_ci()
+            manager.open_ci()
 
 
 class AutomationCard(CardWidget):
@@ -430,9 +430,8 @@ class AutomationCard(CardWidget):
 class AutomationManageSubpage(QWidget):
     """自动化页 - 自动化管理 子页面"""
 
-    def __init__(self, manager: CiManager | None):
+    def __init__(self):
         super().__init__()
-        self.manager = manager
         self.current_automation: EasiAutomation | None = None
         self.current_list_item = None
         self.is_new_automation = False  # 标记是否在编辑新自动化
@@ -530,18 +529,18 @@ class AutomationManageSubpage(QWidget):
 
     def _init_selector(self, reload: bool = False):
         """初始化自动化列表"""
-        if not self.manager:
+        if not manager:
             return
 
         if reload:
-            self.manager.reload_config()
+            manager.reload_config()
 
         self.current_list_item = None
         self._clear_editor()
 
         self.auto_list.clear()
 
-        for _, automation in self.manager.automations.items():
+        for _, automation in manager.automations.items():
             self._add_automation_item(automation)
 
     def _add_automation_item(self, automation: EasiAutomation):
@@ -566,7 +565,7 @@ class AutomationManageSubpage(QWidget):
 
     def _add_automation(self):
         """添加新的自动化"""
-        if not self.manager:
+        if not manager:
             logger.warning("无法添加自动化: 管理器未初始化")
             return
 
@@ -587,15 +586,15 @@ class AutomationManageSubpage(QWidget):
 
     def _init_editor(self, reload: bool = False):
         """初始化编辑器与科目"""
-        if not self.manager:
+        if not manager:
             return
 
         if reload:
-            self.manager.reload_config()
+            manager.reload_config()
 
         self.subject_edit.clear()
 
-        for subject in self.manager.list_subjects():
+        for subject in manager.list_subjects():
             self.subject_edit.addItem(subject.name, userData=subject.id)
 
     def _update_editor(self, auto: EasiAutomation):
@@ -609,8 +608,8 @@ class AutomationManageSubpage(QWidget):
         self.password_edit.setText(auto.password)
 
         self.subject_edit.setCurrentIndex(-1)
-        if self.manager:
-            subject = self.manager.get_subject_by_id(auto.subject_id)
+        if manager:
+            subject = manager.get_subject_by_id(auto.subject_id)
             if subject:
                 subject_item = self.subject_edit.findData(subject.id)
                 if subject_item != -1:
@@ -634,7 +633,7 @@ class AutomationManageSubpage(QWidget):
 
     def _save_form(self):
         """保存编辑器数据"""
-        if not self.manager or not self.current_automation:
+        if not manager or not self.current_automation:
             return
 
         automation = self.current_automation
@@ -651,7 +650,7 @@ class AutomationManageSubpage(QWidget):
         subject_id = self.subject_edit.currentData()
         if subject_id is None:
             raise ValueError("未选择科目")
-        if self.manager.get_subject_by_id(subject_id) is None:
+        if manager.get_subject_by_id(subject_id) is None:
             raise ValueError("无效科目")
         automation.subject_id = subject_id
 
@@ -659,23 +658,23 @@ class AutomationManageSubpage(QWidget):
         automation.pretime = self.pretime_edit.value()
 
         # 通过 Manager 保存，不直接修改 item
-        if self.manager.get_automation_by_guid(automation.guid) is None:
+        if manager.get_automation_by_guid(automation.guid) is None:
             # 新建
-            self.manager.create_automation(automation)
+            manager.create_automation(automation)
         else:
             # 更新
-            self.manager.update_automation(automation.guid, **automation.model_dump())
+            manager.update_automation(automation.guid, **automation.model_dump())
 
     def _handle_save_automation(self):
         """保存自动化数据"""
-        if not self.manager or not self.current_automation:
+        if not manager or not self.current_automation:
             return
         try:
             logger.debug("保存自动化数据")
             self._save_form()
             logger.success("自动化数据保存成功")
             # 更新状态
-            self.current_automation = self.manager.get_automation_by_guid(self.current_automation.guid)
+            self.current_automation = manager.get_automation_by_guid(self.current_automation.guid)
             self.is_new_automation = False
             if self.current_automation:
                 self._update_editor(self.current_automation)
@@ -703,16 +702,16 @@ class AutomationManageSubpage(QWidget):
     def _on_automation_enabled_changed(self, guid: str, enabled: bool):
         """处理 Card 中开关状态改变（通过 Manager 更新）"""
         logger.debug(f"自动化启用状态改变 - GUID: {guid}, 启用: {enabled}")
-        if self.manager:
-            self.manager.update_automation(guid, enabled=enabled)
+        if manager:
+            manager.update_automation(guid, enabled=enabled)
 
     def _handle_action_run(self, guid: str):
         """操作 - 运行自动化"""
-        if not self.manager:
+        if not manager:
             logger.warning("无法运行自动化: 管理器未初始化")
             return
 
-        automation = self.manager.get_automation_by_guid(guid)
+        automation = manager.get_automation_by_guid(guid)
         if not automation:
             logger.error(f"无法找到自动化: {guid}")
             return
@@ -764,11 +763,11 @@ class AutomationManageSubpage(QWidget):
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
-        if not self.manager:
+        if not manager:
             logger.warning("无法导出自动化: 管理器未初始化")
             return
 
-        automation = self.manager.get_automation_by_guid(guid)
+        automation = manager.get_automation_by_guid(guid)
         if not automation:
             logger.error(f"无法找到自动化: {guid}")
             return
@@ -781,22 +780,22 @@ class AutomationManageSubpage(QWidget):
 
     def _handle_action_remove(self, item: QListWidgetItem):
         """操作 - 删除自动化"""
-        if not self.manager:
+        if not manager:
             logger.warning("无法删除自动化: 管理器未初始化")
             return
 
         automation = item.data(Qt.UserRole)
         logger.info(f"删除自动化: {automation.item_display_name}")
-        self.manager.delete_automation(automation.guid)
+        manager.delete_automation(automation.guid)
 
     def _on_automation_created(self, guid: str):
         """Manager 信号：自动化被创建"""
         logger.debug(f"收到自动化创建信号: {guid}")
-        if not self.manager:
-            logger.warning("管理器未初始化")
+        if not manager:
+            logger.warning("无法创建自动化: 管理器未初始化")
             return
 
-        automation = self.manager.get_automation_by_guid(guid)
+        automation = manager.get_automation_by_guid(guid)
         if not automation:
             logger.error(f"无法获取新创建的自动化: {guid}")
             return
@@ -812,11 +811,11 @@ class AutomationManageSubpage(QWidget):
     def _on_automation_updated(self, guid: str):
         """Manager 信号：自动化被更新"""
         logger.debug(f"收到自动化更新信号: {guid}")
-        if not self.manager:
+        if not manager:
             logger.warning("管理器未初始化")
             return
 
-        automation = self.manager.get_automation_by_guid(guid)
+        automation = manager.get_automation_by_guid(guid)
         if not automation:
             logger.error(f"无法获取已更新的自动化: {guid}")
             return
@@ -853,21 +852,16 @@ class AutomationManageSubpage(QWidget):
                 logger.info(f"自动化已删除: {automation_name}")
                 break
 
-    def set_manager(self, manager: CiManager):
+    def init_manager(self):
         """重设自动化管理器"""
-        # 退订信号
-        if self.manager:
-            self.manager.automationCreated.disconnect(self._on_automation_created)
-            self.manager.automationUpdated.disconnect(self._on_automation_updated)
-            self.manager.automationDeleted.disconnect(self._on_automation_deleted)
-
-        self.manager = manager
-        # 订阅信号
+        if not manager:
+            return
         manager.automationCreated.connect(self._on_automation_created)
         manager.automationUpdated.connect(self._on_automation_updated)
         manager.automationDeleted.connect(self._on_automation_deleted)
         self._init_selector()
         self._init_editor()
+
 
 
 class PathSelectSubpage(QWidget):
@@ -945,9 +939,8 @@ class CiRunningWarnSubpage(QWidget):
     labelE_failed_text = "诶诶，情况好像不太对？！"
     lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
-    def __init__(self, manager: CiManager | None = None):
+    def __init__(self):
         super().__init__()
-        self.manager = manager
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -992,9 +985,9 @@ class CiRunningWarnSubpage(QWidget):
             self.action_button.hide()
 
     def terminate_ci(self):
-        if self.manager:
+        if manager:
             logger.info("用户点击终止 ClassIsland")
-            self.manager.close_ci()
+            manager.close_ci()
 
 
 class AutomationPage(QWidget):
@@ -1007,11 +1000,10 @@ class AutomationPage(QWidget):
         self.setStyleSheet("border: none; background-color: transparent;")
 
         # 初始化CI自动化管理器
-        self.manager = None
         if exe_path := utils.get_ci_executable():
+            set_manager_path(exe_path)
             logger.success("自动化管理器初始化成功")
             logger.debug(f"ClassIsland 程序位置: {exe_path}")
-            self.manager = CiManager(exe_path)
         else:
             logger.warning("无法找到 ClassIsland 程序，自动化管理器初始化失败")
 
@@ -1023,20 +1015,20 @@ class AutomationPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self.status_bar = AutomationStatusBar(self.manager)
+        self.status_bar = AutomationStatusBar()
 
         # 主页面，下分管理页和路径选择页
         self.main_widget = QStackedWidget()
 
         self.path_select_page = PathSelectSubpage()
-        self.ci_running_warn_page = CiRunningWarnSubpage(self.manager)
-        self.manager_page = AutomationManageSubpage(self.manager)
+        self.ci_running_warn_page = CiRunningWarnSubpage()
+        self.manager_page = AutomationManageSubpage()
 
         self.main_widget.addWidget(self.path_select_page)
         self.main_widget.addWidget(self.ci_running_warn_page)
         self.main_widget.addWidget(self.manager_page)
 
-        if self.manager and not self.manager.is_ci_running:
+        if manager and not manager.is_ci_running:
             self.main_widget.setCurrentWidget(self.manager_page)
 
         self.path_select_page.pathChanged.connect(self.handle_path_changed)
@@ -1047,11 +1039,11 @@ class AutomationPage(QWidget):
 
     def start_watcher(self):
         """启动CI运行状态监听"""
-        if not self.manager:
+        if not manager:
             logger.debug("管理器未初始化，跳过状态监听")
             return
 
-        if hasattr(self.manager, "watchdog"):
+        if hasattr(manager, "watcher"):
             logger.debug("状态监听已启动")
             return
 
@@ -1065,9 +1057,9 @@ class AutomationPage(QWidget):
     def check_status(self):
         """检查状态并切换页面"""
         target_page: QWidget
-        if self.manager is None:
+        if manager is None:
             target_page = self.path_select_page
-        elif self.manager.is_ci_running:
+        elif manager.is_ci_running:
             target_page = self.ci_running_warn_page
         else:
             target_page = self.manager_page
@@ -1081,12 +1073,13 @@ class AutomationPage(QWidget):
 
     def handle_path_changed(self, path: Path):
         """重设自动化管理器"""
-        logger.info(f"尝试使用新路径初始化管理器: {path}")
+
+        logger.info(f"尝试使用 {path} 初始化管理器: {path}")
         try:
-            self.manager = CiManager(path)
-            logger.success("自动化管理器重新初始化成功")
+            set_manager_path(path)
+            logger.success("初始化成功")
         except Exception as e:
-            logger.error(f"自动化管理器初始化失败: {e}")
+            logger.error(f"初始化失败: {e}")
             InfoBar.error(
                 title="错误",
                 content="指定的目录不正确",
@@ -1098,9 +1091,7 @@ class AutomationPage(QWidget):
             )
             return
 
-        self.status_bar.manager = self.manager
-        self.ci_running_warn_page.manager = self.manager
-        self.manager_page.set_manager(self.manager)
+        self.manager_page.init_manager()
 
         self.start_watcher()
 
