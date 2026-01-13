@@ -239,13 +239,14 @@ class WarningConfig(ConfigModel):
         description="最多可以推迟登录的次数",
         json_schema_extra={"icon": "Pause"},
     )
-    Delay: int = Field(
+    DelayTime: int = Field(
         default=150,
         ge=5,
         le=300,
         title="推迟时长",
         description="选择推迟时要等待的时长（秒）",
         json_schema_extra={"icon": "History"},
+        alias="Delay",
     )
 
 
