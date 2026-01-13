@@ -6,12 +6,13 @@ from pathlib import Path
 
 import psutil
 import win32api
+from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from PySide6.QtCore import QObject, Signal
 
 from utils import EA_EXECUTABLE
 
-# ClassIsland 联动相关配置
+EA_PREFIX = "[EasiAuto]"
 
 
 class CiSubject(BaseModel):
@@ -41,8 +42,8 @@ class EasiAutomation(BaseModel):
     @property
     def full_display_name(self) -> str:
         if self.teacher_name:
-            return f"[EasiAuto] {self.display_name} - {self.teacher_name}"
-        return f"[EasiAuto] {self.display_name}"
+            return f"{EA_PREFIX} {self.display_name} - {self.teacher_name}"
+        return f"{EA_PREFIX} {self.display_name}"
 
     @property
     def item_display_name(self) -> str:
@@ -52,7 +53,7 @@ class EasiAutomation(BaseModel):
 
 
 class CiManager(QObject):
-    """ClassIsland自动化管理器"""
+    """ClassIsland 自动化管理器"""
 
     # 数据变更信号，参数为 GUID
     automationCreated = Signal(str)
@@ -110,9 +111,9 @@ class CiManager(QObject):
         self.reload_config()
 
     def _validate_ci_structure(self):
-        """验证ClassIsland目录结构"""
+        """验证 ClassIsland 目录结构"""
         if not self.ci_data_path.exists():
-            raise FileNotFoundError(f"CI 程序目录 {self.ci_data_path} 不存在")
+            raise FileNotFoundError(f"ClassIsland 数据目录 {self.ci_data_path} 不存在")
 
         required_paths = [
             self.ci_data_path / "Settings.json",
@@ -122,7 +123,7 @@ class CiManager(QObject):
 
         for path in required_paths:
             if not path.exists():
-                raise FileNotFoundError(f"CI 目录结构不完整: {path} 不存在")
+                raise FileNotFoundError(f"ClassIsland 数据目录结构不完整: {path} 不存在")
 
     def reload_config(self):
         """重新加载所有配置"""
@@ -132,7 +133,7 @@ class CiManager(QObject):
         self._build_indexes()
 
     def _load_settings(self):
-        """加载CI设置"""
+        """加载 ClassIsland 设置"""
         ci_setting_path = self.ci_data_path / "Settings.json"
         with ci_setting_path.open(encoding="utf-8") as f:
             self.ci_settings = json.load(f)
@@ -177,13 +178,13 @@ class CiManager(QObject):
         self.automations.clear()
         for automation in self.ci_automations:
             name: str = automation["ActionSet"]["Name"]
-            if name.startswith("[EasiAuto]"):
-                easi_auto = self._parse_easi_automation(automation)
+            if name.startswith(EA_PREFIX):
+                easi_auto = self._parse_automation(automation)
                 if easi_auto:
                     self.automations[easi_auto.guid] = easi_auto
 
-    def _parse_easi_automation(self, automation: dict) -> EasiAutomation | None:
-        """解析EasiAuto自动化配置"""
+    def _parse_automation(self, automation: dict) -> EasiAutomation | None:
+        """解析 EasiAuto 生成的自动化配置"""
         try:
             name: str = automation["ActionSet"]["Name"]
             args: str = automation["ActionSet"]["Actions"][0]["Settings"]["Args"]
@@ -213,21 +214,22 @@ class CiManager(QObject):
                     display_name = display_name_part
                 teacher_name = teacher_name_part
 
-            assert account
-            assert password
+            if not account or not password:
+                logger.warning(f"解析自动化 {guid or '未知自动化'} 时缺失关键数据")
+                return None
 
             return EasiAutomation(
-                guid=guid,
                 account=account,
                 password=password,
                 subject_id=subject_id,
                 pretime=pretime,
+                guid=guid,
                 display_name=display_name,
                 teacher_name=teacher_name,
                 enabled=enabled,
             )
         except (KeyError, IndexError, AttributeError) as e:
-            print(f"解析自动化配置时出错: {e}")
+            logger.warning(f"解析自动化配置时出错: {e}")
             return None
 
     def get_subject_by_id(self, subject_id: str) -> CiSubject | None:
@@ -268,7 +270,7 @@ class CiManager(QObject):
 
         Args:
             guid: 自动化GUID
-            **updates: 要更新的字段，如 account, password, subject_id, pretime, display_name, teacher_name
+            **updates: 待更新的字段
 
         Returns:
             bool: 更新是否成功
@@ -282,20 +284,18 @@ class CiManager(QObject):
         update_data = original_automation.model_dump()
         update_data.update(updates)
 
-        # 验证科目是否存在（如果更新了subject_id）
+        # 验证科目
         if "subject_id" in updates and updates["subject_id"] not in self.subjects:
             raise ValueError(f"科目ID {updates['subject_id']} 不存在")
 
         updated_automation = EasiAutomation(**update_data)
 
-        # 从CI自动化列表中移除旧的
+        # 替换更新后的自动化并保存
         self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != _guid]
 
-        # 添加更新后的
-        ci_automation = self._build_ci_automation(updated_automation)
-        self.ci_automations.append(ci_automation)
+        new_ci_automation = self._build_ci_automation(updated_automation)
+        self.ci_automations.append(new_ci_automation)
 
-        # 保存到文件
         if self._save_automations():
             self.automations[_guid] = updated_automation
             self.automationUpdated.emit(_guid)
@@ -329,23 +329,19 @@ class CiManager(QObject):
                             {
                                 "IsReversed": False,
                                 "Id": "classisland.lessons.nextSubject",
-                                "Settings": {"SubjectId": automation.subject_id, "IsActive": False},
-                                "IsActive": False,
+                                "Settings": {"SubjectId": automation.subject_id},
                             },
                             {
                                 "IsReversed": True,
                                 "Id": "classisland.lessons.previousSubject",
-                                "Settings": {"SubjectId": automation.subject_id, "IsActive": False},
-                                "IsActive": False,
+                                "Settings": {"SubjectId": automation.subject_id},
                             },
                         ],
                         "Mode": 1,
                         "IsReversed": False,
                         "IsEnabled": True,
-                        "IsActive": False,
                     }
                 ],
-                "IsActive": False,
             },
             "ActionSet": {
                 "IsEnabled": automation.enabled,
@@ -358,23 +354,18 @@ class CiManager(QObject):
                         "Settings": {
                             "Value": str(EA_EXECUTABLE),
                             "Args": f"login -a {automation.account} -p {automation.password}",
-                            "IsActive": False,
                         },
-                        "IsActive": False,
                     }
                 ],
                 "IsRevertEnabled": False,
-                "IsActive": False,
             },
             "Triggers": [
                 {
                     "Id": "classisland.lessons.preTimePoint",
                     "Settings": {"TargetState": 1, "TimeSeconds": automation.pretime},
-                    "IsActive": False,
                 }
             ],
             "IsConditionEnabled": True,
-            "IsActive": False,
         }
 
     def _save_automations(self) -> bool:
@@ -387,7 +378,7 @@ class CiManager(QObject):
                 json.dump(self.ci_automations, f)
             return True
         except Exception as e:
-            print(f"保存自动化配置时出错: {e}")
+            logger.error(f"保存自动化配置时出错: {e}")
             return False
 
     def list_subjects(self) -> list[CiSubject]:
@@ -397,3 +388,11 @@ class CiManager(QObject):
     def list_automations(self) -> list[EasiAutomation]:
         """获取所有自动化列表"""
         return list(self.automations.values())
+
+
+manager: CiManager | None = None
+
+
+def set_manager_path(path: Path):
+    global manager
+    manager = CiManager(path)
