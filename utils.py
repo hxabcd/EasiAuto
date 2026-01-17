@@ -254,30 +254,38 @@ def create_file_on_desktop(bat_content: str, file_name: str):
         f.write(bat_content)
 
 
-def create_script(command: str, name: str, show_message_to: QWidget | None = None):
-    """创建脚本文件"""
+def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):
+    """创建 EasiAuto 桌面快捷方式"""
     try:
-        logger.info(f"在桌面创建脚本: {name}.bat")
-        content = f"""@echo off
-chcp 65001 >nul
-cd /d "{EA_EXECUTABLE.parent}"
-{EA_EXECUTABLE} {command}
-"""
-        create_file_on_desktop(bat_content=content, file_name=f"{name}.bat")
+        name = name + ".lnk"
+
+        logger.info(f"在桌面创建快捷方式: {name}")
+
+        shell = win32com.client.Dispatch("WScript.Shell")
+        desktop_path = Path(shell.SpecialFolders("Desktop"))
+        shortcut_path = desktop_path / name
+
+        shortcut = shell.CreateShortcut(str(shortcut_path))
+        shortcut.TargetPath = str(EA_EXECUTABLE)
+        shortcut.Arguments = args
+        shortcut.WorkingDirectory = str(EA_EXECUTABLE.parent)
+        shortcut.IconLocation = get_resource("EasiAutoShortcut.ico")
+        shortcut.Save()
+
         logger.success("创建成功")
-        if show_message_to:
+        if show_result_to:
             InfoBar.success(
                 title="成功",
-                content=f"已在桌面创建 {name}.bat",
+                content=f"已在桌面创建 {name}",
                 orient=Qt.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=show_message_to,
+                parent=show_result_to,
             )
     except Exception as e:
-        logger.error(f"创建脚本失败: {e}")
-        if show_message_to:
+        logger.error(f"创建快捷方式失败: {e}")
+        if show_result_to:
             InfoBar.error(
                 title="创建失败",
                 content=str(e),
@@ -285,7 +293,7 @@ cd /d "{EA_EXECUTABLE.parent}"
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=show_message_to,
+                parent=show_result_to,
             )
 
 

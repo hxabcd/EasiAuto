@@ -50,7 +50,7 @@ def cmd_login(args):
     logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
 
     # 显示警告弹窗
-    if config.Warning.Enabled:
+    if config.Warning.Enabled and not args.manual:
         try:
             msgbox = PreRunPopup()
             delays = 0
@@ -130,6 +130,7 @@ def main():
     login_parser = subparsers.add_parser("login", help="登录账号")
     login_parser.add_argument("-a", "--account", required=True, help="账号")
     login_parser.add_argument("-p", "--password", required=True, help="密码")
+    login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
     login_parser.set_defaults(func=cmd_login)
 
     # settings 子命令
