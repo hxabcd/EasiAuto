@@ -10,17 +10,16 @@ from typing import Any, NoReturn
 
 import psutil
 import sentry_sdk
+import win32api
 import win32com.client
 import win32con
+import win32event
 import win32gui
+import winerror
 from loguru import logger
 from PySide6.QtCore import QPoint, Qt, QtMsgType, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (
-    QApplication,
-    QHBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 from qfluentwidgets import (
     CheckBox,
     Dialog,
@@ -294,6 +293,59 @@ def init_exception_handler():
         )
 
     sys.excepthook = global_exceptHook
+
+
+_singleton_mutex = None
+
+
+def check_singleton() -> bool:
+    """检查程序是否已在运行"""
+
+    # 互斥锁检查
+    global _singleton_mutex
+    mutex_name = "EasiAuto_Singleton_Mutex"
+    try:
+        _singleton_mutex = win32event.CreateMutex(None, False, mutex_name)
+        if win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS:
+            return True
+    except Exception as e:
+        logger.error(f"创建互斥锁失败: {e}")
+
+    logger.warning("检测到另一个正在运行的实例 (Mutex)")
+
+    # 尝试查找并切换到已有窗口
+    hwnds = get_window_by_title("EasiAuto")
+    if hwnds:
+        current_pid = os.getpid()
+        for hwnd in hwnds:
+            try:
+                _, pid = win32gui.GetWindowThreadProcessId(hwnd)
+                if pid == current_pid:
+                    continue
+                # 简单验证一下进程名，避免误触 IDE
+                proc = psutil.Process(pid)
+                proc_name = proc.name().lower()
+                if "python" in proc_name or "EasiAuto" in proc_name:
+                    switch_window(hwnd)
+                    break
+            except Exception:
+                continue
+
+    # msg_box = QMessageBox()
+    # msg_box.setIcon(QMessageBox.Warning)
+    # msg_box.setWindowTitle("EasiAuto 已在运行")
+    # msg_box.setText("检测到 EasiAuto 已经在运行中。运行多个实例可能会导致功能冲突或配置文件损坏。")
+    # msg_box.setInformativeText("您确定要启动另一个实例吗？")
+    # msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    # msg_box.setDefaultButton(QMessageBox.No)
+    # msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
+
+    # if msg_box.exec() == QMessageBox.No:
+    #     logger.info("用户选择退出程序")
+    #     return False
+
+    # logger.info("用户选择继续启动")
+    # return True
 
 
 def get_resource(file: str):
