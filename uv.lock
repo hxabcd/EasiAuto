@@ -105,8 +105,8 @@ wheels = [
 ]
 
 [[package]]
-name = "EasiAuto"
-version = "1.1.0a1"
+name = "easiauto"
+version = "1.1.0a2"
 source = { virtual = "." }
 dependencies = [
     { name = "loguru" },
@@ -122,6 +122,7 @@ dependencies = [
     { name = "pywinauto" },
     { name = "qt-pydantic" },
     { name = "requests" },
+    { name = "sentry-sdk" },
     { name = "windows11toast" },
 ]
 
@@ -145,6 +146,7 @@ requires-dist = [
     { name = "pywinauto", specifier = ">=0.6.9" },
     { name = "qt-pydantic", specifier = ">=0.1.1" },
     { name = "requests", specifier = ">=2.32.5" },
+    { name = "sentry-sdk", specifier = ">=2.49.0" },
     { name = "windows11toast", specifier = ">=1.2.6" },
 ]
 
@@ -3384,6 +3386,19 @@ source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/4f/d2/d39ecd205661a5c14c90dbd92a722a203848a3621785c9783716341de427/rubicon_objc-0.5.3.tar.gz", hash = "sha256:74c25920c5951a05db9d3a1aac31d23816ec7dacc841a5b124d911b99ea71b9a", size = 171512, upload-time = "2025-12-03T03:51:10.264Z" }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/93/ab/e834c01138c272fb2e37d2f3c7cba708bc694dbc7b3f03b743f29ceb92d5/rubicon_objc-0.5.3-py3-none-any.whl", hash = "sha256:31dedcda9be38435f5ec067906e1eea5d0ddb790330e98a22e94ff424758b415", size = 64414, upload-time = "2025-12-03T03:51:09.082Z" },
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "2.49.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/02/94/23ac26616a883f492428d9ee9ad6eee391612125326b784dbfc30e1e7bab/sentry_sdk-2.49.0.tar.gz", hash = "sha256:c1878599cde410d481c04ef50ee3aedd4f600e4d0d253f4763041e468b332c30", size = 387228, upload-time = "2026-01-08T09:56:25.642Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/88/43/1c586f9f413765201234541857cb82fda076f4b0f7bad4a0ec248da39cf3/sentry_sdk-2.49.0-py2.py3-none-any.whl", hash = "sha256:6ea78499133874445a20fe9c826c9e960070abeb7ae0cdf930314ab16bb97aa0", size = 415693, upload-time = "2026-01-08T09:56:21.872Z" },
 ]
 
 [[package]]

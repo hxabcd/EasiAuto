@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from PySide6.QtCore import QObject, Signal
 
-from utils import EA_EXECUTABLE
+from consts import EA_EXECUTABLE
 
 EA_PREFIX = "[EasiAuto]"
 
@@ -411,4 +411,3 @@ class _CiManagerProxy:
 
 
 manager = _CiManagerProxy()
-

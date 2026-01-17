@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 import psutil
+import sentry_sdk
 import win32com.client
 import win32con
 import win32gui
@@ -34,6 +35,10 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
 )
+from sentry_sdk.integrations.loguru import LoguruIntegration
+
+from config import config
+from consts import EA_EXECUTABLE, SENTRY_DSN, VERSION
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
@@ -209,6 +214,20 @@ def log_exception(exc_type: type, exc_value: Exception, exc_tb: Any, prefix: str
 
     logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
     logger.complete()
+
+    # 发送至 Sentry
+    if sentry_sdk.get_client().is_active():
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag("prefix", prefix)
+            scope.set_context(
+                "runtime_status",
+                {
+                    "memory_usage_mb": f"{memory_info.rss / 1024 / 1024:.1f}",
+                    "thread_count": thread_count,
+                },
+            )
+            sentry_sdk.capture_exception((exc_type, exc_value, exc_tb))
+
     return log_msg, tip_msg
 
 
@@ -236,19 +255,43 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
 
 def init_exception_handler():
     """初始化异常处理与日志"""
-    logger.add(
-        EA_EXECUTABLE.parent / "logs" / "EasiAuto_{time}.log",
-        rotation="1 MB",
-        retention="1 minute",
-        encoding="utf-8",
-        enqueue=True,
-        backtrace=True,
-        diagnose=True,
-    )
+    logger.debug("初始化异常处理与日志")
+    logger.debug(f"日志存储已{'禁用' if not config.App.LogEnabled else '启用'}")
+    if config.App.LogEnabled:
+        logger.add(
+            EA_EXECUTABLE.parent / "logs" / "EasiAuto_{time}.log",
+            rotation="1 MB",
+            retention="1 minute",
+            encoding="utf-8",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True,
+        )
     sys.stdout = StreamToLogger()
     sys.stderr = StreamToLogger()
     qInstallMessageHandler(qt_message_handler)
     atexit.register(logger.complete)
+
+    # 初始化 Sentry
+    logger.debug(f"遥测已{'禁用' if not config.App.TelemetryEnabled else '启用'}")
+    if config.App.TelemetryEnabled:
+
+        def before_send(event, hint):
+            """过滤重复上报日志"""
+            if "log_record" in hint:
+                message = event.get("message", "")
+                if message and "├─" in message:
+                    return None
+            return event
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[LoguruIntegration(event_level=None)],
+            before_send=before_send,
+            release=f"EasiAuto@{VERSION}",
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+        )
 
     sys.excepthook = global_exceptHook
 
@@ -256,24 +299,6 @@ def init_exception_handler():
 def get_resource(file: str):
     """获取资源路径"""
     return str(EA_EXECUTABLE.parent / "resources" / file)
-
-
-EA_EXECUTABLE = (
-    Path(sys.executable)
-    if getattr(sys, "frozen", False) or getattr(sys, "nuitka_version", None) is not None
-    else Path(__file__).parent / "EasiAuto.exe"
-).resolve()
-
-
-def create_file_on_desktop(bat_content: str, file_name: str):
-    """在桌面创建文件"""
-    shell = win32com.client.Dispatch("WScript.Shell")
-    desktop_path = Path(shell.SpecialFolders("Desktop"))
-
-    bat_path = desktop_path / file_name
-
-    with bat_path.open("w", encoding="utf-8") as f:
-        f.write(bat_content)
 
 
 def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):

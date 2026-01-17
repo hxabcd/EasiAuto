@@ -74,9 +74,10 @@ import utils
 from ci_manager import EasiAutomation, manager
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, UpdateMode, config
+from consts import EA_EXECUTABLE, VERSION
 from qfw_widgets import ListWidget, SettingCardGroup
-from update import VERSION, ChangeLog, UpdateDecision, update_checker
-from utils import EA_EXECUTABLE, get_resource
+from update import ChangeLog, UpdateDecision, update_checker
+from utils import get_resource
 
 
 def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
@@ -1639,7 +1640,7 @@ class AboutPage(SmoothScrollArea):
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignBottom)
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel(f"版本 {str(VERSION)}", self)
+        subtitle = SubtitleLabel(f"版本 {VERSION}", self)
         title_layout.addWidget(title)
         title_layout.addSpacing(6)
         title_layout.addWidget(subtitle)
@@ -1763,6 +1764,7 @@ class MainWindow(MSFluentWindow):
         # 启动页面
         self.splashScreen = SplashScreen(self.windowIcon(), self)
         self.splashScreen.setIconSize(QSize(102, 102))
+        logger.debug("显示启动页面")
         self.show()
 
         self.config_page = ConfigPage()

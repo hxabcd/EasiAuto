@@ -21,6 +21,7 @@ dependencies = [
     "pywinauto>=0.6.9",
     "qt-pydantic>=0.1.1",
     "requests>=2.32.5",
+    "sentry-sdk>=2.49.0",
     "windows11toast>=1.2.6",
 ]
 
