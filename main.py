@@ -7,11 +7,9 @@ from loguru import logger
 from packaging.version import Version
 
 import utils
-from automator import CVAutomator, FixedAutomator, UIAAutomator
-from components import DialogResponse, PreRunPopup, WarningBanner
 from config import LoginMethod, UpdateMode, config
+from consts import VERSION
 from ui import MainWindow, app
-from update import VERSION, update_checker
 
 utils.init_exception_handler()
 utils.init_exit_signal_handlers()
@@ -32,6 +30,8 @@ def login_finished(message: str):
         utils.stop(1)
 
     # 成功则检查更新
+    from update import update_checker
+
     if config.Update.CheckAfterLogin and config.Update.Mode.value > UpdateMode.NEVER.value:
         decision = update_checker.check()
         if decision.available and decision.downloads:
@@ -61,6 +61,9 @@ def cmd_login(args):
         utils.stop()
 
     logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
+
+    from automator import CVAutomator, FixedAutomator, UIAAutomator
+    from components import DialogResponse, PreRunPopup, WarningBanner
 
     # 显示警告弹窗
     if config.Warning.Enabled and not args.manual:
@@ -166,8 +169,8 @@ def main():
                 else:
                     if last_version < VERSION:
                         windows11toast.notify(
-                            title=f"已更新至 {str(VERSION)}",
-                            body=f"{config.Update.LastVersion} -> {str(VERSION)}",
+                            title=f"已更新至 {VERSION}",
+                            body=f"{config.Update.LastVersion} -> {VERSION}",
                             icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                             icon_hint_crop=windows11toast.IconCrop.NONE,
                             icon_src=utils.get_resource("EasiAuto.ico"),

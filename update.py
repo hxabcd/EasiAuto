@@ -17,10 +17,8 @@ from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from config import UpdateChannal, config
-from utils import EA_EXECUTABLE
+from consts import EA_EXECUTABLE, MANIFEST_URL, VERSION
 
-VERSION = Version("1.1.0a2")
-MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
 
@@ -380,7 +378,6 @@ class UpdateChecker(QObject):
         if self._active_response:
             with contextlib.suppress(Exception):
                 self._active_response.close()
-
 
     # ================== 内部辅助方法 ==================
 

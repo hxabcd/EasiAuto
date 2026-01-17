@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 from pydantic.fields import FieldInfo
 from PySide6.QtGui import QColor
 
-from utils import EA_EXECUTABLE
+from consts import EA_EXECUTABLE
 
 
 class InformativeEnum(Enum):
@@ -332,8 +332,14 @@ class AppConfig(ConfigModel):
     LogEnabled: bool = Field(
         default=True,
         title="启用日志记录",
-        description="在应用 /logs 目录记录日志文件",
+        description="在应用 /logs 目录记录日志文件，以便于进行调试和问题排查",
         json_schema_extra={"icon": "Document"},
+    )
+    TelemetryEnabled: bool = Field(
+        default=True,
+        title="启用遥测",
+        description="通过 Sentry SDK 收集此应用的错误信息以帮助我们改进此应用\n你的信息会匿名上传，且不会包含任何你的个人信息。你随时可以手动关闭该选项",
+        json_schema_extra={"icon": "Feedback"},
     )
     EasterEggEnabled: bool = Field(
         default=False,
