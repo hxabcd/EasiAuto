@@ -793,13 +793,36 @@ class AutomationManageSubpage(QWidget):
         self.automator.start()
         self.automator.finished.connect(self._clean_up_after_run)
 
-    def _clean_up_after_run(self):
+    def _clean_up_after_run(self, message: str):
         """清理运行后的资源"""
         if hasattr(self, "banner"):
             self.banner.close()
             del self.banner
+
+        # 根据返回消息弹出提示
+        if "失败" in message:
+            InfoBar.error(
+                title="自动登录失败",
+                content=message,
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=5000,
+                parent=MainWindow.container,
+            )
+        else:
+            InfoBar.success(
+                title="成功",
+                content="自动登录已完成",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=MainWindow.container,
+            )
+
         self.automator.terminate()  # 保险起见 双重退出
-        logger.success("自动化运行结束")
+        logger.success(f"自动化运行结束: {message}")
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
@@ -1046,11 +1069,14 @@ class AutomationPage(QWidget):
 
         # 初始化CI自动化管理器
         if exe_path := utils.get_ci_executable():
-            manager.initialize(exe_path)
-            logger.success("自动化管理器初始化成功")
-            logger.debug(f"ClassIsland 程序位置: {exe_path}")
+            try:
+                manager.initialize(exe_path)
+                logger.success("自动化管理器初始化成功")
+                logger.debug(f"ClassIsland 程序位置: {exe_path}")
+            except Exception as e:
+                logger.error(f"自动化管理器初始化失败: {e}")
         else:
-            logger.warning("无法找到 ClassIsland 程序，自动化管理器初始化失败")
+            logger.warning("无法找到 ClassIsland 程序，跳过自动化管理器初始化")
 
         self.init_ui()
         self.start_watcher()
