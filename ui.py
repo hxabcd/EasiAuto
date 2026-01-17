@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import sys
 import time
 import weakref
@@ -961,7 +962,8 @@ class CiRunningWarnSubpage(QWidget):
         layout.addWidget(self.action_button)
 
         self.set_text()
-        SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
+        with contextlib.suppress(KeyError):
+            SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
 
     def set_text(self, failed: bool = False):
         if not failed:

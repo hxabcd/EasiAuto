@@ -336,7 +336,7 @@ class AppConfig(ConfigModel):
         default=False,
         title="启用彩蛋",
         description="唔……似乎某些地方有点不对劲的说喵？",
-        json_schema_extra={"icon": "Question"},
+        json_schema_extra={"icon": "Question", "hidden": True},
     )
     DebugMode: bool = Field(
         default=False,
