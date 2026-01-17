@@ -51,6 +51,10 @@ class EasiAutomation(BaseModel):
             return f"{self.display_name} - {self.teacher_name}"
         return self.display_name
 
+    @property
+    def shortcut_name(self) -> str:
+        return f"希沃自动登录（{self.teacher_name or manager.get_subject_by_id(self.subject_id).name}）"
+
 
 class CiManager(QObject):
     """ClassIsland 自动化管理器"""

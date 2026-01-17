@@ -199,10 +199,10 @@ class ConfigPage(QWidget):
                 case "Login.SkipOnce":
                     button = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button.clicked.connect(
-                        lambda: utils.create_script(
-                            command="skip",
+                        lambda: utils.create_shortcut(
+                            args="skip",
                             name="跳过下次自动登录",
-                            show_message_to=MainWindow.container,
+                            show_result_to=MainWindow.container,
                         )
                     )
                     card.hBoxLayout.insertWidget(5, button)
@@ -772,10 +772,10 @@ class AutomationManageSubpage(QWidget):
             logger.error(f"无法找到自动化: {guid}")
             return
 
-        utils.create_script(
-            command=f'login -a "{automation.account}" -p "{automation.password}"',
-            name=f"{automation.item_display_name}.bat",
-            show_message_to=MainWindow.container,
+        utils.create_shortcut(
+            args=f'login --account "{automation.account}" --password "{automation.password}" --manual',
+            name=automation.shortcut_name,
+            show_result_to=MainWindow.container,
         )
 
     def _handle_action_remove(self, item: QListWidgetItem):
@@ -861,7 +861,6 @@ class AutomationManageSubpage(QWidget):
         manager.automationDeleted.connect(self._on_automation_deleted)
         self._init_selector()
         self._init_editor()
-
 
 
 class PathSelectSubpage(QWidget):
