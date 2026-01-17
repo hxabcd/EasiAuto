@@ -17,8 +17,21 @@ utils.init_exception_handler()
 utils.init_exit_signal_handlers()
 
 
-def after_login():
-    # 检查更新
+def login_finished(message: str):
+    """登录结束后的回调"""
+    # 检查是否失败
+    if "失败" in message:
+        logger.error(f"自动化登录失败: {message}")
+        windows11toast.notify(
+            title="自动登录失败",
+            body=f"{message}\n请检查日志获取详细信息",
+            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+            icon_hint_crop=windows11toast.IconCrop.NONE,
+            icon_src=utils.get_resource("EasiAuto.ico"),
+        )
+        utils.stop(1)
+
+    # 成功则检查更新
     if config.Update.CheckAfterLogin and config.Update.Mode.value > UpdateMode.NEVER.value:
         decision = update_checker.check()
         if decision.available and decision.downloads:
@@ -102,7 +115,7 @@ def cmd_login(args):
     automator = automator_type(args.account, args.password, config.Login, config.App.MaxRetries)
 
     automator.start()
-    automator.finished.connect(after_login)
+    automator.finished.connect(login_finished)
     sys.exit(app.exec())
 
 

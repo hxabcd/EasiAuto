@@ -96,7 +96,10 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         self.title_layout = QHBoxLayout()
 
         self.iconLabel = ImageLabel()
-        self.iconLabel.setImage(get_resource("EasiAuto.ico"))
+        try:
+            self.iconLabel.setImage(get_resource("EasiAuto.ico"))
+        except Exception:
+            logger.warning("未能加载崩溃报告图标")
         self.error_log = PlainTextEdit()
         self.report_problem = PushButton(FluentIcon.FEEDBACK, "报告此问题")
         self.copy_log_btn = PushButton(FluentIcon.COPY, "复制日志")
@@ -176,6 +179,40 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 
 
 @logger.catch
+def log_exception(exc_type: type, exc_value: Exception, exc_tb: Any, prefix: str = "发生全局异常") -> tuple[str, str]:
+    """记录详细异常信息到日志"""
+    # 获取异常抛出位置
+    tb_last = exc_tb
+    while tb_last and tb_last.tb_next:  # 找到最后一帧
+        tb_last = tb_last.tb_next
+
+    if tb_last:
+        frame = tb_last.tb_frame
+        file_name = Path(frame.f_code.co_filename).name
+        line_no = tb_last.tb_lineno
+        func_name = frame.f_code.co_name
+    else:
+        file_name, line_no, func_name = "Unknown", 0, "Unknown"
+
+    process = psutil.Process()
+    memory_info = process.memory_info()
+    thread_count = process.num_threads()
+
+    log_msg = f"""{prefix}:
+├─异常类型: {exc_type.__name__} {exc_type}
+├─异常信息: {exc_value}
+├─发生位置: {file_name}:{line_no} in {func_name}
+├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
+└─详细堆栈信息:"""
+    tip_msg = f"""异常类型: {exc_type.__name__} {exc_type}
+└─发生位置: {file_name}:{line_no} in {func_name}"""
+
+    logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
+    logger.complete()
+    return log_msg, tip_msg
+
+
+@logger.catch
 def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
     # 增加安全模式判断？
     error_details = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -185,31 +222,16 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
     current_time = dt.datetime.now()
     if current_time - last_error_time > error_cooldown:
         last_error_time = current_time
-        # 获取异常抛出位置
-        tb_last = exc_tb
-        while tb_last.tb_next:  # 找到最后一帧
-            tb_last = tb_last.tb_next
-        frame = tb_last.tb_frame
-        file_name = Path(frame.f_code.co_filename).name
-        line_no = tb_last.tb_lineno
-        func_name = frame.f_code.co_name
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        thread_count = process.num_threads()
-        log_msg = f"""发生全局异常:
-├─异常类型: {exc_type.__name__} {exc_type}
-├─异常信息: {exc_value}
-├─发生位置: {file_name}:{line_no} in {func_name}
-├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
-└─详细堆栈信息:"""
-        tip_msg = f"""异常类型: {exc_type.__name__} {exc_type}
-└─发生位置: {file_name}:{line_no} in {func_name}"""
-        logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
-        logger.complete()
+
+        log_msg, tip_msg = log_exception(exc_type, exc_value, exc_tb)
+
         if not error_dialog:
-            w = ErrorDialog(f"{tip_msg}\n{error_details}")
-            winsound.MessageBeep(winsound.MB_ICONHAND)
-            w.exec()
+            try:
+                w = ErrorDialog(f"{tip_msg}\n{error_details}")
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+                w.exec()
+            except Exception as e:
+                logger.critical(f"显示错误对话框失败: {e}")
 
 
 def init_exception_handler():

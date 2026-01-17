@@ -72,8 +72,11 @@ class ConfigModel(BaseModel):
         if root._file is None:
             logger.warning("配置文件路径为空，无法保存")
             return
-        data = root.model_dump(mode="json")
-        root._file.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
+        try:
+            data = root.model_dump(mode="json")
+            root._file.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
+        except Exception as e:
+            logger.error(f"保存配置文件库失败: {e}")
 
     def __setattr__(self, name: str, value):
         super().__setattr__(name, value)

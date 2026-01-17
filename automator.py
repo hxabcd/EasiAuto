@@ -68,6 +68,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         logger.debug(f"路径：{path}，参数：{self.config.EasiNote.Args}")
 
         args = self.config.EasiNote.Args
+        import os
+
+        if not os.path.exists(path):
+            logger.error(f"希沃白板可执行文件不存在: {path}")
+            raise FileNotFoundError(f"希沃白板可执行文件不存在: {path}")
+
         subprocess.Popen([path, *args.split(" ")] if args != "" else path)
 
         # 轮询窗口是否打开
@@ -108,15 +114,21 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
                 self.finished.emit("登录完成")
                 return
-            except Exception as e:
+            except BaseException as e:
+                import sys
+
+                from utils import log_exception
+
                 retries += 1
+                log_exception(*sys.exc_info(), prefix=f"登录子线程发生异常（尝试 {retries}/{self.max_retries}）")
+
                 if retries <= self.max_retries:
-                    logger.error(f"登录过程中发生错误\n{e}")
-                    logger.warning(f"将在2s后重试（第{retries}次重试）")
+                    logger.error(f"登录过程中发生错误 ({type(e).__name__}): {e}")
+                    logger.warning(f"将在2s后重试（尝试 {retries}/{self.max_retries}）")
                     time.sleep(2)
                 else:
-                    logger.critical(f"{retries}次尝试均登录失败")
-                    self.finished.emit("登录失败")
+                    logger.critical(f"{retries}次尝试均登录失败: {e}")
+                    self.finished.emit(f"登录失败: {e}")
                     return
 
 
@@ -130,7 +142,8 @@ class CVAutomator(BaseAutomator):
         import pyautogui
 
         try:
-            import cv2
+            import cv2  # noqa: F401
+
             use_opencv = True
         except ImportError:
             logger.warning("无法导入 OpenCV，回退到基本识别")
