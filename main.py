@@ -138,6 +138,10 @@ def cmd_skip(_):
 
 
 def main():
+    # 单例检查
+    if not utils.check_singleton():
+        utils.stop()
+
     # 解析命令行参数
     parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
     subparsers = parser.add_subparsers(title="子命令", dest="command")
