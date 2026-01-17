@@ -69,7 +69,7 @@ from qfluentwidgets import (
 )
 
 import utils
-from ci_manager import EasiAutomation, manager, set_manager_path
+from ci_manager import EasiAutomation, manager
 from components import SettingCard
 from config import ConfigGroup, LoginMethod, UpdateMode, config
 from qfw_widgets import ListWidget, SettingCardGroup
@@ -1001,7 +1001,7 @@ class AutomationPage(QWidget):
 
         # 初始化CI自动化管理器
         if exe_path := utils.get_ci_executable():
-            set_manager_path(exe_path)
+            manager.initialize(exe_path)
             logger.success("自动化管理器初始化成功")
             logger.debug(f"ClassIsland 程序位置: {exe_path}")
         else:
@@ -1076,13 +1076,15 @@ class AutomationPage(QWidget):
 
         logger.info(f"尝试使用 {path} 初始化管理器: {path}")
         try:
-            set_manager_path(path)
+            manager.initialize(path)
+            assert manager is not None
+
             logger.success("初始化成功")
         except Exception as e:
             logger.error(f"初始化失败: {e}")
             InfoBar.error(
                 title="错误",
-                content="指定的目录不正确",
+                content="无法初始化管理器，请检查路径是否正确",
                 orient=Qt.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
