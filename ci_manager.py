@@ -390,9 +390,21 @@ class CiManager(QObject):
         return list(self.automations.values())
 
 
-manager: CiManager | None = None
+class _CiManagerProxy:
+    def __init__(self):
+        self._impl: CiManager | None = None
+
+    def initialize(self, path: Path):
+        self._impl = CiManager(path)
+
+    def __getattr__(self, item):
+        if self._impl:
+            return getattr(self._impl, item)
+        raise AttributeError(f"Manager not initialized, cannot access {item}")
+
+    def __bool__(self):
+        return self._impl is not None
 
 
-def set_manager_path(path: Path):
-    global manager
-    manager = CiManager(path)
+manager = _CiManagerProxy()
+
