@@ -4,8 +4,10 @@ import re
 import uuid
 from pathlib import Path
 
-import psutil
+import pywintypes
 import win32api
+import win32con
+import win32event
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from PySide6.QtCore import QObject, Signal
@@ -76,15 +78,25 @@ class CiManager(QObject):
 
     @property
     def is_ci_running(self) -> bool:
-        for p in psutil.process_iter(["pid", "exe"]):
-            try:
-                if p.info["exe"] and Path(p.info["exe"]).name in [
-                    "ClassIsland.exe",
-                    "ClassIsland.Desktop.exe",
-                ]:
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+        """检查 ClassIsland 是否正在运行"""
+        # 优先使用 Mutex 检查
+        try:
+            handle = win32event.OpenMutex(win32con.SYNCHRONIZE, False, "Global\\ClassIsland.Lock")
+            if handle:
+                win32api.CloseHandle(handle)
+                return True
+        except pywintypes.error as e:
+            # ERROR_ACCESS_DENIED (5) 也表示 Mutex 存在但权限不足
+            if e.winerror == 5:
+                return True
+        # except Exception:
+        #     # 回退到全量进程遍历
+        #     for p in psutil.process_iter(["name"]):
+        #         try:
+        #             if p.info["name"] in ["ClassIsland.exe", "ClassIsland.Desktop.exe"]:
+        #                 return True
+        #         except (psutil.NoSuchProcess, psutil.AccessDenied):
+        #             pass
         return False
 
     def open_ci(self):
@@ -410,4 +422,4 @@ class _CiManagerProxy:
         return self._impl is not None
 
 
-manager = _CiManagerProxy()
+manager: CiManager | None = _CiManagerProxy()

@@ -1122,7 +1122,7 @@ class AutomationPage(QWidget):
 
         self.watcher = QTimer(self)
         self.watcher.timeout.connect(self.check_status)
-        self.watcher.start(1000)
+        self.watcher.start(200)
 
     def check_status(self):
         """检查状态并切换页面"""
@@ -1131,7 +1131,10 @@ class AutomationPage(QWidget):
             target_page = self.path_select_page
         else:
             target_page = self.manager_page
-            self.manager_page.set_ci_running_state(manager.is_ci_running)
+            running = manager.is_ci_running
+            if self.manager_page.overlay.isVisible() != running:
+                self.status_bar.update_status()
+                self.manager_page.set_ci_running_state(running)
 
         if self.main_widget.currentWidget() != target_page:
             logger.debug(f"切换自动化页面到: {target_page.__class__.__name__}")
