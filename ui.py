@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidgetItem,
     QScroller,
+    QStackedLayout,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -464,7 +465,12 @@ class AutomationManageSubpage(QWidget):
         self.selector_layout.addWidget(self.action_bar)
         self.selector_layout.addWidget(self.auto_list)
 
-        # 右侧：编辑器
+        # 右侧：容器 (包含编辑器和浮层)
+        self.right_container = QWidget()
+        self.right_layout = QStackedLayout(self.right_container)
+        self.right_layout.setStackingMode(QStackedLayout.StackAll)
+
+        # 编辑器
         self.editor_widget = QWidget()
         self.editor_layout = QVBoxLayout(self.editor_widget)
 
@@ -516,9 +522,16 @@ class AutomationManageSubpage(QWidget):
         self.editor_layout.addWidget(self.save_button)
         self.editor_widget.setDisabled(True)
 
+        # 浮层
+        self.overlay = CiRunningWarnOverlay(self.right_container)
+        self.overlay.hide()
+
+        self.right_layout.addWidget(self.editor_widget)
+        self.right_layout.addWidget(self.overlay)
+
         layout.addWidget(self.selector_widget, 1)
         layout.addWidget(VerticalSeparator())
-        layout.addWidget(self.editor_widget, 1)
+        layout.addWidget(self.right_container, 1)
 
         if manager:
             # 订阅 Manager 的数据变更信号
@@ -527,6 +540,30 @@ class AutomationManageSubpage(QWidget):
             manager.automationDeleted.connect(self._on_automation_deleted)
             self._init_selector()
             self._init_editor()
+            self.set_ci_running_state(manager.is_ci_running)
+
+    def set_ci_running_state(self, running: bool):
+        """设置 CI 运行状态，控制浮层和按钮"""
+        self.overlay.setVisible(running)
+        if running:
+            self.overlay.raise_()
+
+        # 禁用/启用编辑
+        self.new_auto_hint.setDisabled(running)
+        if running:
+            self.automation_name_label.setTextColor(light=QColor(150, 150, 150), dark=QColor(200, 200, 200))
+        else:
+            self.automation_name_label.setTextColor()
+        self.form.setDisabled(running)
+        self.save_button.setDisabled(running)
+        if self.action_bar.actions():
+            self.action_bar.actions()[0].setDisabled(running)
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            widget = self.auto_list.itemWidget(item)
+            if isinstance(widget, AutomationCard):
+                widget.action_remove.setDisabled(running)
+                widget.switch.setDisabled(running)
 
     def _init_selector(self, reload: bool = False):
         """初始化自动化列表"""
@@ -543,6 +580,8 @@ class AutomationManageSubpage(QWidget):
 
         for _, automation in manager.automations.items():
             self._add_automation_item(automation)
+
+        self.set_ci_running_state(manager.is_ci_running)
 
     def _add_automation_item(self, automation: EasiAutomation):
         """添加自动化项目到列表"""
@@ -922,8 +961,8 @@ class PathSelectSubpage(QWidget):
         self.pathChanged.emit(exe_path)
 
 
-class CiRunningWarnSubpage(QWidget):
-    """自动化页 - CI运行警告 子页面"""
+class CiRunningWarnOverlay(QWidget):
+    """自动化页 - CI运行警告浮层"""
 
     ciClosed = Signal()
 
@@ -939,8 +978,10 @@ class CiRunningWarnSubpage(QWidget):
     labelE_failed_text = "诶诶，情况好像不太对？！"
     lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
-    def __init__(self):
-        super().__init__()
+    # NOTE: 改成浮层挪到右边后，给出的空间显示不下了……有机会再优化
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -990,6 +1031,9 @@ class CiRunningWarnSubpage(QWidget):
             logger.info("用户点击终止 ClassIsland")
             manager.close_ci()
 
+    def mousePressEvent(self, event):
+        event.accept()
+
 
 class AutomationPage(QWidget):
     """设置 - 自动化页"""
@@ -1022,14 +1066,12 @@ class AutomationPage(QWidget):
         self.main_widget = QStackedWidget()
 
         self.path_select_page = PathSelectSubpage()
-        self.ci_running_warn_page = CiRunningWarnSubpage()
         self.manager_page = AutomationManageSubpage()
 
         self.main_widget.addWidget(self.path_select_page)
-        self.main_widget.addWidget(self.ci_running_warn_page)
         self.main_widget.addWidget(self.manager_page)
 
-        if manager and not manager.is_ci_running:
+        if manager:
             self.main_widget.setCurrentWidget(self.manager_page)
 
         self.path_select_page.pathChanged.connect(self.handle_path_changed)
@@ -1060,10 +1102,9 @@ class AutomationPage(QWidget):
         target_page: QWidget
         if manager is None:
             target_page = self.path_select_page
-        elif manager.is_ci_running:
-            target_page = self.ci_running_warn_page
         else:
             target_page = self.manager_page
+            self.manager_page.set_ci_running_state(manager.is_ci_running)
 
         if self.main_widget.currentWidget() != target_page:
             logger.debug(f"切换自动化页面到: {target_page.__class__.__name__}")
