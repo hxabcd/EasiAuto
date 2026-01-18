@@ -49,6 +49,7 @@ from qfluentwidgets import (
     InfoLevel,
     LineEdit,
     MessageBox,
+    MessageBoxBase,
     MSFluentWindow,
     NavigationItemPosition,
     Pivot,
@@ -80,26 +81,19 @@ from update import ChangeLog, UpdateDecision, update_checker
 from utils import get_resource
 
 
-def set_enable_by(widget: QWidget, switch: SwitchButton, reverse: bool = False):
+def set_enable_by(widgets: list[QWidget] | QWidget, switch: SwitchButton, reverse: bool = False):
     """通过开关启用组件"""
-    if not reverse:
-        widget.setEnabled(switch.isChecked())
+    widgets = [widgets] if isinstance(widgets, QWidget) else widgets
 
-        def handle_check_change(checked: bool):
-            widget.setEnabled(checked)
-            if not checked and isinstance(widget, ExpandGroupSettingCard):
+    def handle_check_change(checked: bool):
+        for widget in widgets:
+            is_enabled = checked if not reverse else not checked
+            widget.setEnabled(is_enabled)
+            if not is_enabled and isinstance(widget, ExpandGroupSettingCard):
                 widget.setExpand(False)
 
-        switch.checkedChanged.connect(handle_check_change)
-    else:
-        widget.setDisabled(switch.isChecked())
-
-        def handle_check_change(checked: bool):
-            widget.setDisabled(checked)
-            if checked and isinstance(widget, ExpandGroupSettingCard):
-                widget.setExpand(False)
-
-        switch.checkedChanged.connect(handle_check_change)
+    handle_check_change(switch.isChecked())
+    switch.checkedChanged.connect(handle_check_change)
 
 
 class ConfigPage(QWidget):
@@ -141,7 +135,7 @@ class ConfigPage(QWidget):
         self.content_layout.setSpacing(28)
 
         # 添加设置组
-        for group in config.iter_items(exclude="Update"):
+        for group in config.iter_items(exclude=["ClassIsland", "Update"]):
             self._add_config_menu(group)  # type: ignore
         self.apply_attachment()
 
@@ -230,9 +224,14 @@ class ConfigPage(QWidget):
             SettingCard.index["Login.EasiNote.Path"],
             SettingCard.index["Login.EasiNote.AutoPath"].widget,  # type: ignore
         )
-        set_enable_by(SettingCard.index["Warning.Timeout"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
-        set_enable_by(SettingCard.index["Warning.MaxDelays"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
-        set_enable_by(SettingCard.index["Warning.DelayTime"], SettingCard.index["Warning.Enabled"].widget)  # type: ignore
+        set_enable_by(
+            [
+                SettingCard.index["Warning.Timeout"],
+                SettingCard.index["Warning.MaxDelays"],
+                SettingCard.index["Warning.DelayTime"],
+            ],
+            SettingCard.index["Warning.Enabled"].widget,  # type: ignore
+        )
         set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
 
     def reset_config(self):
@@ -260,6 +259,48 @@ class ConfigPage(QWidget):
             )
 
 
+class AdvancedOptionsDialog(MessageBoxBase):
+    """高级选项对话框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel("高级选项", self)
+        self.view = QWidget(self)
+        self.vBoxLayout = QVBoxLayout(self.view)
+        self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
+        self.vBoxLayout.setSpacing(0)
+
+        # 初始化设置项
+        self._init_settings()
+
+        # 添加到内容布局
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addSpacing(12)
+        self.viewLayout.addWidget(self.view)
+
+        # 设置对话框属性
+        self.widget.setMinimumWidth(400)
+        self.yesButton.setText("关闭")
+        self.yesButton.clicked.connect(self.accept)
+        self.cancelButton.hide()
+
+    def _init_settings(self):
+        """初始化设置项"""
+        config_group = config.iter_items(only=["ClassIsland"])[0]
+
+        for item in config_group.children:
+            card = SettingCard.from_config(item, is_item=True, item_margin=False)
+            self.vBoxLayout.addWidget(card)
+            if isinstance(card.widget, LineEdit):
+                card.widget.setMinimumWidth(200)
+
+        set_enable_by(
+            SettingCard.index["ClassIsland.Path"],
+            SettingCard.index["ClassIsland.AutoPath"].widget,  # type: ignore
+            reverse=True,
+        )
+
+
 class CIStatus(Enum):
     UNINITIALIZED = -1
     DIED = 0
@@ -285,8 +326,7 @@ class AutomationStatusBar(QWidget):
         self.action_button.setEnabled(False)
 
         self.option_button = TransparentPushButton(icon=FluentIcon.DEVELOPER_TOOLS, text="高级选项")
-        self.option_button.setEnabled(False)
-        # TODO: 完善高级设置对话框
+        self.option_button.clicked.connect(self._show_advanced_settings)
 
         layout.addWidget(SubtitleLabel("ClassIsland 自动化编辑"))
         layout.addSpacing(12)
@@ -298,6 +338,11 @@ class AutomationStatusBar(QWidget):
         layout.addWidget(self.option_button)
 
         self.update_status()
+
+    def _show_advanced_settings(self):
+        """显示高级设置对话框"""
+        w = AdvancedOptionsDialog(self.window())
+        w.exec()
 
     def update_status(self, status: CIStatus | None = None):
         if status is None:
@@ -330,10 +375,10 @@ class AutomationStatusBar(QWidget):
         if not manager:
             return
         if manager.is_ci_running:
-            logger.info("用户点击终止 ClassIsland")
+            logger.info("终止 ClassIsland")
             manager.close_ci()
         else:
-            logger.info("用户点击启动 ClassIsland")
+            logger.info("启动 ClassIsland")
             manager.open_ci()
 
 
@@ -917,7 +962,7 @@ class AutomationManageSubpage(QWidget):
                 break
 
     def init_manager(self):
-        """重设自动化管理器"""
+        """重设 ClassIsland 管理器"""
         if not manager:
             return
         manager.automationCreated.connect(self._on_automation_created)
@@ -973,16 +1018,40 @@ class PathSelectSubpage(QWidget):
         exe_path, _ = QFileDialog.getOpenFileName(
             self,
             "选择 ClassIsland 程序路径",
-            "",
+            "D:/" if Path("D:/").exists() else "C:/",
             "ClassIsland 可执行文件 (*.exe)",
         )
 
         if not exe_path:  # 取消选择
-            logger.debug("用户取消了文件选择")
+            logger.debug("取消文件选择")
             return
 
-        logger.info(f"用户选择了 ClassIsland 路径: {exe_path}")
-        self.pathChanged.emit(exe_path)
+        logger.info(f"选择 ClassIsland 路径: {exe_path}")
+        exe_path = Path(exe_path)
+        if exe_path.exists():
+            InfoBar.info(
+                title="信息",
+                content="已关闭自动路径获取",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=MainWindow.container,
+            )
+            config.ClassIsland.AutoDetect = False
+            config.ClassIsland.Path = str(exe_path)
+            self.pathChanged.emit(exe_path)
+        else:
+            logger.error("选择的路径不存在")
+            InfoBar.error(
+                title="错误",
+                content="选择的路径不存在",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=MainWindow.container,
+            )
 
 
 class CiRunningWarnOverlay(QWidget):
@@ -1068,16 +1137,25 @@ class AutomationPage(QWidget):
         self.setObjectName("AutomationPage")
         self.setStyleSheet("border: none; background-color: transparent;")
 
-        # 初始化CI自动化管理器
-        if exe_path := utils.get_ci_executable():
+        # 初始化 ClassIsland 管理器
+        try:
+            if config.ClassIsland.AutoPath:
+                exe_path = utils.get_ci_executable()
+            else:
+                exe_path = Path(config.ClassIsland.Path)
+        except Exception as e:
+            logger.warning(f"获取 ClassIsland 路径失败: {e}")
+            exe_path = None
+
+        if exe_path and exe_path.exists():
+            logger.debug(f"初始化 ClassIsland 管理器: {exe_path}")
             try:
                 manager.initialize(exe_path)
-                logger.success("自动化管理器初始化成功")
-                logger.debug(f"ClassIsland 程序位置: {exe_path}")
+                logger.success("初始化成功")
             except Exception as e:
-                logger.error(f"自动化管理器初始化失败: {e}")
+                logger.warning(f"初始化失败: {e}")
         else:
-            logger.warning("无法找到 ClassIsland 程序，跳过自动化管理器初始化")
+            logger.warning(f"{'未找到 ClassIsland 路径' if not exe_path else '路径无效'}，跳过初始化")
 
         self.init_ui()
         self.start_watcher()
@@ -1144,9 +1222,9 @@ class AutomationPage(QWidget):
             self.status_bar.update_status()
 
     def handle_path_changed(self, path: Path):
-        """重设自动化管理器"""
+        """重设 ClassIsland 管理器"""
 
-        logger.info(f"尝试使用 {path} 初始化管理器: {path}")
+        logger.info(f"尝试使用 {path} 初始化管理器")
         try:
             manager.initialize(path)
             assert manager is not None
@@ -1255,7 +1333,7 @@ class UpdateContentView(QWidget):
         scroll_layout = QVBoxLayout(container)
         scroll_layout.setSpacing(2)
 
-        for item in config.iter_items(only="Update")[0].children:
+        for item in config.iter_items(only=["Update"])[0].children:
             scroll_layout.addWidget(SettingCard.from_config(item))
 
         reset_card = PushSettingCard(

@@ -286,6 +286,7 @@ class SettingCard(QFrame):
         content: str | None = None,
         config_item: ConfigItem | ConfigGroup | None = None,
         is_item: bool = False,
+        item_margin: bool = True,
         parent=None,
         **kwargs,
     ):
@@ -293,6 +294,7 @@ class SettingCard(QFrame):
         self.card_type: CardType = card_type
         self.config_item: ConfigItem | ConfigGroup | None = config_item
         self.is_item: bool = is_item
+        self.item_margin: bool = item_margin
         self._widget: QWidget  # 主控件
         self._initialized = False
 
@@ -334,7 +336,7 @@ class SettingCard(QFrame):
         self.vBoxLayout = QVBoxLayout()
 
         self.hBoxLayout.setSpacing(0)
-        self.hBoxLayout.setContentsMargins(48 if self.is_item else 16, 0, 0, 0)
+        self.hBoxLayout.setContentsMargins(48 if self.is_item and self.item_margin else 16, 0, 0, 0)
         self.hBoxLayout.setAlignment(Qt.AlignVCenter)
 
         self.vBoxLayout.setSpacing(0)
@@ -608,7 +610,7 @@ class SettingCard(QFrame):
 
     @classmethod
     def from_config(
-        cls, config_item: ConfigItem | ConfigGroup, is_item=False, parent: QWidget | None = None
+        cls, config_item: ConfigItem | ConfigGroup, is_item=False, item_margin=True, parent: QWidget | None = None
     ) -> SettingCard | ExpandGroupSettingCard:
         """
         根据 ConfigItem 或 ConfigGroup 的类型和元数据创建对应的 SettingCard
@@ -687,6 +689,7 @@ class SettingCard(QFrame):
             content=config_item.description,
             config_item=config_item,
             is_item=is_item,
+            item_margin=item_margin,
             parent=parent,
             **kwargs,
         )
