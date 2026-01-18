@@ -54,7 +54,14 @@ class EasiAutomation(BaseModel):
 
     @property
     def shortcut_name(self) -> str:
-        return f"希沃自动登录（{self.teacher_name or manager.get_subject_by_id(self.subject_id).name}）"
+        if self.teacher_name:
+            label = self.teacher_name
+        elif manager and (subject := manager.get_subject_by_id(self.subject_id)):
+            label = subject.name
+        else:
+            label = self.account
+
+        return f"希沃自动登录（{label}）"
 
 
 class CiManager(QObject):
@@ -421,4 +428,4 @@ class _CiManagerProxy:
         return self._impl is not None
 
 
-manager: CiManager | None = _CiManagerProxy()
+manager: CiManager | None = _CiManagerProxy()  # type: ignore
