@@ -12,9 +12,8 @@ from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from PySide6.QtCore import QObject, Signal
 
-from consts import EA_EXECUTABLE
-
-EA_PREFIX = "[EasiAuto]"
+from config import config
+from consts import EA_EXECUTABLE, EA_PREFIX
 
 
 class CiSubject(BaseModel):
@@ -29,9 +28,9 @@ class EasiAutomation(BaseModel):
     account: str
     password: str
     subject_id: str
-    pretime: int = 300
+    pretime: int = config.ClassIsland.DefaultPreTime
     guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    display_name: str = "自动登录希沃白板"
+    display_name: str = config.ClassIsland.DefaultDisplayName
     teacher_name: str | None = None
     enabled: bool = True
 

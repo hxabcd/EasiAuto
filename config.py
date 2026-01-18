@@ -103,8 +103,8 @@ class ConfigModel(BaseModel):
 
     def iter_items(
         self,
-        only: str | None = None,
-        exclude: str | None = None,
+        only: list[str] = [],
+        exclude: list[str] = [],
     ) -> list[ConfigItem | ConfigGroup]:
         return iter_config_items(self, only=only, exclude=exclude)
 
@@ -144,7 +144,7 @@ class LoginConfig(ConfigModel):
     Timeout: TimeoutConfig = Field(
         default_factory=lambda: TimeoutConfig(),
         title="等待时长",
-        description="配置自动登录过程中的等待时长",
+        description="配置自动登录过程中的等待时长（秒）",
         json_schema_extra={"icon": "StopWatch"},
     )
     EasiNote: EasiNoteConfig = Field(
@@ -354,6 +354,31 @@ class AppConfig(ConfigModel):
     )
 
 
+class ClassIslandConfig(ConfigModel):
+    AutoPath: bool = Field(
+        default=False,
+        title="自动检测",
+        description="自动检测 ClassIsland",
+    )
+    Path: str = Field(
+        default="",
+        title="自定义路径",
+        description="自定义 ClassIsland 的路径",
+    )
+    DefaultDisplayName: str = Field(
+        default="自动登录希沃白板",
+        title="默认显示名称",
+        description="（重启生效）",
+    )
+    DefaultPreTime: int = Field(
+        default=300,
+        ge=0,
+        le=1800,
+        title="默认提前时长",
+        description="（重启生效）",
+    )
+
+
 class UpdateConfig(ConfigModel):
     Mode: UpdateMode = Field(
         default=UpdateMode.CHECK_AND_INSTALL,
@@ -395,6 +420,7 @@ class Config(ConfigModel):
     App: AppConfig = Field(default_factory=lambda: AppConfig(), title="应用设置")
 
     Update: UpdateConfig = Field(default_factory=lambda: UpdateConfig(), title="更新设置")
+    ClassIsland: ClassIslandConfig = Field(default_factory=lambda: ClassIslandConfig(), title="ClassIsland 设置")
 
     @classmethod
     def load(cls, file: str | Path) -> Config:
@@ -507,8 +533,8 @@ def iter_config_items(
     prefix: str = "",
     group: str | None = None,
     root: ConfigModel | None = None,
-    only: str | None = None,
-    exclude: str | None = None,
+    only: list[str] = [],
+    exclude: list[str] = [],
 ) -> list[ConfigItem | ConfigGroup]:
     """
     从任意 ConfigModel 实例递归地枚举出所有字段，并保留层级结构。
@@ -526,7 +552,7 @@ def iter_config_items(
         value = getattr(obj, name)
         path = f"{prefix}.{name}" if prefix else name
 
-        if (only and only not in path) or (exclude and exclude in path):
+        if (only and not any(o in path for o in only)) or (exclude and any(e in path for e in exclude)):
             continue
 
         if extra := field_info.json_schema_extra:
