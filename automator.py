@@ -120,7 +120,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 from utils import log_exception
 
                 retries += 1
-                log_exception(*sys.exc_info(), prefix=f"登录子线程发生异常（尝试 {retries}/{self.max_retries}）")
+                log_exception(*sys.exc_info(), prefix=f"登录子线程发生异常（尝试 {retries}/{self.max_retries}）")  # type: ignore
 
                 if retries <= self.max_retries:
                     logger.error(f"登录过程中发生错误 ({type(e).__name__}): {e}")

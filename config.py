@@ -436,7 +436,7 @@ class Config(ConfigModel):
         else:
             cfg = cls()
             data = cfg.model_dump(mode="json")
-            path.write_text(json.dumps(data), encoding="utf-8")
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
             logger.info(f"配置文件 {file} 不存在，自动生成")
 
         cfg.attach(path)

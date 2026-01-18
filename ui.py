@@ -351,7 +351,6 @@ class AutomationStatusBar(QWidget):
             else:
                 status = CIStatus.UNINITIALIZED
 
-        logger.debug(f"更新 ClassIsland 状态: {status}")
         match status:
             case CIStatus.UNINITIALIZED:
                 self.status_badge.level = InfoLevel.ERROR
@@ -1038,7 +1037,7 @@ class PathSelectSubpage(QWidget):
                 duration=3000,
                 parent=MainWindow.container,
             )
-            config.ClassIsland.AutoDetect = False
+            config.ClassIsland.AutoPath = False
             config.ClassIsland.Path = str(exe_path)
             self.pathChanged.emit(exe_path)
         else:
@@ -1150,10 +1149,10 @@ class AutomationPage(QWidget):
         if exe_path and exe_path.exists():
             logger.debug(f"初始化 ClassIsland 管理器: {exe_path}")
             try:
-                manager.initialize(exe_path)
-                logger.success("初始化成功")
+                manager.initialize(exe_path)  # type: ignore (manager: _CiManagerProxy)
+                logger.success("ClassIsland 管理器初始化成功")
             except Exception as e:
-                logger.warning(f"初始化失败: {e}")
+                logger.warning(f"ClassIsland 管理器初始化失败: {e}")
         else:
             logger.warning(f"{'未找到 ClassIsland 路径' if not exe_path else '路径无效'}，跳过初始化")
 
@@ -1226,12 +1225,10 @@ class AutomationPage(QWidget):
 
         logger.info(f"尝试使用 {path} 初始化管理器")
         try:
-            manager.initialize(path)
-            assert manager is not None
-
-            logger.success("初始化成功")
+            manager.initialize(path)  # type: ignore (manager: _CiManagerProxy)
+            logger.success("ClassIsland 管理器初始化成功")
         except Exception as e:
-            logger.error(f"初始化失败: {e}")
+            logger.error(f"ClassIsland 管理器初始化失败: {e}")
             InfoBar.error(
                 title="错误",
                 content="无法初始化管理器，请检查路径是否正确",
