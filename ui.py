@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
-    QLabel,
     QListWidgetItem,
     QScroller,
     QStackedLayout,
@@ -39,7 +38,6 @@ from qfluentwidgets import (
     FluentTranslator,
     HorizontalSeparator,
     HyperlinkCard,
-    Icon,
     IconInfoBadge,
     IconWidget,
     ImageLabel,
@@ -62,10 +60,13 @@ from qfluentwidgets import (
     SplashScreen,
     SubtitleLabel,
     SwitchButton,
+    SystemThemeListener,
     Theme,
     TitleLabel,
     TransparentPushButton,
     VerticalSeparator,
+    isDarkTheme,
+    qconfig,
     setFont,
     setTheme,
     setThemeColor,
@@ -174,6 +175,7 @@ class ConfigPage(QWidget):
         reset_card.clicked.connect(self.reset_config)
         self.content_layout.addWidget(reset_card)
 
+        # 开发选项
         collapse_card = PushSettingCard(
             icon=FluentIcon.DEVELOPER_TOOLS,
             title="崩溃测试",
@@ -233,6 +235,9 @@ class ConfigPage(QWidget):
             SettingCard.index["Warning.Enabled"].widget,  # type: ignore
         )
         set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
+
+        # 值变化事件
+        SettingCard.index["App.Theme"].valueChanged.connect(lambda t: setTheme(Theme(t.value)))
 
     def reset_config(self):
         """重置配置为默认值"""
@@ -528,7 +533,7 @@ class AutomationManageSubpage(QWidget):
         hint_icon = IconInfoBadge.attension(FluentIcon.RINGER)
         hint_icon.setFixedSize(24, 24)
         hint_icon.setIconSize(QSize(12, 12))
-        hint_text = QLabel("正在编辑新自动化")
+        hint_text = BodyLabel("正在编辑新自动化")
         hint_text.setStyleSheet("font-size: 14px;")
         hint_layout.addWidget(hint_icon)
         hint_layout.addWidget(hint_text)
@@ -550,11 +555,11 @@ class AutomationManageSubpage(QWidget):
         self.teacher_edit = LineEdit()
         self.pretime_edit = SpinBox()
 
-        form_layout.addRow("账号", self.account_edit)
-        form_layout.addRow("密码", self.password_edit)
-        form_layout.addRow("科目", self.subject_edit)
-        form_layout.addRow("教师 (可选)", self.teacher_edit)
-        form_layout.addRow("提前时间 (秒)", self.pretime_edit)
+        form_layout.addRow(BodyLabel("账号"), self.account_edit)
+        form_layout.addRow(BodyLabel("密码"), self.password_edit)
+        form_layout.addRow(BodyLabel("科目"), self.subject_edit)
+        form_layout.addRow(BodyLabel("教师 (可选)"), self.teacher_edit)
+        form_layout.addRow(BodyLabel("提前时间 (秒)"), self.pretime_edit)
 
         self.subject_edit.setCurrentIndex(-1)
         self.pretime_edit.setRange(0, 900)
@@ -982,10 +987,14 @@ class PathSelectSubpage(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        hint_icon = QLabel(pixmap=Icon(FluentIcon.REMOVE_FROM).pixmap(96, 96))
+        icon_container = QHBoxLayout()
+        icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_icon = IconWidget(FluentIcon.REMOVE_FROM)
+        hint_icon.setFixedSize(96, 96)
+        icon_container.addWidget(hint_icon)
+
         hint_label = TitleLabel("未能获取到 ClassIsland 路径")
         hint_desc = BodyLabel("<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>")
-        hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         actions = QWidget()
@@ -1005,7 +1014,7 @@ class PathSelectSubpage(QWidget):
         actions_layout.addWidget(BodyLabel("或"))
         actions_layout.addWidget(browse_button)
 
-        layout.addWidget(hint_icon)
+        layout.addLayout(icon_container)
         layout.addSpacing(12)
         layout.addWidget(hint_label)
         layout.addWidget(hint_desc)
@@ -1078,16 +1087,20 @@ class CiRunningWarnOverlay(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.hint_icon = QLabel()
+        self.icon_container = QHBoxLayout()
+        self.icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_icon = IconWidget()
+        self.hint_icon.setFixedSize(96, 96)
+        self.icon_container.addWidget(self.hint_icon)
+
         self.hint_label = TitleLabel()
         self.hint_desc = BodyLabel()
-        self.hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.action_button = PrimaryPushButton(icon=FluentIcon.POWER_BUTTON, text="终止 ClassIsland")
         self.action_button.clicked.connect(self.terminate_ci)
 
-        layout.addWidget(self.hint_icon)
+        layout.addLayout(self.icon_container)
         layout.addSpacing(12)
         layout.addWidget(self.hint_label)
         layout.addWidget(self.hint_desc)
@@ -1100,7 +1113,7 @@ class CiRunningWarnOverlay(QWidget):
 
     def set_text(self, failed: bool = False):
         if not failed:
-            self.hint_icon.setPixmap(Icon(FluentIcon.BROOM).pixmap(96, 96))
+            self.hint_icon.setIcon(FluentIcon.BROOM)
             if config.App.EasterEggEnabled:
                 self.hint_label.setText(self.labelE_running_text)
                 self.hint_desc.setText(self.labelE_running_desc)
@@ -1109,7 +1122,7 @@ class CiRunningWarnOverlay(QWidget):
                 self.hint_desc.setText(self.label_running_desc)
                 self.action_button.show()
         else:
-            self.hint_icon.setPixmap(Icon(FluentIcon.QUESTION).pixmap(96, 96))
+            self.hint_icon.setIcon(FluentIcon.QUESTION)
             if config.App.EasterEggEnabled:
                 self.hint_label.setText(self.labelE_failed_text)
                 self.hint_desc.setText(self.labelE_failed_text)
@@ -1851,6 +1864,8 @@ class MainWindow(MSFluentWindow):
         self.about_page = AboutPage()
         self.initNavigation()
 
+        self.themeListener.start()
+
         logger.success("界面初始化完成")
         self.splashScreen.finish()
         MainWindow.container = self.stackedWidget
@@ -1872,11 +1887,27 @@ class MainWindow(MSFluentWindow):
         self.setMinimumSize(800, 500)
         self.resize(960, 640)
 
+        self.themeListener = SystemThemeListener(self)
+        qconfig.themeChanged.connect(setTheme)
+
+    def closeEvent(self, e):
+        # 停止监听器线程
+        self.themeListener.terminate()
+        self.themeListener.deleteLater()
+        super().closeEvent(e)
+
+    def _onThemeChangedFinished(self):
+        super()._onThemeChangedFinished()
+
+        # 云母特效启用时需要增加重试机制
+        if self.isMicaEffectEnabled():
+            QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
+
 
 # os.environ['QT_SCALE_FACTOR'] = ...
 
 app = QApplication(sys.argv)
 translator = FluentTranslator()
 app.installTranslator(translator)
-setTheme(Theme.AUTO)
+setTheme(Theme(config.App.Theme.value))
 setThemeColor("#00C884")

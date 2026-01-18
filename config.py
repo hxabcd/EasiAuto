@@ -39,6 +39,12 @@ class LoginMethod(InformativeEnum):
     FIXED_POSITION = (2, "固定位置")
 
 
+class ThemeOptions(InformativeEnum):
+    AUTO = ("Auto", "跟随系统")
+    LIGHT = ("Light", "浅色")
+    DARK = ("Dark", "深色")
+
+
 class UpdateMode(InformativeEnum):
     NEVER = (0, "从不自动更新")
     CHECK_AND_NOTIFY = (1, "自动检查更新并通知")
@@ -329,6 +335,12 @@ class AppConfig(ConfigModel):
         description="自动登录失败时的最大重试次数",
         json_schema_extra={"icon": "Sync"},
     )
+    Theme: ThemeOptions = Field(
+        default=ThemeOptions.AUTO,
+        title="应用主题",
+        description="控制应用的明暗主题",
+        json_schema_extra={"icon": "Constract"},
+    )
     LogEnabled: bool = Field(
         default=True,
         title="启用日志记录",
@@ -357,8 +369,8 @@ class AppConfig(ConfigModel):
 class ClassIslandConfig(ConfigModel):
     AutoPath: bool = Field(
         default=False,
-        title="自动检测",
-        description="自动检测 ClassIsland",
+        title="自动获取路径",
+        description="自动获取 ClassIsland 的路径",
     )
     Path: str = Field(
         default="",
