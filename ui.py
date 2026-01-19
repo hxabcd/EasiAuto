@@ -1891,9 +1891,7 @@ class MainWindow(MSFluentWindow):
         qconfig.themeChanged.connect(setTheme)
 
     def closeEvent(self, e):
-        # 停止监听器线程
-        self.themeListener.terminate()
-        self.themeListener.deleteLater()
+        self.themeListener.terminate()  # 停止监听器线程
         super().closeEvent(e)
 
     def _onThemeChangedFinished(self):
