@@ -209,7 +209,7 @@ class UpdateChecker(QObject):
                 total = int(total_hdr) if total_hdr and total_hdr.isdigit() else -1
 
                 h = hashlib.sha256()
-                with open(out_path, "wb") as f:
+                with out_path.open("wb") as f:
                     for chunk in r.iter_content(chunk_size=chunk_size):
                         # 检查取消
                         if cancel_checker and cancel_checker():
@@ -255,7 +255,7 @@ class UpdateChecker(QObject):
             with zipfile.ZipFile(zip_path, "r") as z:
                 z.extractall(extract_dir)
         except zipfile.BadZipFile as e:
-            raise UpdateError(f"解压失败，文件可能已损坏: {e}")
+            raise UpdateError("解压失败，文件可能已损坏") from e
 
         extract_root = self._normalize_extract_root(extract_dir)
 
@@ -263,7 +263,7 @@ class UpdateChecker(QObject):
         script = staging / "apply_update.bat"
 
         # 构建更新脚本：删除旧文件 -> 复制新文件 -> 重启
-        # 注意：这里保留了 config.json, logs, cache
+        # 注意：这里保留了 config.json, logs
         script_content = [
             "@echo off",
             "chcp 65001",
@@ -447,7 +447,7 @@ class UpdateChecker(QObject):
                 continue
 
         # 按版本号倒序排列
-        in_range.sort(key=lambda x: Version(x), reverse=True)
+        in_range.sort(key=Version, reverse=True)
 
         if not in_range:
             return None
@@ -488,7 +488,7 @@ class UpdateChecker(QObject):
         expected = expected_sha256.lower().strip()
         h = hashlib.sha256()
         try:
-            with open(path, "rb") as f:
+            with path.open("rb") as f:
                 while chunk := f.read(1024 * 1024):
                     h.update(chunk)
             return h.hexdigest().lower() == expected

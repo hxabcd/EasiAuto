@@ -36,6 +36,7 @@ class EasiAutomation(BaseModel):
     enabled: bool = True
 
     @field_validator("pretime")
+    @classmethod
     def validate_pretime(cls, v):
         if v < 0:
             raise ValueError("提前时间不能为负数")
