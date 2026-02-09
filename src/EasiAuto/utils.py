@@ -17,6 +17,8 @@ import win32event
 import win32gui
 import winerror
 from loguru import logger
+from sentry_sdk.integrations.loguru import LoguruIntegration
+
 from PySide6.QtCore import QPoint, Qt, QtMsgType, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
@@ -34,10 +36,9 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
 )
-from sentry_sdk.integrations.loguru import LoguruIntegration
 
-from config import config
-from consts import EA_EXECUTABLE, SENTRY_DSN, VERSION
+from EasiAuto.config import config
+from EasiAuto.consts import EA_EXECUTABLE, SENTRY_DSN, VERSION
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []

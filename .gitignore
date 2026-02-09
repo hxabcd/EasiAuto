@@ -9,13 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
+# Build files
 *.build/
 *.dist/
 *.onefile-build/
 
-TODO
-
+# etc
 logs
 cache
 config.json
-test*
+experiment

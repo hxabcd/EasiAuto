@@ -7,6 +7,7 @@ from typing import Any, assert_never
 import qt_pydantic as qtp
 from annotated_types import Ge, Gt, Le, Lt
 from loguru import logger
+
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -35,9 +36,9 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from config import BannerStyleConfig, ConfigGroup, ConfigItem
-from qfw_widgets import SettingIconWidget
-from utils import get_resource
+from EasiAuto.config import BannerStyleConfig, ConfigGroup, ConfigItem
+from EasiAuto.qfw_widgets import SettingIconWidget
+from EasiAuto.utils import get_resource
 
 
 class DialogResponse(Enum):

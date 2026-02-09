@@ -10,10 +10,11 @@ import win32con
 import win32event
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
+
 from PySide6.QtCore import QObject, Signal
 
-from config import config
-from consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.config import config
+from EasiAuto.consts import EA_EXECUTABLE, EA_PREFIX
 
 
 class CiSubject(BaseModel):

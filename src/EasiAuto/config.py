@@ -11,9 +11,10 @@ import qt_pydantic as qtp
 from loguru import logger
 from pydantic import BaseModel, Field, PrivateAttr
 from pydantic.fields import FieldInfo
+
 from PySide6.QtGui import QColor
 
-from consts import EA_EXECUTABLE
+from EasiAuto.consts import EA_EXECUTABLE
 
 
 class InformativeEnum(Enum):
