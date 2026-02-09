@@ -471,6 +471,55 @@ class Config(ConfigModel):
         self.save()
         logger.info("已重置")
 
+    def reset_by_path(self, path: str) -> bool:
+        """重置指定路径下的配置为默认值并保存。
+
+        参数示例：
+        - "Login.Timeout.Terminate"（重置单个字段）
+        - "Login.Timeout"（将整个子配置重置为默认实例）
+        返回值：成功返回 True，失败返回 False
+        """
+        logger.info(f"正在重置配置路径：{path}")
+        self._initialized = False
+
+        parts = tuple(p for p in path.split(".") if p)
+        if not parts:
+            logger.warning("重置失败：路径为空")
+            self._initialized = True
+            return False
+
+        default_instance = Config()
+        self_parent: Any = self
+        default_parent: Any = default_instance
+
+        try:
+            for key in parts[:-1]:
+                if not hasattr(self_parent, key) or not hasattr(default_parent, key):
+                    logger.error(f"重置失败：无效路径 {path}")
+                    self._initialized = True
+                    return False
+                self_parent = getattr(self_parent, key)
+                default_parent = getattr(default_parent, key)
+
+            final = parts[-1]
+            if not hasattr(default_parent, final):
+                logger.error(f"重置失败：无效路径 {path}")
+                self._initialized = True
+                return False
+
+            default_value = getattr(default_parent, final)
+            setattr(self_parent, final, default_value)
+        except Exception as e:
+            logger.error(f"重置路径 {path} 失败: {e}")
+            self._initialized = True
+            return False
+
+        self._bind_children()
+        self._initialized = True
+        self.save()
+        logger.info(f"已重置配置路径：{path}")
+        return True
+
 
 @dataclass
 class ConfigItem:
