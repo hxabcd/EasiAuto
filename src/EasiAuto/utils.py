@@ -5,6 +5,7 @@ import signal
 import sys
 import traceback
 import winsound
+from importlib import resources
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -37,8 +38,9 @@ from qfluentwidgets import (
     PushButton,
 )
 
+from EasiAuto import __version__
 from EasiAuto.config import config
-from EasiAuto.consts import EA_EXECUTABLE, SENTRY_DSN, VERSION
+from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, SENTRY_DSN
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
@@ -259,7 +261,7 @@ def init_exception_handler():
     logger.debug(f"日志存储已{'禁用' if not config.App.LogEnabled else '启用'}")
     if config.App.LogEnabled:
         logger.add(
-            EA_EXECUTABLE.parent / "logs" / "EasiAuto_{time}.log",
+            EA_BASEDIR / "logs" / "EasiAuto_{time}.log",
             rotation="1 MB",
             retention="1 minute",
             encoding="utf-8",
@@ -288,7 +290,7 @@ def init_exception_handler():
             dsn=SENTRY_DSN,
             integrations=[LoguruIntegration(event_level=None)],
             before_send=before_send,
-            release=f"EasiAuto@{VERSION}",
+            release=f"EasiAuto@{__version__}",
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
         )
@@ -350,9 +352,10 @@ def check_singleton() -> bool:
     return False
 
 
-def get_resource(file: str):
+def get_resource(filename: str):
     """获取资源路径"""
-    return str(EA_EXECUTABLE.parent / "resources" / file)
+    traversable = resources.files("EasiAuto.resources").joinpath(filename)
+    return str(traversable)
 
 
 def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):
@@ -369,7 +372,7 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
         shortcut = shell.CreateShortcut(str(shortcut_path))
         shortcut.TargetPath = str(EA_EXECUTABLE)
         shortcut.Arguments = args
-        shortcut.WorkingDirectory = str(EA_EXECUTABLE.parent)
+        shortcut.WorkingDirectory = str(EA_BASEDIR)
         shortcut.IconLocation = get_resource("EasiAutoShortcut.ico")
         shortcut.Save()
 
