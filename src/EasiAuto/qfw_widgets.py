@@ -127,6 +127,7 @@ class ListBase:
             self._setPressedRow(index.row())
 
         QWidget.mousePressEvent(self, e)  # type: ignore
+        return None
 
     def mouseReleaseEvent(self, e):
         QListView.mouseReleaseEvent(self, e)  # type: ignore
@@ -161,7 +162,7 @@ class ListBase:
         self.delegate.setCheckedColor(light, dark)
 
 
-class ListWidget(ListBase, QListWidget):
+class ListWidget(ListBase, QListWidget):  # type: ignore
     """List widget"""
 
     def __init__(self, parent=None):
@@ -181,7 +182,7 @@ class ListWidget(ListBase, QListWidget):
     def isSelectRightClickedRow(self):
         return self._isSelectRightClickedRow
 
-    def setSelectRightClickedRow(self, isSelect: bool):
+    def setSelectRightClickedRow(self, isSelect: bool):  # noqa: N803
         self._isSelectRightClickedRow = isSelect
 
     selectRightClickedRow = Property(bool, isSelectRightClickedRow, setSelectRightClickedRow)

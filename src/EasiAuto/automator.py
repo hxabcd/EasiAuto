@@ -2,6 +2,7 @@ import subprocess
 import time
 import winreg
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 
 import win32gui
 from loguru import logger
@@ -69,9 +70,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         logger.debug(f"路径：{path}，参数：{self.config.EasiNote.Args}")
 
         args = self.config.EasiNote.Args
-        import os
 
-        if not os.path.exists(path):
+        if not Path(path).exists():
             logger.error(f"希沃白板可执行文件不存在: {path}")
             raise FileNotFoundError(f"希沃白板可执行文件不存在: {path}")
 
@@ -118,7 +118,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             except BaseException as e:
                 import sys
 
-                from utils import log_exception
+                from EasiAuto.utils import log_exception
 
                 retries += 1
                 log_exception(*sys.exc_info(), prefix=f"登录子线程发生异常（尝试 {retries}/{self.max_retries}）")  # type: ignore

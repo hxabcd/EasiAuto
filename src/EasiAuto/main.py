@@ -29,7 +29,7 @@ def login_finished(message: str):
         utils.stop(1)
 
     # 成功则检查更新
-    from update import update_checker
+    from EasiAuto.update import update_checker
 
     if config.Update.CheckAfterLogin and config.Update.Mode.value > UpdateMode.NEVER.value:
         decision = update_checker.check()
@@ -61,8 +61,8 @@ def cmd_login(args):
 
     logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
 
-    from automator import CVAutomator, FixedAutomator, UIAAutomator
-    from components import DialogResponse, PreRunPopup, WarningBanner
+    from EasiAuto.automator import CVAutomator, FixedAutomator, UIAAutomator
+    from EasiAuto.components import DialogResponse, PreRunPopup, WarningBanner
 
     # 显示警告弹窗
     if config.Warning.Enabled and not args.manual:
