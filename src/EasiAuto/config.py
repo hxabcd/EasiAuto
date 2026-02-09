@@ -14,7 +14,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.consts import EA_EXECUTABLE
+from EasiAuto.consts import EA_BASEDIR
 
 
 class InformativeEnum(Enum):
@@ -602,4 +602,4 @@ def iter_config_items(
     return result
 
 
-config = Config.load(EA_EXECUTABLE.parent / "config.json")
+config = Config.load(EA_BASEDIR / "config.json")

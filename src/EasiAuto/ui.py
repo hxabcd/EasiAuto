@@ -73,11 +73,11 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
-from EasiAuto import utils
+from EasiAuto import __version__, utils
 from EasiAuto.ci_manager import EasiAutomation, manager
 from EasiAuto.components import SettingCard
 from EasiAuto.config import ConfigGroup, LoginMethod, UpdateMode, config
-from EasiAuto.consts import EA_EXECUTABLE, VERSION
+from EasiAuto.consts import EA_BASEDIR
 from EasiAuto.qfw_widgets import ListWidget, SettingCardGroup
 from EasiAuto.update import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.utils import get_resource
@@ -1589,9 +1589,7 @@ class UpdatePage(QWidget):
                 self.detail.show()
                 if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
                     app.aboutToQuit.connect(
-                        lambda: update_checker.apply_script(
-                            zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
-                        ),
+                        lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
                     )
                     self._signal_connected = True
                     self.detail.setText("应用退出后将自动应用更新，或者你也可以现在重启以应用更新")
@@ -1628,9 +1626,7 @@ class UpdatePage(QWidget):
             case UpdateStatus.INSTALL:
                 if not self._signal_connected:
                     app.aboutToQuit.connect(
-                        lambda: update_checker.apply_script(
-                            zip_path=EA_EXECUTABLE.parent / "cache" / self._update_file
-                        ),
+                        lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
                     )
                 utils.stop()
 
@@ -1732,7 +1728,7 @@ class AboutPage(SmoothScrollArea):
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignBottom)
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel(f"版本 {VERSION}", self)
+        subtitle = SubtitleLabel(f"版本 {__version__}", self)
         title_layout.addWidget(title)
         title_layout.addSpacing(6)
         title_layout.addWidget(subtitle)
