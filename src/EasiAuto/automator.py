@@ -162,9 +162,9 @@ class CVAutomator(BaseAutomator):
         scale = 2 if self.config.Is4K else 1
 
         # 获取资源图片
-        button_img = get_resource(f"button{path_suffix}.png")
-        button_img_selected = get_resource(f"button_selected{path_suffix}.png")
-        checkbox_img = get_resource(f"checkbox{path_suffix}.png")
+        button_img = get_resource(f"EasiNoteUI/button{path_suffix}.png")
+        button_img_selected = get_resource(f"EasiNoteUI/button_selected{path_suffix}.png")
+        checkbox_img = get_resource(f"EasiNoteUI/checkbox{path_suffix}.png")
 
         # 进入登录界面
         if not self.config.Directly:

@@ -17,8 +17,9 @@ from packaging.version import Version
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from EasiAuto import __version__
 from EasiAuto.config import UpdateChannal, config
-from EasiAuto.consts import EA_EXECUTABLE, MANIFEST_URL, VERSION
+from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, MANIFEST_URL
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
@@ -173,7 +174,7 @@ class UpdateChecker(QObject):
         cancel_checker: Callable[[], bool] | None = None,
     ) -> Path:
         """下载更新"""
-        dest_dir = Path(EA_EXECUTABLE.parent / "cache")
+        dest_dir = Path(EA_BASEDIR / "cache")
         dest_dir.mkdir(parents=True, exist_ok=True)
         out_path = dest_dir / (filename or Path(item.url).name)
 
@@ -258,7 +259,7 @@ class UpdateChecker(QObject):
 
         extract_root = self._normalize_extract_root(extract_dir)
 
-        target_dir = str(EA_EXECUTABLE.parent)
+        target_dir = str(EA_BASEDIR)
         script = staging / "apply_update.bat"
 
         # 构建更新脚本：删除旧文件 -> 复制新文件 -> 重启
@@ -412,7 +413,7 @@ class UpdateChecker(QObject):
         if not target_ver_str:
             return UpdateDecision(False, None, False, None, ())
 
-        if not force and Version(target_ver_str) <= VERSION:  # 强制检查忽略版本
+        if not force and Version(target_ver_str) <= Version(__version__):  # 强制检查忽略版本
             return UpdateDecision(False, target_ver_str, False, None, ())
 
         versions = manifest.get("versions", {})
@@ -439,7 +440,8 @@ class UpdateChecker(QObject):
         for v_str in versions:
             try:
                 v = Version(v_str)
-                if (VERSION < v <= target_version) or (force and v == target_version):  # 强制获取时，至少展示最新版日志
+                if (Version(__version__) < v <= target_version) or (force and v == target_version):
+                    # 强制获取时，至少展示最新版日志
                     in_range.append(v_str)
             except Exception:
                 continue

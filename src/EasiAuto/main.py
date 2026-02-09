@@ -6,9 +6,8 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
-from EasiAuto import utils
+from EasiAuto import __version__, utils
 from EasiAuto.config import LoginMethod, UpdateMode, config
-from EasiAuto.consts import VERSION
 from EasiAuto.ui import MainWindow, app
 
 utils.init_exception_handler()
@@ -171,15 +170,15 @@ def main():
                 except Exception as e:
                     logger.warning(f"解析上个版本时发生异常：{e}")
                 else:
-                    if last_version < VERSION:
+                    if last_version < Version(__version__):
                         windows11toast.notify(
-                            title=f"已更新至 {VERSION}",
-                            body=f"{config.Update.LastVersion} -> {VERSION}",
+                            title=f"已更新至 {__version__}",
+                            body=f"{config.Update.LastVersion} -> {__version__}",
                             icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                             icon_hint_crop=windows11toast.IconCrop.NONE,
                             icon_src=utils.get_resource("EasiAuto.ico"),
                         )
-            config.Update.LastVersion = str(VERSION)
+            config.Update.LastVersion = __version__
         args.func(args)
     else:
         cmd_settings(args)
