@@ -1152,7 +1152,12 @@ class AutomationPage(QWidget):
 
         # 初始化 ClassIsland 管理器
         try:
-            exe_path = utils.get_ci_executable() if config.ClassIsland.AutoPath else Path(config.ClassIsland.Path)
+            if config.ClassIsland.AutoPath:
+                exe_path = utils.get_ci_executable()
+            elif config.ClassIsland.Path:
+                exe_path = Path(config.ClassIsland.Path)
+            else:
+                exe_path = None
         except Exception as e:
             logger.warning(f"获取 ClassIsland 路径失败: {e}")
             exe_path = None
