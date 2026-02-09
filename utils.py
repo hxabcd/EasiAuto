@@ -346,6 +346,7 @@ def check_singleton() -> bool:
 
     # logger.info("用户选择继续启动")
     # return True
+    return False
 
 
 def get_resource(file: str):
