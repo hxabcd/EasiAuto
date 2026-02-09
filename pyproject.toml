@@ -25,10 +25,106 @@ dependencies = [
     "windows11toast>=1.2.6",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
 
+[tool.pyright]
+autoImportCompletions = true
+exclude = ["**/.venv", "**/__pycache__", "build"]
+include = ["**/*.py"]
+pythonVersion = "3.12"
+reportArgumentType = "warning"
+reportAttributeAccessIssue = "none"
+reportDuplicateImport = "warning"
+reportGeneralTypeIssues = "warning"
+reportImportCycles = "warning"
+reportIncompatibleMethodOverride = "warning"
+reportIncompatibleVariableOverride = "warning"
+reportMissingParameterType = "none"
+reportMissingTypeStubs = "none"
+reportOptionalCall = "none"
+reportOptionalMemberAccess = "none"
+reportOptionalSubscript = "none"
+reportOverlappingOverload = "warning"
+reportPrivateUsage = "none"
+reportSelfClsParameterName = "none"
+reportUnusedClass = "none"
+reportUnusedFunction = "none"
+reportUnusedImport = "none"
+reportUnusedVariable = "none"
+strictDictionaryInference = false
+strictListInference = false
+strictSetInference = false
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true
+
+[[tool.pyright.executionEnvironments]]
+"extraPaths" = ["./resources"]
+"pythonPlatform" = "Windows"
+"pythonVersion" = "3.13"
+"root" = "."
+
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "ARG", # flake8-unused-arguments
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "E",   # pycodestyle errors
+    "ERA", # eradicate
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "T201", # flake8-print
+    "PIE", # flake8-pie
+    "PL",  # pylint
+    "PTH", # flake8-use-pathlib
+    "RET", # flake8-return
+    # "RUF", # ruff-specific rules
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+]
+ignore = [
+    "ARG002",
+    "ERA001",
+    "N801",
+    "N802",
+    "N815",
+    "N999",
+    "PLC0415",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"utils.py" = ["PLW0603"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["EasiAuto"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "qt",
+    "first-party",
+    "local-folder",
+]
+sections = { "qt" = ["PySide6", "qfluentwidgets"] }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -5,10 +5,11 @@ from abc import ABCMeta, abstractmethod
 
 import win32gui
 from loguru import logger
+
 from PySide6.QtCore import QThread, Signal
 
-from config import LoginConfig
-from utils import get_resource, switch_window
+from EasiAuto.config import LoginConfig
+from EasiAuto.utils import get_resource, switch_window
 
 
 class QABCMeta(type(QThread), ABCMeta):  # type: ignore

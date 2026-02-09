@@ -14,10 +14,11 @@ from typing import Any, Literal
 import requests
 from loguru import logger
 from packaging.version import Version
+
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
-from config import UpdateChannal, config
-from consts import EA_EXECUTABLE, MANIFEST_URL, VERSION
+from EasiAuto.config import UpdateChannal, config
+from EasiAuto.consts import EA_EXECUTABLE, MANIFEST_URL, VERSION
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"

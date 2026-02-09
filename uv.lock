@@ -105,9 +105,9 @@ wheels = [
 ]
 
 [[package]]
-name = "easiauto"
+name = "EasiAuto"
 version = "1.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "loguru" },
     { name = "opencv-python" },

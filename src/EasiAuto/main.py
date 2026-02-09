@@ -6,10 +6,10 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
-import utils
-from config import LoginMethod, UpdateMode, config
-from consts import VERSION
-from ui import MainWindow, app
+from EasiAuto import utils
+from EasiAuto.config import LoginMethod, UpdateMode, config
+from EasiAuto.consts import VERSION
+from EasiAuto.ui import MainWindow, app
 
 utils.init_exception_handler()
 utils.init_exit_signal_handlers()

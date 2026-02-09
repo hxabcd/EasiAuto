@@ -9,6 +9,7 @@ from pathlib import Path
 
 import windows11toast
 from loguru import logger
+
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
@@ -72,14 +73,14 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
-import utils
-from ci_manager import EasiAutomation, manager
-from components import SettingCard
-from config import ConfigGroup, LoginMethod, UpdateMode, config
-from consts import EA_EXECUTABLE, VERSION
-from qfw_widgets import ListWidget, SettingCardGroup
-from update import ChangeLog, UpdateDecision, update_checker
-from utils import get_resource
+from EasiAuto import utils
+from EasiAuto.ci_manager import EasiAutomation, manager
+from EasiAuto.components import SettingCard
+from EasiAuto.config import ConfigGroup, LoginMethod, UpdateMode, config
+from EasiAuto.consts import EA_EXECUTABLE, VERSION
+from EasiAuto.qfw_widgets import ListWidget, SettingCardGroup
+from EasiAuto.update import ChangeLog, UpdateDecision, update_checker
+from EasiAuto.utils import get_resource
 
 
 def set_enable_by(widgets: list[QWidget] | QWidget, switch: SwitchButton, reverse: bool = False):
