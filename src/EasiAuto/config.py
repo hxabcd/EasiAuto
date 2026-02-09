@@ -110,56 +110,10 @@ class ConfigModel(BaseModel):
 
     def iter_items(
         self,
-        only: list[str] = [],
-        exclude: list[str] = [],
+        only: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> list[ConfigItem | ConfigGroup]:
         return iter_config_items(self, only=only, exclude=exclude)
-
-
-class LoginConfig(ConfigModel):
-    Method: LoginMethod = Field(
-        default=LoginMethod.UI_AUTOMATION,
-        title="登录方式",
-        description="选择用于进行自动登录的方式（OpenCV仅支持常规分辨率与缩放）\nUIA 最稳定 / OpenCV 较快 / 固定位置暂不可用",
-        json_schema_extra={"icon": "Application"},
-    )
-    SkipOnce: bool = Field(
-        default=False,
-        title="跳过一次",
-        description="下次运行时跳过自动登录，适用于公开课等需临时禁用的场景",
-        json_schema_extra={"icon": "Send"},
-    )
-    KillAgent: bool = Field(
-        default=True,
-        title="终止 EasiAgent 服务",
-        description="可避免某些情况下自动登录被希沃的快捷登录打断",
-        json_schema_extra={"icon": "PowerButton"},
-    )
-    Directly: bool = Field(
-        default=False,
-        title="跳过点击进入登录界面",
-        description="适用于打开希沃时不进入黑板界面（iwb）的情况",
-        json_schema_extra={"icon": "People"},
-    )
-    Is4K: bool = Field(
-        default=False,
-        title="OpenCV 4K 适配",
-        description="在 OpenCV 图像识别 登录方式下，启用对 3840x2160 200% 缩放的支持",
-        json_schema_extra={"icon": "FitPage"},
-    )
-
-    Timeout: TimeoutConfig = Field(
-        default_factory=lambda: TimeoutConfig(),
-        title="等待时长",
-        description="配置自动登录过程中的等待时长（秒）",
-        json_schema_extra={"icon": "StopWatch"},
-    )
-    EasiNote: EasiNoteConfig = Field(
-        default_factory=lambda: EasiNoteConfig(),
-        title="希沃白板",
-        description="配置希沃白板的路径、进程名、窗口标题和启动参数",
-        json_schema_extra={"icon": "Application"},
-    )
 
 
 class EasiNoteConfig(ConfigModel):
@@ -226,6 +180,52 @@ class TimeoutConfig(ConfigModel):
     )
 
 
+class LoginConfig(ConfigModel):
+    Method: LoginMethod = Field(
+        default=LoginMethod.UI_AUTOMATION,
+        title="登录方式",
+        description="选择用于进行自动登录的方式（OpenCV仅支持常规分辨率与缩放）\nUIA 最稳定 / OpenCV 较快 / 固定位置暂不可用",
+        json_schema_extra={"icon": "Application"},
+    )
+    SkipOnce: bool = Field(
+        default=False,
+        title="跳过一次",
+        description="下次运行时跳过自动登录，适用于公开课等需临时禁用的场景",
+        json_schema_extra={"icon": "Send"},
+    )
+    KillAgent: bool = Field(
+        default=True,
+        title="终止 EasiAgent 服务",
+        description="可避免某些情况下自动登录被希沃的快捷登录打断",
+        json_schema_extra={"icon": "PowerButton"},
+    )
+    Directly: bool = Field(
+        default=False,
+        title="跳过点击进入登录界面",
+        description="适用于打开希沃时不进入黑板界面（iwb）的情况",
+        json_schema_extra={"icon": "People"},
+    )
+    Is4K: bool = Field(
+        default=False,
+        title="OpenCV 4K 适配",
+        description="在 OpenCV 图像识别 登录方式下，启用对 3840x2160 200% 缩放的支持",
+        json_schema_extra={"icon": "FitPage"},
+    )
+
+    Timeout: TimeoutConfig = Field(
+        default_factory=TimeoutConfig,
+        title="等待时长",
+        description="配置自动登录过程中的等待时长（秒）",
+        json_schema_extra={"icon": "StopWatch"},
+    )
+    EasiNote: EasiNoteConfig = Field(
+        default_factory=EasiNoteConfig,
+        title="希沃白板",
+        description="配置希沃白板的路径、进程名、窗口标题和启动参数",
+        json_schema_extra={"icon": "Application"},
+    )
+
+
 class WarningConfig(ConfigModel):
     Enabled: bool = Field(
         default=True,
@@ -257,21 +257,6 @@ class WarningConfig(ConfigModel):
         description="选择推迟时要等待的时长（秒）",
         json_schema_extra={"icon": "History"},
         alias="Delay",
-    )
-
-
-class BannerConfig(ConfigModel):
-    Enabled: bool = Field(
-        default=True,
-        title="启用警示横幅",
-        description="运行自动运行时在屏幕顶部显示一个醒目的警示横幅",
-        json_schema_extra={"icon": "Flag"},
-    )
-    Style: BannerStyleConfig = Field(
-        default_factory=lambda: BannerStyleConfig(),
-        title="横幅样式",
-        description="定制警示横幅的样式与外观",
-        json_schema_extra={"icon": "Brush"},
     )
 
 
@@ -324,6 +309,21 @@ class BannerStyleConfig(ConfigModel):
     )
     YOffset: int = Field(
         default=20, title="垂直偏移", description="横幅距离屏幕顶部的像素偏移量", json_schema_extra={"icon": "Down"}
+    )
+
+
+class BannerConfig(ConfigModel):
+    Enabled: bool = Field(
+        default=True,
+        title="启用警示横幅",
+        description="运行自动运行时在屏幕顶部显示一个醒目的警示横幅",
+        json_schema_extra={"icon": "Flag"},
+    )
+    Style: BannerStyleConfig = Field(
+        default_factory=BannerStyleConfig,
+        title="横幅样式",
+        description="定制警示横幅的样式与外观",
+        json_schema_extra={"icon": "Brush"},
     )
 
 
@@ -427,13 +427,13 @@ class UpdateConfig(ConfigModel):
 
 
 class Config(ConfigModel):
-    Login: LoginConfig = Field(default_factory=lambda: LoginConfig(), title="登录选项")
-    Warning: WarningConfig = Field(default_factory=lambda: WarningConfig(), title="警告弹窗")
-    Banner: BannerConfig = Field(default_factory=lambda: BannerConfig(), title="警示横幅")
-    App: AppConfig = Field(default_factory=lambda: AppConfig(), title="应用设置")
+    Login: LoginConfig = Field(default_factory=LoginConfig, title="登录选项")
+    Warning: WarningConfig = Field(default_factory=WarningConfig, title="警告弹窗")
+    Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
+    App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
 
-    Update: UpdateConfig = Field(default_factory=lambda: UpdateConfig(), title="更新设置")
-    ClassIsland: ClassIslandConfig = Field(default_factory=lambda: ClassIslandConfig(), title="ClassIsland 设置")
+    Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
+    ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
 
     @classmethod
     def load(cls, file: str | Path) -> Config:
@@ -546,8 +546,8 @@ def iter_config_items(
     prefix: str = "",
     group: str | None = None,
     root: ConfigModel | None = None,
-    only: list[str] = [],
-    exclude: list[str] = [],
+    only: list[str] | None = None,
+    exclude: list[str] | None = None,
 ) -> list[ConfigItem | ConfigGroup]:
     """
     从任意 ConfigModel 实例递归地枚举出所有字段，并保留层级结构。
@@ -568,9 +568,8 @@ def iter_config_items(
         if (only and not any(o in path for o in only)) or (exclude and any(e in path for e in exclude)):
             continue
 
-        if extra := field_info.json_schema_extra:
-            if extra.get("hidden", False):  # type: ignore
-                continue
+        if (extra := field_info.json_schema_extra) and extra.get("hidden", False):  # type: ignore
+            continue
 
         if isinstance(value, ConfigModel):
             # 递归获取子节点

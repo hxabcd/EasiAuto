@@ -809,8 +809,8 @@ class AutomationManageSubpage(QWidget):
 
         logger.info(f"开始运行自动化: {automation.item_display_name}")
 
-        from automator import CVAutomator, FixedAutomator, UIAAutomator
-        from components import WarningBanner
+        from EasiAuto.automator import CVAutomator, FixedAutomator, UIAAutomator
+        from EasiAuto.components import WarningBanner
 
         # 最小化设置界面
         main_window = app.activeWindow()
@@ -1152,10 +1152,7 @@ class AutomationPage(QWidget):
 
         # 初始化 ClassIsland 管理器
         try:
-            if config.ClassIsland.AutoPath:
-                exe_path = utils.get_ci_executable()
-            else:
-                exe_path = Path(config.ClassIsland.Path)
+            exe_path = utils.get_ci_executable() if config.ClassIsland.AutoPath else Path(config.ClassIsland.Path)
         except Exception as e:
             logger.warning(f"获取 ClassIsland 路径失败: {e}")
             exe_path = None
@@ -1401,12 +1398,12 @@ class UpdateContentView(QWidget):
             self.highlights_title.setVisible(False)
             self.others_title.setVisible(False)
 
-    def addSubInterface(self, widget: QWidget, objectName: str, text: str):
-        widget.setObjectName(objectName)
+    def addSubInterface(self, widget: QWidget, object_name: str, text: str):
+        widget.setObjectName(object_name)
 
         self.stacked_widget.addWidget(widget)
         self.pivot.addItem(
-            routeKey=objectName,
+            routeKey=object_name,
             text=text,
             onClick=lambda: self.stacked_widget.setCurrentWidget(widget),
         )

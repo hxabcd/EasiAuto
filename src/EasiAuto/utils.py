@@ -239,7 +239,7 @@ def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None
     error_details = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     if error_details in ignore_errors:
         return
-    global last_error_time, error_dialog
+    global last_error_time
     current_time = dt.datetime.now()
     if current_time - last_error_time > error_cooldown:
         last_error_time = current_time
@@ -308,7 +308,7 @@ def check_singleton() -> bool:
     global _singleton_mutex
     mutex_name = "EasiAuto_Singleton_Mutex"
     try:
-        _singleton_mutex = win32event.CreateMutex(None, False, mutex_name)
+        _singleton_mutex = win32event.CreateMutex(None, False, mutex_name)  # type: ignore
         if win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS:
             return True
     except Exception as e:
