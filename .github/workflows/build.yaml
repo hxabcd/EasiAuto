@@ -1,0 +1,78 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.build_type }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [full, lite]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Build and Zip
+        run: uv run python scripts/build.py --type ${{ matrix.build_type }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact-${{ matrix.build_type }}
+          path: build/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-artifact-*
+          path: release-dist
+          merge-multiple: true
+
+      # 核心步骤：根据 Tag 名字判断是否设为 Prerelease
+      - name: Check Version Type
+        id: check_version
+        shell: bash
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # 使用正则匹配包含 a, b, rc 或 alpha, beta 的版本号
+          if [[ "$TAG_NAME" =~ [0-9]+(\.[0-9]+)*([ab]|rc|alpha|beta)[0-9]* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            echo "🚀 Detected Pre-release version"
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+            echo "✨ Detected Stable version"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-dist/*.zip
+          generate_release_notes: true
+          # 动态设置：如果是 a/b 版本，这里会自动变为 true
+          prerelease: ${{ steps.check_version.outputs.IS_PRERELEASE == 'true' }}
+          draft: false
