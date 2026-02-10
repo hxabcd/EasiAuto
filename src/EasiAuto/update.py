@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
 from EasiAuto.config import UpdateChannal, config
-from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, MANIFEST_URL
+from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URL
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
@@ -295,7 +295,7 @@ class UpdateChecker(QObject):
     def apply_script(self, zip_path: Path, reopen: bool = True) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
 
-        if sys.argv[0].endswith(".py"):
+        if IS_DEV:
             logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")
             return
 

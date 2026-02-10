@@ -40,7 +40,7 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.config import config
-from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, SENTRY_DSN
+from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, SENTRY_DSN
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
@@ -291,6 +291,7 @@ def init_exception_handler():
             integrations=[LoguruIntegration(event_level=None)],
             before_send=before_send,
             release=f"EasiAuto@{__version__}",
+            environment="development" if IS_DEV else "production",
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
         )
