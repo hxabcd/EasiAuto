@@ -87,24 +87,19 @@ class CiManager(QObject):
     @property
     def is_ci_running(self) -> bool:
         """检查 ClassIsland 是否正在运行"""
-        # 优先使用 Mutex 检查
-        try:
-            handle = win32event.OpenMutex(win32con.SYNCHRONIZE, False, "Global\\ClassIsland.Lock")
-            if handle:
-                win32api.CloseHandle(handle)
-                return True
-        except pywintypes.error as e:
-            # ERROR_ACCESS_DENIED (5) 也表示 Mutex 存在但权限不足
-            if e.winerror == 5:
-                return True
-        # except Exception:
-        #     # 回退到全量进程遍历
-        #     for p in psutil.process_iter(["name"]):
-        #         try:
-        #             if p.info["name"] in ["ClassIsland.exe", "ClassIsland.Desktop.exe"]:
-        #                 return True
-        #         except (psutil.NoSuchProcess, psutil.AccessDenied):
-        #             pass
+        # 使用 Mutex 检查
+        # Global\ClassIsland.Lock (2.x)
+        # ClassIsland.Lock (1.x)
+        for mutex_name in ("Global\\ClassIsland.Lock", "ClassIsland.Lock"):
+            try:
+                handle = win32event.OpenMutex(win32con.SYNCHRONIZE, False, mutex_name)
+                if handle:
+                    win32api.CloseHandle(handle)
+                    return True
+            except pywintypes.error as e:
+                # ERROR_ACCESS_DENIED (5) 也表示 Mutex 存在但权限不足
+                if e.winerror == 5:
+                    return True
         return False
 
     def open_ci(self):
