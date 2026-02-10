@@ -212,6 +212,12 @@ class LoginConfig(ConfigModel):
         json_schema_extra={"icon": "FitPage"},
     )
 
+    EasiNote: EasiNoteConfig = Field(
+        default_factory=EasiNoteConfig,
+        title="希沃白板选项",
+        description="配置希沃白板的路径、进程名、窗口标题和启动参数",
+        json_schema_extra={"icon": "Application"},
+    )
     Timeout: TimeoutConfig = Field(
         default_factory=TimeoutConfig,
         title="等待时长",
