@@ -53,13 +53,11 @@ jobs:
           path: release-dist
           merge-multiple: true
 
-      # 核心步骤：根据 Tag 名字判断是否设为 Prerelease
       - name: Check Version Type
         id: check_version
         shell: bash
         run: |
           TAG_NAME=${GITHUB_REF#refs/tags/}
-          # 使用正则匹配包含 a, b, rc 或 alpha, beta 的版本号
           if [[ "$TAG_NAME" =~ [0-9]+(\.[0-9]+)*([ab]|rc|alpha|beta)[0-9]* ]]; then
             echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
             echo "🚀 Detected Pre-release version"
@@ -73,6 +71,5 @@ jobs:
         with:
           files: release-dist/*.zip
           generate_release_notes: true
-          # 动态设置：如果是 a/b 版本，这里会自动变为 true
           prerelease: ${{ steps.check_version.outputs.IS_PRERELEASE == 'true' }}
           draft: false
