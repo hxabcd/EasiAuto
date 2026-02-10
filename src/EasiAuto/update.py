@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import subprocess
-import sys
 import tempfile
 import zipfile
 from collections.abc import Callable

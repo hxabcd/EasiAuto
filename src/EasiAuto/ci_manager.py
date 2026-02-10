@@ -90,7 +90,10 @@ class CiManager(QObject):
         # 使用 Mutex 检查
         # Global\ClassIsland.Lock (2.x)
         # ClassIsland.Lock (1.x)
-        for mutex_name in ("Global\\ClassIsland.Lock", "ClassIsland.Lock"):
+        # See also: https://github.com/ClassIsland/ClassIsland/commit/79bbdadace0c056b6c1bb2c5e57ecda5ccfbdecd
+        target = "Global\\ClassIsland.Lock" if self.is_v2 else "ClassIsland.Lock"
+        backup = "ClassIsland.Lock" if self.is_v2 else "Global\\ClassIsland.Lock"
+        for mutex_name in (target, backup):
             try:
                 handle = win32event.OpenMutex(win32con.SYNCHRONIZE, False, mutex_name)
                 if handle:
