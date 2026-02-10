@@ -1,36 +1,45 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build with nuitka",
+            "label": "Build: Full (Standard)",
             "type": "shell",
-            "command": ".venv/Scripts/nuitka.cmd",
-            "problemMatcher": [],
+            "command": "uv",
             "args": [
-                "--standalone",
-                "--python-flag=\"-S\"",
-                "--include-module=\"comtypes.stream\"",
-                "--include-package=\"sentry_sdk.integrations\"",
-                "--follow-imports",
-                // "--nofollow-import-to=\"cv2\"",
-                "--output-dir=\"build\"",
-                "--windows-console-mode=\"disable\"",
-                "--windows-icon-from-ico=\"resources/EasiAuto.ico\"",
-                "--company-name=\"HxAbCd\"",
-                "--product-name=\"EasiAuto\"",
-                "--product-version=\"1.1.0\"",
-                "--enable-plugins=\"pyside6\"",
-                "--main=\"main.py\"",
-                "--include-data-dir=resources=resources",
-                "--output-filename=\"EasiAuto.exe\"",
-                "--msvc=\"latest\"",
+                "run",
+                "python",
+                "tools/build.py",
+                "--type",
+                "full"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build: Lite (No CV)",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "tools/build.py",
+                "--type",
+                "lite"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build: Release All (Full & Lite)",
+            "dependsOn": [
+                "Build: Full (Standard)",
+                "Build: Lite (No CV)"
             ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
+            "dependsOrder": "sequence"
         }
     ]
 }
