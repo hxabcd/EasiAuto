@@ -197,23 +197,38 @@ class ConfigPage(QWidget):
                     if fixed_index != -1:
                         card.widget.setItemEnabled(fixed_index, False)
                 case "Login.SkipOnce":
-                    button = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
-                    button.clicked.connect(
+                    button_card = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
+                    button_card.clicked.connect(
                         lambda: utils.create_shortcut(
                             args="skip",
                             name="跳过下次自动登录",
                             show_result_to=MainWindow.container,
                         )
                     )
-                    card.hBoxLayout.insertWidget(5, button)
+                    card.hBoxLayout.insertWidget(5, button_card)
                     card.hBoxLayout.insertSpacing(6, 12)
+                case "Login.EasiNote":
+                    self.add_resetter(card, "Login.EasiNote", "希沃白板选项")  # type: ignore
+                case (
+                    "Login.EasiNote.Path"
+                    | "Login.EasiNote.ProcessName"
+                    | "Login.EasiNote.WindowTitle"
+                    | "Login.EasiNote.Args"
+                ):
+                    card.widget.setFixedWidth(400)
+                case "Login.Timeout":
+                    self.add_resetter(card, "Login.Timeout", "超时时长")  # type: ignore
                 case n if n.startswith("Login.Timeout."):
                     card.widget.setMinimumWidth(160)
-                case "Login.EasiNote.Path" | "Login.EasiNote.ProcessName" | "Login.EasiNote.WindowTitle":
-                    card.widget.setFixedWidth(400)
-                case "Login.EasiNote.Args":
-                    card.widget.setFixedWidth(400)
-                    card.widget.setClearButtonEnabled(True)
+                case "Login.Position":
+                    recoard_card = PushSettingCard(
+                        icon=FluentIcon.CAMERA, title="录制模式", content="进入录制模式获取坐标", text="录制"
+                    )
+                    recoard_card.button.setEnabled(False)
+                    # button.clicked.connect() # TODO: 录制模式
+                    self.add_resetter(card, "Login.Position", "位置坐标")  # type: ignore
+                case "Banner.Style":
+                    self.add_resetter(card, "Banner.Style", "横幅样式")  # type: ignore
                 case "Banner.Style.Text":
                     card.widget.setFixedWidth(420)
                 case "Banner.Style.TextFont":
@@ -239,6 +254,31 @@ class ConfigPage(QWidget):
 
         # 值变化事件
         SettingCard.index["App.Theme"].valueChanged.connect(lambda t: setTheme(Theme(t.value)))
+
+    def add_resetter(self, parent: ExpandGroupSettingCard, path: str, display_name: str = "设置"):
+        reset_card = PushSettingCard(
+            icon=FluentIcon.CANCEL,
+            title=f"重置{display_name}",
+            content=f"将所有{display_name}重置为默认值",
+            text="重置",
+        )
+        reset_card.clicked.connect(lambda: self.reset_settings_by_path(path, display_name))
+        parent.addGroupWidget(reset_card)
+
+    def reset_settings_by_path(self, path: str, display_name: str = "设置"):
+        config.reset_by_path(path)
+        SettingCard.update_all()
+
+        # 弹出提示
+        InfoBar.success(
+            title="成功",
+            content=f"{display_name}已重置",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=MainWindow.container,
+        )
 
     def reset_config(self):
         """重置配置为默认值"""
