@@ -61,34 +61,34 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
 
     # Lite 版特殊处理：排除 OpenCV
     if build_type == "lite":
-        print("📦 正在构建 LITE 版...")
+        print("正在构建 LITE 版...")
         cmd.append("--nofollow-import-to=cv2")
     else:
-        print("📦 正在构建 FULL 版...")
+        print("正在构建 FULL 版...")
 
     cmd.append(MAIN_SCRIPT)
 
-    print(f"🛠️ 执行命令: {' '.join(cmd)}")
+    print(f"执行命令: {' '.join(cmd)}")
 
     try:
         subprocess.run(cmd, check=True)
-        print(f"✨ {build_type.upper()} 构建成功！导出路径: {target_dir}")
+        print(f"{build_type.upper()} 构建成功！导出路径: {target_dir}")
     except subprocess.CalledProcessError as e:
-        print(f"❌ 构建失败: {e}")
+        print(f"构建失败: {e}")
         sys.exit(1)
 
     # 删除冗余文件
     if build_type == "lite":
         for item in target_dir.glob("*.dll"):
             if item.name.startswith("opencv_videoio_ffmpeg") or item.name.startswith("qt6pdf"):
-                print(f"🧹 删除冗余文件: {item}")
+                print(f"删除冗余文件: {item}")
                 item.unlink()
 
     # 压缩打包结果
     zip_name = f"{APP_NAME}_v{base_version}" + "_lite" if build_type == "lite" else ""
     zip_path = OUTPUT_DIR / zip_name
 
-    print(f"📦 正在创建压缩包: {zip_path}.zip ...")
+    print(f"正在创建压缩包: {zip_path}.zip ...")
 
     # Nuitka 的输出在 target_dir/main.dist (Standalone 默认后缀)
     dist_path = target_dir / "main.dist"
@@ -97,7 +97,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
     src_dir = dist_path if dist_path.exists() else target_dir
 
     shutil.make_archive(str(zip_path), "zip", src_dir)
-    print(f"✅ 压缩完成: {zip_path}.zip")
+    print(f"压缩完成: {zip_path}.zip")
 
 
 if __name__ == "__main__":
