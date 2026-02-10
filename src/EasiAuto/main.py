@@ -107,14 +107,14 @@ def cmd_login(args):
     # 执行登录
     logger.debug(f"当前设置的登录方案: {config.Login.Method}")
     match config.Login.Method:  # 选择登录方案
-        case LoginMethod.UI_AUTOMATION:
+        case LoginMethod.UIA:
             automator_type = UIAAutomator
         case LoginMethod.OPENCV:
             automator_type = CVAutomator
-        case LoginMethod.FIXED_POSITION:
+        case LoginMethod.FIXED:
             automator_type = FixedAutomator
 
-    automator = automator_type(args.account, args.password, config.Login, config.App.MaxRetries)
+    automator = automator_type(args.account, args.password)
 
     automator.start()
     automator.finished.connect(login_finished)

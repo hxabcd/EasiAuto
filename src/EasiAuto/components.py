@@ -242,6 +242,7 @@ class CardType(Enum):
     SPIN = auto()
     DOUBLE_SPIN = auto()
     EDIT = auto()
+    POSITION = auto()
     COLOR = auto()
     RANGE = auto()
     ENUM = auto()
@@ -330,6 +331,8 @@ class SettingCard(QFrame):
             height -= 24
         elif self.is_item:
             height -= 10
+        if content and content.count("\n") >= 1:
+            height += 15 * content.count("\n") - 10
         self.setFixedHeight(height)
 
         # 布局
@@ -423,6 +426,34 @@ class SettingCard(QFrame):
                     else:
                         self._widget.setPlaceholderText(self.config_item.field_info.default)
                 self._widget.textChanged.connect(self._on_value_changed)
+
+            case CardType.POSITION:
+                # 由两个 SpinBox 组成的复合控件
+                self._widget = QWidget(self)
+                _layout = QHBoxLayout(self._widget)
+                _layout.setContentsMargins(0, 0, 0, 0)
+                _layout.setSpacing(6)
+                self.xSpinBox = SpinBox(self._widget)
+                self.ySpinBox = SpinBox(self._widget)
+                self.xSpinBox.setRange(0, 7680)
+                self.ySpinBox.setRange(0, 4320)
+                self.xSpinBox.setPrefix("X: ")
+                self.ySpinBox.setPrefix("Y: ")
+                if self.config_item:
+                    x, y = self.config_item.value
+                    self.xSpinBox.setValue(x)
+                    self.ySpinBox.setValue(y)
+                self.xSpinBox.valueChanged.connect(lambda v: self._on_value_changed((v, self.ySpinBox.value())))
+                self.ySpinBox.valueChanged.connect(lambda v: self._on_value_changed((self.xSpinBox.value(), v)))
+                _layout.addWidget(self.xSpinBox)
+                _layout.addWidget(self.ySpinBox)
+
+                self.xSpinBox.valueChanged.connect(
+                    lambda: self._on_value_changed((self.xSpinBox.value(), self.ySpinBox.value()))
+                )
+                self.ySpinBox.valueChanged.connect(
+                    lambda: self._on_value_changed((self.xSpinBox.value(), self.ySpinBox.value()))
+                )
 
             case CardType.COLOR:
                 enable_alpha = False
@@ -521,6 +552,10 @@ class SettingCard(QFrame):
                 self._widget.setValue(value)
             case CardType.EDIT:
                 self._widget.setText(value)
+            case CardType.POSITION:
+                x, y = value
+                self.xSpinBox.setValue(x)
+                self.ySpinBox.setValue(y)
             case CardType.COLOR:
                 self._widget.setColor(value)
             case CardType.RANGE:
@@ -541,6 +576,8 @@ class SettingCard(QFrame):
                 return self._widget.value()
             case CardType.EDIT:
                 return self._widget.text()
+            case CardType.POSITION:
+                return (self.xSpinBox.value(), self.ySpinBox.value())
             case CardType.COLOR:
                 return self._widget.color
             case CardType.ENUM:
@@ -661,6 +698,8 @@ class SettingCard(QFrame):
                 card_type = CardType.SPIN
         elif field_type is str:
             card_type = CardType.EDIT
+        elif field_type == tuple[int, int]:
+            card_type = CardType.POSITION
         elif field_type in (QColor, qtp.QColor):
             card_type = CardType.COLOR
         elif issubclass(field_type, Enum):

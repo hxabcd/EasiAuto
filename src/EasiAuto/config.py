@@ -35,9 +35,9 @@ class LogLevelEnum(InformativeEnum):
 
 
 class LoginMethod(InformativeEnum):
-    UI_AUTOMATION = (0, "UIA 自动定位")
-    OPENCV = (1, "OpenCV 图像识别")
-    FIXED_POSITION = (2, "固定位置")
+    FIXED = (0, "固定位置（较稳定，最快）")
+    OPENCV = (1, "图像识别（不稳定，较快）")
+    UIA = (2, "自动定位（最稳定，较慢）")
 
 
 class ThemeOptions(InformativeEnum):
@@ -117,6 +117,8 @@ class ConfigModel(BaseModel):
 
 
 class EasiNoteConfig(ConfigModel):
+    """希沃白板相关配置"""
+
     AutoPath: bool = Field(default=True, title="自动检测路径", description="启用后，将忽略自定义路径")
     Path: str = Field(
         default=r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe",
@@ -134,6 +136,8 @@ class EasiNoteConfig(ConfigModel):
 
 
 class TimeoutConfig(ConfigModel):
+    """BaseAutomator 使用的等待时长配置"""
+
     # 通用
     Terminate: float = Field(
         default=1,
@@ -176,15 +180,62 @@ class TimeoutConfig(ConfigModel):
         ge=0,
         le=5,
         title="切换标签等待时间",
-        description="切换到“账号登录”标签页的等待时间",
+        description="切换到账号登录标签页的等待时间",
+    )
+
+
+class PositionConfig(ConfigModel):
+    """FixedAutomator 使用的位置坐标"""
+
+    EnableScaling: bool = Field(
+        default=True,
+        title="启用智能缩放",
+        description="根据系统分辨率和缩放自动调整坐标。若启用，设置的坐标必须基于 1920x1080 100% 缩放",
+    )
+    EnterLogin: tuple[int, int] = Field(
+        default=(172, 1044),
+        title="进入登录界面按钮",
+    )
+    AccountLoginTab: tuple[int, int] = Field(
+        default=(1090, 350),
+        title="切换到“账号登录”标签页的按钮",
+    )
+    AccountInput: tuple[int, int] = Field(
+        default=(1000, 420),
+        title="账号输入框",
+    )
+    PasswordInput: tuple[int, int] = Field(
+        default=(1000, 490),
+        title="密码输入框",
+    )
+    AgreementCheckbox: tuple[int, int] = Field(
+        default=(935, 724),
+        title="同意协议复选框",
+    )
+    LoginButton: tuple[int, int] = Field(
+        default=(1090, 560),
+        title="登录按钮",
+    )
+    BaseSize: tuple[int, int] = Field(
+        default=(1920, 1080),
+        title="基准分辨率",
+        json_schema_extra={"hidden": True},
+    )
+    LoginWindowSize: tuple[int, int] = Field(
+        default=(808, 582),
+        title="登录界面窗口大小",
+        json_schema_extra={"hidden": True},
     )
 
 
 class LoginConfig(ConfigModel):
     Method: LoginMethod = Field(
-        default=LoginMethod.UI_AUTOMATION,
+        default=LoginMethod.FIXED,
         title="登录方式",
-        description="选择用于进行自动登录的方式（OpenCV仅支持常规分辨率与缩放）\nUIA 最稳定 / OpenCV 较快 / 固定位置暂不可用",
+        description="""选择用于进行自动登录的方式
+ - 固定位置大部分情况下开箱即用，仅在特殊情况需手动设置坐标
+ - 自动定位 (UI Automation) 在部分机器上可能极慢
+ - 图像识别仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率""",
         json_schema_extra={"icon": "Application"},
     )
     SkipOnce: bool = Field(
@@ -207,9 +258,15 @@ class LoginConfig(ConfigModel):
     )
     Is4K: bool = Field(
         default=False,
-        title="OpenCV 4K 适配",
-        description="在 OpenCV 图像识别 登录方式下，启用对 3840x2160 200% 缩放的支持",
+        title="图像识别 4K 适配",
+        description="在图像识别登录方式下，启用对 3840x2160 200% 缩放的支持",
         json_schema_extra={"icon": "FitPage"},
+    )
+    ForceEnableScaling: bool = Field(
+        default=False,
+        title="强制启用兼容模式输入",
+        description="强制使用复制粘贴进行输入，对自动定位不起作用。不要调整此选项，除非你知道自己在做什么",
+        json_schema_extra={"icon": "Asterisk"},
     )
 
     EasiNote: EasiNoteConfig = Field(
@@ -224,11 +281,11 @@ class LoginConfig(ConfigModel):
         description="配置自动登录过程中的等待时长（秒）",
         json_schema_extra={"icon": "StopWatch"},
     )
-    EasiNote: EasiNoteConfig = Field(
-        default_factory=EasiNoteConfig,
-        title="希沃白板",
-        description="配置希沃白板的路径、进程名、窗口标题和启动参数",
-        json_schema_extra={"icon": "Application"},
+    Position: PositionConfig = Field(
+        default_factory=PositionConfig,
+        title="位置坐标",
+        description="配置固定位置登录方式下的各个按钮和输入框的位置坐标\n默认值已配置为 1920x1080 100% 缩放下的坐标",
+        json_schema_extra={"icon": "Move"},
     )
 
 
