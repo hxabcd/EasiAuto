@@ -1801,6 +1801,8 @@ class AboutPage(SmoothScrollArea):
                         "pywinauto",
                         "pyautogui",
                         "loguru",
+                        "sentry-sdk",
+                        "windows11toast",
                     ]
                 )
             )
@@ -1841,7 +1843,7 @@ class AboutPage(SmoothScrollArea):
         sub_layout = QVBoxLayout()
         sub_layout.setSpacing(0)
         author_name = SubtitleLabel("HxAbCd")
-        author_content = CaptionLabel("Just be yourself.")
+        author_content = CaptionLabel("Just be yourself.  >_<")
         author_content.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
         sub_layout.addWidget(author_name)
         sub_layout.addWidget(author_content)
