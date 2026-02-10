@@ -105,7 +105,7 @@ wheels = [
 ]
 
 [[package]]
-name = "EasiAuto"
+name = "easiauto"
 version = "1.1.0"
 source = { editable = "." }
 dependencies = [
@@ -141,7 +141,7 @@ requires-dist = [
     { name = "pyautogui", specifier = ">=0.9.54" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyside6", specifier = "==6.9.3" },
-    { name = "pyside6-fluent-widgets", specifier = ">=1.9.2" },
+    { name = "pyside6-fluent-widgets", specifier = ">=1.11.1" },
     { name = "pywin32", specifier = ">=311" },
     { name = "pywinauto", specifier = ">=0.6.9" },
     { name = "qt-pydantic", specifier = ">=0.1.1" },
@@ -3258,30 +3258,30 @@ wheels = [
 
 [[package]]
 name = "pyside6-fluent-widgets"
-version = "1.10.5"
+version = "1.11.1"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "darkdetect" },
     { name = "pyside6" },
     { name = "pysidesix-frameless-window" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/43/9f/a82dfb44dad71619a39f2e9923ac8c1511d9b9fc0a2c37f3050e35cefa8c/pyside6_fluent_widgets-1.10.5.tar.gz", hash = "sha256:b46a560daf74a1d96f9ac208a08546d3a0e68ea02d8e5fca9a70cc620326b6fa", size = 1453771, upload-time = "2025-12-21T08:06:49.098Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9e/5f/da3f4f4b89cde08fa8f945d96b5f8b16203bcdab41b583538e24c30804ed/pyside6_fluent_widgets-1.11.1.tar.gz", hash = "sha256:8da3b1bb1a888e760c33d1b964653f8308ba512da8243d4abbe6e93623eac269", size = 1456786, upload-time = "2026-02-07T08:41:29.075Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/16/cd/7b58089e5674e03c78c37632ddf807ae8b533a8763e01f649acb139312e9/pyside6_fluent_widgets-1.10.5-py3-none-any.whl", hash = "sha256:9187fec4a5280d60dba050bf0a1905b7981f1251f9e4976c1fd98b85d0bd9acf", size = 1547094, upload-time = "2025-12-21T08:06:45.807Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/b0/94/528a7e7d2fbb6c464a4f31d16c234e6799ca5d95400a0ef7a1a9548362fa/pyside6_fluent_widgets-1.11.1-py3-none-any.whl", hash = "sha256:72655744b41cea212a6ea32d1457e9acfc17d50d41d3780dc67ad4fa36ba7ac4", size = 1550257, upload-time = "2026-02-07T08:41:26.425Z" },
 ]
 
 [[package]]
 name = "pysidesix-frameless-window"
-version = "0.7.4"
+version = "0.8.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "pycocoa", marker = "sys_platform == 'darwin'" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pywin32", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/be/f2/dde32565af5ae10841f4288a22f71debb6bf529b6b8149f629042f31e557/pysidesix_frameless_window-0.7.4.tar.gz", hash = "sha256:1b14ee5bf5438d6f5823e9a108a9d3c04c096f7db733b75f7e91e009684b0be0", size = 22771, upload-time = "2025-10-10T13:17:32.024Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/da/96/cf1ce5673b6239d79251a458d9acd8a789f7f1be496f0b8880dd66cc41cf/pysidesix_frameless_window-0.8.0.tar.gz", hash = "sha256:e200e4b68edb1b2e03aa00d76d0e8b8d1daf6f289a5b91fba974578b6700ad94", size = 23286, upload-time = "2026-02-07T07:44:37.677Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/3d/1e/5bfb71bb258d7fe5b6a89197ae1d8b318ea6895ba5e5b2cdabed0956b07d/pysidesix_frameless_window-0.7.4-py3-none-any.whl", hash = "sha256:26eca5f28e1e08ff8e619de6b8a8c19aa85fe3c07efc2bf05693015430c7ea68", size = 30595, upload-time = "2025-10-10T13:17:30.885Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/51/ea/a7c4890cbc441a6fb543579e092eaaaed72843419cfd80ce8664508e940f/pysidesix_frameless_window-0.8.0-py3-none-any.whl", hash = "sha256:7bf011cf3e3c6edaa23b3578daaaa6e0e361a3fbf9a5317e0e037aaf4c8fe107", size = 31186, upload-time = "2026-02-07T07:44:36.731Z" },
 ]
 
 [[package]]
