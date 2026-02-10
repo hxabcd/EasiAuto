@@ -191,11 +191,8 @@ class ConfigPage(QWidget):
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
-                    card.widget.setMinimumWidth(180)
-                    # 暂时禁用固定位置
-                    fixed_index = card.widget.findData(LoginMethod.FIXED_POSITION)
-                    if fixed_index != -1:
-                        card.widget.setItemEnabled(fixed_index, False)
+                    card.widget.setMinimumWidth(200)
+                    # card.setFixedHeight(card.height() + 32)
                 case "Login.SkipOnce":
                     button_card = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button_card.clicked.connect(
@@ -222,10 +219,10 @@ class ConfigPage(QWidget):
                     card.widget.setMinimumWidth(160)
                 case "Login.Position":
                     recoard_card = PushSettingCard(
-                        icon=FluentIcon.CAMERA, title="录制模式", content="进入录制模式获取坐标", text="录制"
+                        icon=FluentIcon.CAMERA, title="录制模式", content="进入录制模式获取坐标", text="不可用"
                     )
-                    recoard_card.button.setEnabled(False)
-                    # button.clicked.connect() # TODO: 录制模式
+                    recoard_card.setEnabled(False)  # TODO: 录制模式
+                    card.addGroupWidget(recoard_card)
                     self.add_resetter(card, "Login.Position", "位置坐标")  # type: ignore
                 case "Banner.Style":
                     self.add_resetter(card, "Banner.Style", "横幅样式")  # type: ignore
@@ -872,14 +869,14 @@ class AutomationManageSubpage(QWidget):
         # 执行登录
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         match config.Login.Method:  # 选择登录方案
-            case LoginMethod.UI_AUTOMATION:
+            case LoginMethod.UIA:
                 automator_type = UIAAutomator
             case LoginMethod.OPENCV:
                 automator_type = CVAutomator
-            case LoginMethod.FIXED_POSITION:
+            case LoginMethod.FIXED:
                 automator_type = FixedAutomator
 
-        self.automator = automator_type(automation.account, automation.password, config.Login, config.App.MaxRetries)
+        self.automator = automator_type(automation.account, automation.password)
 
         self.automator.start()
         self.automator.finished.connect(self._clean_up_after_run)
