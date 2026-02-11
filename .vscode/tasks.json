@@ -8,7 +8,7 @@
             "args": [
                 "run",
                 "python",
-                "tools/build.py",
+                "scripts/build.py",
                 "--type",
                 "full"
             ],
@@ -22,7 +22,7 @@
             "args": [
                 "run",
                 "python",
-                "tools/build.py",
+                "scripts/build.py",
                 "--type",
                 "lite"
             ],
