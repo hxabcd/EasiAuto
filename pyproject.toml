@@ -112,7 +112,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "utils.py" = ["PLW0603"]
-"build.py" = ["T201"]
+"scripts/*.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["EasiAuto"]

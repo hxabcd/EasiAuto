@@ -14,9 +14,11 @@ wheels/
 *.dist/
 *.onefile-build/
 
-# etc
+# Development environments
+.env
+opencv_minimal_build
+
+# EasiAuto-generated files
 logs
 cache
 config.json
-experiment
-opencv_minimal_build

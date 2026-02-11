@@ -1543,9 +1543,7 @@ class UpdatePage(QWidget):
         layout.addWidget(self.content_widget)
 
     @property
-    def action(
-        self,
-    ) -> UpdateStatus:
+    def action(self) -> UpdateStatus:
         return self._action
 
     @action.setter
