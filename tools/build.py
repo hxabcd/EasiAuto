@@ -35,6 +35,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         # --- 基本参数 ---
         "--standalone",
         "--python-flag=-S",
+        "--accept-downloads",
         # --- 导入控制 ---
         "--follow-imports",
         "--include-module=comtypes.stream",
