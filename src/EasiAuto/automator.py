@@ -10,6 +10,7 @@ from loguru import logger
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import QApplication
 
+from EasiAuto import USE_CV
 from EasiAuto.config import config
 from EasiAuto.utils import get_resource, switch_window
 
@@ -183,13 +184,8 @@ class CVAutomator(BaseAutomator):
     def login(self):
         import pyautogui
 
-        try:
+        if USE_CV:
             import cv2  # noqa: F401
-
-            use_opencv = True
-        except ImportError:
-            logger.warning("无法导入 OpenCV，回退到基本识别")
-            use_opencv = False
 
         logger.info("尝试自动登录")
         self.task_update.emit("自动登录")
@@ -222,7 +218,7 @@ class CVAutomator(BaseAutomator):
         self.progress_update.emit("切换至账号登录页")
 
         try:
-            if use_opencv:
+            if USE_CV:
                 button_button = pyautogui.locateCenterOnScreen(button_img, confidence=0.8)
             else:
                 button_button = pyautogui.locateCenterOnScreen(button_img)
@@ -233,7 +229,7 @@ class CVAutomator(BaseAutomator):
         except (pyautogui.ImageNotFoundException, AssertionError):
             logger.warning("未能识别到账号登录按钮，尝试识别已选中样式")
             try:
-                if use_opencv:
+                if USE_CV:
                     button_button = pyautogui.locateCenterOnScreen(button_img_selected, confidence=0.8)
                 else:
                     button_button = pyautogui.locateCenterOnScreen(button_img_selected)
@@ -263,7 +259,7 @@ class CVAutomator(BaseAutomator):
         self.progress_update.emit("勾选同意用户协议")
 
         try:
-            if use_opencv:
+            if USE_CV:
                 agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img, confidence=0.8)
             else:
                 agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img)
