@@ -5,7 +5,6 @@ import signal
 import sys
 import traceback
 import winsound
-from importlib import resources
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -355,8 +354,7 @@ def check_singleton() -> bool:
 
 def get_resource(filename: str):
     """获取资源路径"""
-    traversable = resources.files("EasiAuto.resources").joinpath(filename)
-    return str(traversable)
+    return str(EA_EXECUTABLE.parent / "resources" / filename)
 
 
 def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):

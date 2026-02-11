@@ -9,6 +9,7 @@ from typing import Literal
 APP_NAME = "EasiAuto"
 COMPANY_NAME = "HxAbCd"
 MAIN = "src/EasiAuto/main.py"
+RESOURCE_DIR = "src/EasiAuto/resources"
 ICO_PATH = "src/EasiAuto/resources/EasiAuto.ico"
 OUTPUT_DIR = Path("build")
 
@@ -34,7 +35,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         f"--main={MAIN}",
         "--mode=standalone",
         "--msvc=latest",
-        # "--include-data-dir=resources=resources",
+        f"--include-data-dir={RESOURCE_DIR}=resources",
         "--assume-yes-for-downloads",
         # ------ 导入控制 ------
         "--enable-plugins=pyside6",
