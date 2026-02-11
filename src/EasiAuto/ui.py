@@ -1348,6 +1348,7 @@ class UpdateContentView(QWidget):
         scroll_layout = QVBoxLayout(container)
 
         self.description_label = BodyLabel()
+        self.description_label.setWordWrap(True)
 
         self.highlights_title = SubtitleLabel("✨ 亮点")
         self.highlights_layout = FlowLayout()
