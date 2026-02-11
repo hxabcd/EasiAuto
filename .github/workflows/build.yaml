@@ -2,11 +2,39 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - "v*"
+    # 未完成，暂时禁用自动触发
+    # tags:
+    #   - "v*"
+    branches:
+      - main
+  # 允许手动触发 Release，并接收外部输入
   workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        description: '版本号'
+        required: true
+      release_desc:
+        type: string
+        description: '更新描述'
+        required: false
+        default: '通过CI构建进行的手动发版'
+      confirm-required:
+        type: boolean
+        description: "更新前是否需要确认"
+        required: false
+        default: false
+      highlights_json:
+        type: string
+        description: "亮点更新（json）"
+        required: false
+      others_json:
+        type: string
+        description: "其他更新（json）"
+        required: false
 
 jobs:
+  # --- 任务 1：构建 ---
   build:
     name: Build (${{ matrix.build_type }})
     runs-on: windows-latest
@@ -16,8 +44,7 @@ jobs:
         build_type: [full, lite]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -36,20 +63,25 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifact-${{ matrix.build_type }}
+          # 使用 Tag 名或触发 ID，确保 Release 任务能找到对应的构建产物
+          name: EasiAuto_${{ github.ref_name }}${{ matrix.build_type == 'lite' && '_lite' || '' }}
           path: build/*.zip
           if-no-files-found: error
 
+  # --- 任务 2：发版 ---
+  # 仅在手动触发 (workflow_dispatch) 时执行
   release:
     name: Create GitHub Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: build-artifact-*
+          pattern: EasiAuto_-${{ github.ref_name }}*
           path: release-dist
           merge-multiple: true
 
@@ -69,7 +101,22 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.RELEASE_PAT }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.event.inputs.version }}
+          body: ${{ github.event.inputs.release_desc }}
           files: release-dist/*.zip
-          generate_release_notes: true
-          prerelease: ${{ steps.check_version.outputs.IS_PRERELEASE == 'true' }}
           draft: false
+          prerelease: ${{ steps.check_version.outputs.IS_PRERELEASE == 'true' }}
+
+      - name: Update Manifest
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          uv run scripts/release.py \
+            --version "${{ github.event.inputs.version }}" \
+            --is-dev ${{ steps.check_version.outputs.IS_PRERELEASE }} \
+            --confirm-required ${{ github.event.inputs.confirm_required }}
+            --desc "${{ github.event.inputs.release_desc }}"
+            --highlights '${{ github.event.inputs.highlights_json }}' \
+            --others '${{ github.event.inputs.others_json }}' \
