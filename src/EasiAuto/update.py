@@ -18,7 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
 from EasiAuto.config import UpdateChannal, config
-from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URL
+from EasiAuto.consts import BACKUP_MANIFEST_URL, EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URL
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
@@ -295,7 +295,7 @@ class UpdateChecker(QObject):
         """执行更新脚本（通常此时应退出主程序）"""
 
         if IS_DEV:
-            logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")
+            logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
             return
 
         path = self._update_script_path or self.create_update_script(zip_path, reopen=reopen)
@@ -393,12 +393,21 @@ class UpdateChecker(QObject):
 
     def _fetch_manifest(self) -> dict[str, Any]:
         try:
-            resp = self.session.get(MANIFEST_URL, headers=HEADERS, timeout=15)
-        except requests.RequestException as e:
-            raise UpdateError(f"网络请求失败：{e!s}") from e
-
-        if resp.status_code != 200:
-            raise UpdateError(f"服务器返回错误：{resp.status_code}")
+            try:
+                resp = self.session.get(MANIFEST_URL, headers=HEADERS, timeout=15)
+            except requests.RequestException as e:
+                raise UpdateError(f"主 manifest URL 网络请求失败：{e!s}") from e
+            if resp.status_code != 200:
+                raise UpdateError(f"主 manifest 服务器返回错误：{resp.status_code}")
+        except UpdateError:
+            # 主 manifest URL 失败，尝试备用 URL
+            logger.warning("尝试使用备用 manifest URL")
+            try:
+                resp = self.session.get(BACKUP_MANIFEST_URL, headers=HEADERS, timeout=15)
+            except requests.RequestException as e:
+                raise UpdateError(f"备用 manifest URL 请求失败：{e!s}") from e
+            if resp.status_code != 200:
+                raise UpdateError(f"备用 manifest 服务器返回错误：{resp.status_code}")  # noqa: B904
 
         try:
             return resp.json()
