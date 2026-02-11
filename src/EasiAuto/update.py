@@ -291,7 +291,7 @@ class UpdateChecker(QObject):
         self._update_script_path = script
         return script
 
-    def apply_script(self, zip_path: Path, reopen: bool = True) -> None:
+    def apply_script(self, zip_path: Path, reopen: bool = False) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
 
         if IS_DEV:

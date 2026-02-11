@@ -1664,7 +1664,9 @@ class UpdatePage(QWidget):
             case UpdateStatus.INSTALL:
                 if not self._signal_connected:
                     app.aboutToQuit.connect(
-                        lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
+                        lambda: update_checker.apply_script(
+                            zip_path=EA_BASEDIR / "cache" / self._update_file, reopen=True
+                        ),
                     )
                 utils.stop()
 
