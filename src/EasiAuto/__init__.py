@@ -4,7 +4,15 @@ __version__ = "1.1.1"
 __author__ = "hxabcd"
 
 import sys
+from importlib.util import find_spec
 from pathlib import Path
+
+USE_CV = False
+try:
+    find_spec("cv2")
+except ModuleNotFoundError:
+    USE_CV = True
+
 
 if "__compiled__" not in globals():
     from loguru import logger

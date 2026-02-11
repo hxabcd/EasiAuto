@@ -64,7 +64,7 @@ typeCheckingMode = "standard"
 useLibraryCodeForTypes = true
 
 [[tool.pyright.executionEnvironments]]
-"extraPaths" = ["./resources"]
+"extraPaths" = ["./vendor", "./resources"]
 "pythonPlatform" = "Windows"
 "pythonVersion" = "3.13"
 "root" = "."
