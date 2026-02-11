@@ -5,13 +5,11 @@ import sys
 from pathlib import Path
 from typing import Literal
 
-# --- 配置区 ---
+# ------ 配置区 ------
 APP_NAME = "EasiAuto"
 COMPANY_NAME = "HxAbCd"
-MAIN_SCRIPT = "src/EasiAuto/main.py"
+MAIN = "src/EasiAuto/main.py"
 ICO_PATH = "src/EasiAuto/resources/EasiAuto.ico"
-PYPROJECT_PATH = Path("pyproject.toml")
-INIT_FILE_PATH = Path(f"src/{APP_NAME}/__init__.py")
 OUTPUT_DIR = Path("build")
 
 
@@ -32,42 +30,40 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         "python",
         "-m",
         "nuitka",
-        # --- 基本参数 ---
-        "--standalone",
-        "--python-flag=-S",
-        "--accept-downloads",
-        # --- 导入控制 ---
+        # ------ 基本参数 ------
+        f"--main={MAIN}",
+        "--mode=standalone",
+        "--msvc=latest",
+        # "--include-data-dir=resources=resources",
+        "--assume-yes-for-downloads",
+        # ------ 导入控制 ------
+        "--enable-plugins=pyside6",
         "--follow-imports",
         "--include-module=comtypes.stream",
         "--include-package=sentry_sdk.integrations",
         "--nofollow-import-to=PySide6.QtPdf",
+        "--nofollow-import-to=PySide6.QtNetwork",
         "--nofollow-import-to=PySide6.QtDataVisualization",
         "--nofollow-import-to=PySide6.QtOpenGL",
         "--nofollow-import-to=PySide6.QtOpenGLWidgets",
-        "--nofollow-import-to=PySide6.QtHttpServer",
-        # --- 输出及元数据 ---
+        # ------ 输出 ------
         f"--output-dir={target_dir}",
+        f"--output-filename={APP_NAME}.exe",
+        "--remove-output",
+        # ------ Windows 配置 ------
         "--windows-console-mode=disable",
         f"--windows-icon-from-ico={ICO_PATH}",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={APP_NAME}",
-        # 注意：Windows 资源版本号强制要求 X.X.X.X 格式，不能带字母
         f"--product-version={base_version}",
-        "--enable-plugins=pyside6",
-        # "--include-data-dir=resources=resources",
-        f"--output-filename={APP_NAME}.exe",
-        "--msvc=latest",
-        "--remove-output",
     ]
 
-    # Lite 版特殊处理：排除 OpenCV
     if build_type == "lite":
         print("Building LITE version...")
-        cmd.append("--nofollow-import-to=cv2")
+        cmd.append("--nofollow-import-to=numpy")
     else:
         print("Building FULL version...")
-
-    cmd.append(MAIN_SCRIPT)
+        cmd.append("--include-data-files=vendor/cv2.cp313-win_amd64.pyd=./cv2.pyd")
 
     print(f"Executing command: {' '.join(cmd)}")
 
@@ -81,12 +77,12 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
     # 删除冗余文件
     if build_type == "lite":
         for item in target_dir.glob("*.dll"):
-            if item.name.startswith("opencv_videoio_ffmpeg") or item.name.startswith("qt6pdf"):
+            if item.name.startswith("qt6pdf"):
                 print(f"Removing redundant file: {item}")
                 item.unlink()
 
     # 压缩打包结果
-    zip_name = f"{APP_NAME}_v{base_version}" + "_lite" if build_type == "lite" else ""
+    zip_name = f"{APP_NAME}_v{base_version}" + ("_lite" if build_type == "lite" else "")
     zip_path = OUTPUT_DIR / zip_name
 
     print(f"Creating archive: {zip_path}.zip ...")
