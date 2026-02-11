@@ -19,3 +19,4 @@ logs
 cache
 config.json
 experiment
+opencv_minimal_build
