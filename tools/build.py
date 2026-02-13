@@ -60,8 +60,6 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         f"--product-version={base_version}",
     ]
 
-    cmd = [i for sublist in cmd for i in sublist]  # 展开
-
     if build_type == "lite":
         print("Building LITE version...")
         cmd.append("--nofollow-import-to=numpy")
