@@ -58,7 +58,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Build and Zip
-        run: uv run python scripts/build.py --type ${{ matrix.build_type }}
+        run: uv run python tools/build.py --type ${{ matrix.build_type }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -113,7 +113,7 @@ jobs:
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          uv run scripts/release.py \
+          uv run tools/release.py \
             --version "${{ github.event.inputs.version }}" \
             --is-dev ${{ steps.check_version.outputs.IS_PRERELEASE }} \
             --confirm-required ${{ github.event.inputs.confirm_required }}

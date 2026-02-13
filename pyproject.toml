@@ -64,7 +64,7 @@ typeCheckingMode = "standard"
 useLibraryCodeForTypes = true
 
 [[tool.pyright.executionEnvironments]]
-"extraPaths" = ["./vendor", "./resources"]
+"extraPaths" = ["./vendors", "./resources"]
 "pythonPlatform" = "Windows"
 "pythonVersion" = "3.13"
 "root" = "."
@@ -109,11 +109,12 @@ ignore = [
     "W293",
     "W291",
     "E501",
+    "F401",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "utils.py" = ["PLW0603"]
-"scripts/*.py" = ["T201"]
+"tools/*.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["EasiAuto"]
