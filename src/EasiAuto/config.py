@@ -432,7 +432,7 @@ class AppConfig(ConfigModel):
 
 class ClassIslandConfig(ConfigModel):
     AutoPath: bool = Field(
-        default=False,
+        default=True,
         title="自动获取路径",
         description="自动获取 ClassIsland 的路径",
     )
