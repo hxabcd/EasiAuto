@@ -62,7 +62,7 @@ def cmd_login(args):
 
     logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
 
-    from EasiAuto.automator import CVAutomator, FixedAutomator, UIAAutomator
+    from EasiAuto.automator import CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
     from EasiAuto.components import DialogResponse, PreRunPopup, WarningBanner
 
     # 显示警告弹窗
@@ -116,6 +116,8 @@ def cmd_login(args):
             automator_type = CVAutomator
         case LoginMethod.FIXED:
             automator_type = FixedAutomator
+        case LoginMethod.INJECT:
+            automator_type = InjectAutomator
         case unreachable:
             assert_never(unreachable)
 

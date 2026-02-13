@@ -16,6 +16,8 @@ BACKUP_MANIFEST_URL = (
 
 
 VENDOR_PATH = (EA_BASEDIR / "vendors") if not IS_DEV else (EA_BASEDIR.parent.parent / "vendors")
+INJECTOR_LAUNCHER = VENDOR_PATH / "Snoop" / "Snoop.InjectorLauncher.x86.exe"
+INJECTOR = EA_BASEDIR / "extensions" / "ENLoginInjector.dll"
 
 # 为什么放 consts 里面？别管
 if str(VENDOR_PATH) not in sys.path:
