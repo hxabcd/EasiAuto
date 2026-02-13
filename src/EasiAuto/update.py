@@ -155,6 +155,7 @@ class UpdateChecker(QObject):
         self._cancel_download_flag: bool = False
         self._active_response: requests.Response | None = None
         self._update_script_path: Path | None = None
+        self._script_reopen: bool = False
 
     # ================== 同步 API ==================
 
@@ -298,7 +299,10 @@ class UpdateChecker(QObject):
             logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
             return
 
-        path = self._update_script_path or self.create_update_script(zip_path, reopen=reopen)
+        if self._update_script_path and self._script_reopen == reopen:
+            path = self._update_script_path
+        else:
+            path = self.create_update_script(zip_path, reopen=reopen)
 
         subprocess.Popen(
             str(path),
