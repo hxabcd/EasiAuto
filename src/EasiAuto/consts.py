@@ -14,10 +14,15 @@ BACKUP_MANIFEST_URL = (
     "https://raw.githubusercontent.com/hxabcd/0xabcd-log/refs/heads/master/public/update/EasiAuto.json"
 )
 
-USE_CV = False
-try:
-    find_spec("cv2")
-except ModuleNotFoundError:
-    USE_CV = True
 
-VENDOR_PATH = (EA_BASEDIR / "vendor") if not IS_DEV else (EA_BASEDIR.parent.parent / "vendor")
+VENDOR_PATH = (EA_BASEDIR / "vendors") if not IS_DEV else (EA_BASEDIR.parent.parent / "vendors")
+
+# 为什么放 consts 里面？别管
+if str(VENDOR_PATH) not in sys.path:
+    sys.path.insert(0, str(VENDOR_PATH))
+
+try:
+    IS_FULL = bool(find_spec("cv2"))
+except (ModuleNotFoundError, ValueError):
+    IS_FULL = False
+
