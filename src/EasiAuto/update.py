@@ -302,6 +302,7 @@ class UpdateChecker(QObject):
         if self._update_script_path and self._script_reopen == reopen:
             path = self._update_script_path
         else:
+            self._script_reopen = reopen
             path = self.create_update_script(zip_path, reopen=reopen)
 
         subprocess.Popen(
