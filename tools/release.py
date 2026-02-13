@@ -244,7 +244,7 @@ class BuildThread(QThread):
         start_time = time.time()
         for b_type in self.build_types:
             self.log_signal.emit(f"\n🚀 Starting {b_type.upper()} build...\n")
-            cmd = ["uv", "run", "python", "scripts/build.py", "--type", b_type]
+            cmd = ["uv", "run", "python", "tools/build.py", "--type", b_type]
 
             try:
                 # Use subprocess to run the build script
