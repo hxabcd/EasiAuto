@@ -1,4 +1,5 @@
 import atexit
+import ctypes
 import datetime as dt
 import os
 import signal
@@ -355,6 +356,26 @@ def check_singleton() -> bool:
 def get_resource(filename: str):
     """获取资源路径"""
     return str(EA_EXECUTABLE.parent / "resources" / filename)
+
+
+# 防止单例冲突，不使用 Qt 获取屏幕数据
+def get_scale() -> float:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+
+    hdc = ctypes.windll.user32.GetDC(0)
+    dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
+    ctypes.windll.user32.ReleaseDC(0, hdc)
+
+    return dpi / 96.0
+
+
+def get_screen_size() -> tuple[int, int]:
+    ctypes.windll.user32.SetProcessDPIAware()
+
+    width = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
+    height = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
+
+    return width, height
 
 
 def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):

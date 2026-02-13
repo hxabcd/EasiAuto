@@ -22,3 +22,8 @@ opencv_minimal_build
 logs
 cache
 config.json
+
+# C# Injector Extension
+tools/develop/ENLoginInjector/.vs
+tools/develop/ENLoginInjector/ENLoginInjector/bin
+tools/develop/ENLoginInjector/ENLoginInjector/obj

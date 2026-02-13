@@ -195,7 +195,10 @@ class ConfigPage(QWidget):
             match name:
                 case "Login.Method":
                     card.widget.setMinimumWidth(200)
-                    # card.setFixedHeight(card.height() + 32)
+                    if not IS_FULL:  # LITE 版，禁用进程注入登录
+                        fixed_index = card.widget.findData(LoginMethod.INJECT)
+                        if fixed_index != -1:
+                            card.widget.setItemEnabled(fixed_index, False)
                 case "Login.SkipOnce":
                     button_card = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button_card.clicked.connect(
@@ -850,7 +853,7 @@ class AutomationManageSubpage(QWidget):
 
         logger.info(f"开始运行自动化: {automation.item_display_name}")
 
-        from EasiAuto.automator import CVAutomator, FixedAutomator, UIAAutomator
+        from EasiAuto.automator import CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
         from EasiAuto.components import WarningBanner
 
         # 最小化设置界面
@@ -879,6 +882,8 @@ class AutomationManageSubpage(QWidget):
                 automator_type = CVAutomator
             case LoginMethod.FIXED:
                 automator_type = FixedAutomator
+            case LoginMethod.INJECT:
+                automator_type = InjectAutomator
             case unreachable:
                 assert_never(unreachable)
 
@@ -1844,12 +1849,14 @@ class AboutPage(SmoothScrollArea):
             BodyLabel(
                 "\n  - ".join(
                     [
-                        "本项目使用到的第三方库（仅列出部分）：",
+                        "本项目使用到的第三方库及项目（仅列出部分）：",
                         "qfluentwidget",
                         "PySide6",
                         "Pydantic",
                         "pywinauto",
                         "pyautogui",
+                        "opencv-python",
+                        "Snoop",
                         "loguru",
                         "sentry-sdk",
                         "windows11toast",

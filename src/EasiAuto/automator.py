@@ -2,37 +2,22 @@ import subprocess
 import time
 import winreg
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 
+import psutil
 import pyautogui
 import pyperclip
 import win32gui
 from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
-from PySide6.QtWidgets import QApplication
 
 from EasiAuto.config import config
-from EasiAuto.consts import USE_CV
-from EasiAuto.utils import get_resource, switch_window
+from EasiAuto.consts import INJECTOR, INJECTOR_LAUNCHER, IS_FULL
+from EasiAuto.utils import get_resource, get_scale, get_screen_size, switch_window
 
 compatibility_mode = False
-
-
-def get_scale() -> float:
-    app = QApplication.instance() or QApplication([])
-    screen = app.primaryScreen()
-    return screen.devicePixelRatio()
-
-
-def get_screen_size() -> tuple[int, int]:
-    app = QApplication.instance() or QApplication([])
-    screen = app.primaryScreen()
-    size = screen.size()
-
-    scale = get_scale()
-    return int(size.width() * scale), int(size.height() * scale)
-
 
 screen_size = get_screen_size()
 scale = get_scale()
@@ -73,7 +58,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     @property
     def safe_for_log_password(self) -> str:
         """将密码模糊处理以防止泄露"""
-        return self.password[0] + '*' * (len(self.password) - 2) + self.password[-1]
+        return self.password[0] + "*" * (len(self.password) - 2) + self.password[-1]
 
     @staticmethod
     def get_easinote_path() -> Path:
@@ -91,8 +76,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         else:
             path = config.Login.EasiNote.Path
         return Path(path)
-
-
 
     def restart_easinote(self):
         """重启希沃进程"""
@@ -220,7 +203,7 @@ class CVAutomator(BaseAutomator):
         self.progress_update.emit("切换至账号登录页")
 
         try:
-            if USE_CV:
+            if IS_FULL:
                 button_button = pyautogui.locateCenterOnScreen(button_img, confidence=0.8)
             else:
                 button_button = pyautogui.locateCenterOnScreen(button_img)
@@ -231,7 +214,7 @@ class CVAutomator(BaseAutomator):
         except (pyautogui.ImageNotFoundException, AssertionError):
             logger.warning("未能识别到账号登录按钮，尝试识别已选中样式")
             try:
-                if USE_CV:
+                if IS_FULL:
                     button_button = pyautogui.locateCenterOnScreen(button_img_selected, confidence=0.8)
                 else:
                     button_button = pyautogui.locateCenterOnScreen(button_img_selected)
@@ -261,7 +244,7 @@ class CVAutomator(BaseAutomator):
         self.progress_update.emit("勾选同意用户协议")
 
         try:
-            if USE_CV:
+            if IS_FULL:
                 agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img, confidence=0.8)
             else:
                 agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img)
@@ -446,3 +429,102 @@ class UIAAutomator(BaseAutomator):
 
         self.progress_update.emit("登录完成")
         self.task_update.emit("完成")
+
+
+@dataclass
+class InjectTarget:
+    """注入任务"""
+
+    class_name: str
+    dll_path: Path = INJECTOR
+    method_name: str = "Trigger"
+    settings: str = ""
+
+
+class InjectAutomator(BaseAutomator):
+    """通过注入希沃白板进程登录"""
+
+    def _find_process(self, exclude_pids: list[int] | None = None) -> psutil.Process | None:
+        """寻找希沃主进程，可排除已知的 PID"""
+        exclude_pids = exclude_pids or []
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                name = proc.info["name"].lower()
+                pid = proc.info["pid"]
+                if all(("easinote" in name, "browser" not in name, "host" not in name, pid not in exclude_pids)):
+                    return proc
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return None
+
+    def wait_for_new_process(self, old_pid: int, timeout: float = config.Login.Timeout.EnterLoginUI) -> int | None:
+        """等待新进程出现并返回其 PID"""
+        logger.info(f"等待新进程启动 (排除旧 PID: {old_pid})...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            new_proc = self._find_process(exclude_pids=[old_pid])
+            if new_proc:
+                logger.info(f"检测到新进程: {new_proc.info['name']} (PID: {new_proc.pid})")
+                # 给窗口一点初始化时间，防止注入过快导致崩溃
+                time.sleep(config.Login.Timeout.EnterLoginUI)
+                return new_proc.pid
+            time.sleep(0.2)
+        logger.error("等待新进程超时")
+        return None
+
+    def inject(self, pid: int, target: InjectTarget) -> bool:
+        """底层注入执行"""
+        if not INJECTOR_LAUNCHER.exists():
+            logger.error("找不到注入器执行文件")
+            return False
+
+        cmd = [
+            str(INJECTOR_LAUNCHER),
+            "--targetPID",
+            str(pid),
+            "--assembly",
+            str(target.dll_path.resolve()),
+            "--className",
+            target.class_name,
+            "--methodName",
+            target.method_name,
+            "--settingsFile",
+            target.settings,
+            "--verbose",
+        ]
+
+        try:
+            logger.info(f"正在注入 PID {pid} -> {target.class_name}")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=20)
+            logger.debug(f"输出: {result.stdout}")
+            return True
+        except Exception as e:
+            logger.error(f"注入失败: {e}")
+            return False
+
+    def login(self):
+        """执行完整的双重注入流程"""
+
+        # --- 第一阶段：注入 Launcher ---
+        first_proc = self._find_process()
+        if not first_proc:
+            logger.error("初始进程未运行")
+            return
+
+        launcher_task = InjectTarget(
+            class_name="ENLoginInjector.LoginWindowLauncher",
+        )
+
+        if self.inject(first_proc.pid, launcher_task):
+            logger.info("第一阶段注入成功，准备捕获新窗口...")
+
+            # --- 第二阶段：等待并注入 Performer ---
+            new_pid = self.wait_for_new_process(old_pid=first_proc.pid)
+            if new_pid:
+                performer_task = InjectTarget(
+                    class_name="ENLoginInjector.LoginPerformer",
+                    settings=f"{self.account}:{self.password}",
+                )
+                self.inject(new_pid, performer_task)
+            else:
+                logger.warning("未能捕获到派生进程，第二阶段取消")
