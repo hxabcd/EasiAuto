@@ -3,9 +3,7 @@
 __version__ = "1.1.1"
 __author__ = "hxabcd"
 
-import sys
-
-from .consts import IS_DEV, USE_CV, VENDOR_PATH
+from .consts import IS_DEV, IS_FULL
 
 if IS_DEV:
     from loguru import logger
@@ -16,10 +14,8 @@ if IS_DEV:
  |  _| / _` / __| | / _ \| | | | __/ _ \ 
  | |__| (_| \__ \ |/ ___ \ |_| | || (_) |
  |_____\__,_|___/_/_/   \_\__,_|\__\___/ 
-EasiAuto v{__version__} ({"FULL" if USE_CV else "LITE"})
+EasiAuto v{__version__} ({"FULL" if IS_FULL else "LITE"})
 You are running in development environment.
 Author: {__author__}
 Github Repo: https://github.com/hxabcd/EasiAuto""")
 
-    if str(VENDOR_PATH) not in sys.path:
-        sys.path.insert(0, str(VENDOR_PATH))

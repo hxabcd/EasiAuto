@@ -80,7 +80,7 @@ from EasiAuto import __version__, utils
 from EasiAuto.ci_manager import EasiAutomation, manager
 from EasiAuto.components import SettingCard
 from EasiAuto.config import ConfigGroup, LoginMethod, UpdateMode, config
-from EasiAuto.consts import EA_BASEDIR
+from EasiAuto.consts import EA_BASEDIR, IS_FULL
 from EasiAuto.qfw_widgets import ListWidget, SettingCardGroup
 from EasiAuto.update import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.utils import get_resource
@@ -1817,7 +1817,7 @@ class AboutPage(SmoothScrollArea):
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignBottom)
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel(f"版本 v{__version__} ({'FULL' if USE_CV else 'LITE'})", self)
+        subtitle = SubtitleLabel(f"版本 v{__version__} ({'FULL' if IS_FULL else 'LITE'})", self)
         title_layout.addWidget(title)
         title_layout.addSpacing(6)
         title_layout.addWidget(subtitle)
