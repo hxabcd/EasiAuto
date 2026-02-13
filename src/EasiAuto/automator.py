@@ -4,14 +4,16 @@ import winreg
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 
+import pyautogui
+import pyperclip
 import win32gui
 from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import QApplication
 
-from EasiAuto import USE_CV
 from EasiAuto.config import config
+from EasiAuto.consts import USE_CV
 from EasiAuto.utils import get_resource, switch_window
 
 compatibility_mode = False
@@ -44,13 +46,10 @@ elif screen_size[1] / scale < 720:
 
 
 def safe_input(text: str):
-    import pyautogui
-    import pyperclip
-
     pyautogui.hotkey("ctrl", "a")
     pyautogui.press("backspace")
-    # 使用剪贴板输入，避免输入法等问题
     if compatibility_mode:
+        # 使用剪贴板输入，避免输入法遮挡等问题
         pyperclip.copy(text)
         pyautogui.hotkey("ctrl", "v")
     else:
@@ -71,13 +70,13 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account = account
         self.password = password
 
-    def restart_easinote(self):
-        """重启希沃进程"""
+    @property
+    def safe_for_log_password(self) -> str:
+        """将密码模糊处理以防止泄露"""
+        return self.password[0] + '*' * (len(self.password) - 2) + self.password[-1]
 
-        logger.info("尝试重启希沃进程")
-        self.task_update.emit("重启希沃进程")
-
-        # 自动获取希沃白板安装路径
+    @staticmethod
+    def get_easinote_path() -> Path:
         if config.Login.EasiNote.AutoPath:
             try:
                 with winreg.OpenKey(
@@ -85,13 +84,24 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
                 ) as key:
                     path = winreg.QueryValueEx(key, "ExePath")[0]
-                    logger.debug("自动获取到路径")
+                    logger.debug(f"自动获取到路径: {path}")
             except Exception:
                 logger.warning("自动获取路径失败，使用默认路径")
                 path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
         else:
             path = config.Login.EasiNote.Path
-        logger.debug(f"路径：{path}")
+        return Path(path)
+
+
+
+    def restart_easinote(self):
+        """重启希沃进程"""
+
+        logger.info("尝试重启希沃进程")
+        self.task_update.emit("重启希沃进程")
+
+        # 自动获取希沃白板安装路径
+        path = self.get_easinote_path()
 
         # 终止希沃进程
         logger.info("终止进程")
@@ -176,17 +186,9 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
 
 class CVAutomator(BaseAutomator):
-    """
-    使用 OpenCV 识别图像来登录
-    需要存在 PyAutoGUI 才能调用
-    """
+    """通过识别图像登录"""
 
     def login(self):
-        import pyautogui
-
-        if USE_CV:
-            import cv2  # noqa: F401
-
         logger.info("尝试自动登录")
         self.task_update.emit("自动登录")
 
@@ -249,7 +251,7 @@ class CVAutomator(BaseAutomator):
         # 输入密码
         logger.info("尝试输入密码")
         self.progress_update.emit("输入密码")
-        logger.debug(f"密码：{self.password}")
+        logger.debug(f"密码：{self.safe_for_log_password}")
 
         pyautogui.click(button_button.x, button_button.y + 134 * scale)
         safe_input(self.password)
@@ -344,7 +346,7 @@ class FixedAutomator(BaseAutomator):
         # 输入密码
         logger.info("输入密码")
         self.progress_update.emit("输入密码")
-        logger.debug(f"密码：{self.password}")
+        logger.debug(f"密码：{self.safe_for_log_password}")
         pyautogui.click(*self.scale_in_window(config.Login.Position.PasswordInput))
         safe_input(self.password)
 
@@ -363,10 +365,7 @@ class FixedAutomator(BaseAutomator):
 
 
 class UIAAutomator(BaseAutomator):
-    """
-    通过 UI Automation 自动定位组件位置来登录
-    需要存在 PyWinAuto 才能调用
-    """
+    """通过 UI Automation 自动定位组件位置来登录"""
 
     def login(self):
         from pywinauto import Application, Desktop
@@ -426,7 +425,7 @@ class UIAAutomator(BaseAutomator):
         # 输入密码
         logger.info("定位输入框并填入密码")
         self.progress_update.emit("输入密码")
-        logger.debug(f"密码：{self.password}")
+        logger.debug(f"密码：{self.safe_for_log_password}")
         password_input = account_login_page.child_window(auto_id="PasswordBox", control_type="Edit")
         password_input.set_edit_text(self.password)
 
