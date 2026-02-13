@@ -10,6 +10,7 @@ APP_NAME = "EasiAuto"
 COMPANY_NAME = "HxAbCd"
 MAIN = "src/EasiAuto/main.py"
 RESOURCE_DIR = "src/EasiAuto/resources"
+EXTENSION_DIR = "src/EasiAuto/extensions"
 ICO_PATH = "src/EasiAuto/resources/EasiAuto.ico"
 OUTPUT_DIR = Path("build")
 
@@ -35,8 +36,8 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         f"--main={MAIN}",
         "--mode=standalone",
         "--msvc=latest",
-        f"--include-data-dir={RESOURCE_DIR}=resources",
         "--assume-yes-for-downloads",
+        f"--include-data-dir={RESOURCE_DIR}=resources",
         # ------ 导入控制 ------
         "--enable-plugins=pyside6",
         "--follow-imports",
@@ -59,12 +60,16 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         f"--product-version={base_version}",
     ]
 
+    cmd = [i for sublist in cmd for i in sublist]  # 展开
+
     if build_type == "lite":
         print("Building LITE version...")
         cmd.append("--nofollow-import-to=numpy")
     else:
         print("Building FULL version...")
-        cmd.append("--include-data-files=vendor/cv2.cp313-win_amd64.pyd=./cv2.pyd")
+        cmd.append("--include-data-files=vendors/cv2.cp313-win_amd64.pyd=cv2.pyd")
+        cmd.append(f"--include-data-dir={EXTENSION_DIR}=extensions")
+        cmd.append("--include-data-dir=vendors/Snoop=vendors/Snoop")
 
     print(f"Executing command: {' '.join(cmd)}")
 
