@@ -16,6 +16,7 @@ import win32com.client
 import win32con
 import win32event
 import win32gui
+import win32process
 import winerror
 from loguru import logger
 from sentry_sdk.integrations.loguru import LoguruIntegration
@@ -323,10 +324,10 @@ def check_singleton() -> bool:
         current_pid = os.getpid()
         for hwnd in hwnds:
             try:
-                _, pid = win32gui.GetWindowThreadProcessId(hwnd)
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
                 if pid == current_pid:
                     continue
-                # 简单验证一下进程名，避免误触 IDE
+                # 验证一下进程名
                 proc = psutil.Process(pid)
                 proc_name = proc.name().lower()
                 if "python" in proc_name or "EasiAuto" in proc_name:
