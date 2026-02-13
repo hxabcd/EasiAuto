@@ -4,8 +4,11 @@ import contextlib
 import sys
 import time
 import weakref
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Literal
 
 import windows11toast
 from loguru import logger
@@ -1466,6 +1469,73 @@ class UpdateStatus(Enum):
     INSTALL = "install"
 
 
+@dataclass(kw_only=True)
+class StateConfig:
+    title: Callable[[UpdatePage], str]
+    detail: Callable[[UpdatePage], str] | None = None
+    button_text: str
+    button_enabled: bool = True
+    progress: Literal["none", "indeterminate", "determinate"] = "none"
+
+
+UPDATE_STATUS_MAP: dict[UpdateStatus, StateConfig] = {
+    UpdateStatus.CHECK: StateConfig(
+        title=lambda _: "你使用的是最新版本",
+        detail=lambda s: f"上次检查时间：{s._last_check or '暂未检查'}",
+        button_text="检查更新",
+    ),
+    UpdateStatus.CHECKING: StateConfig(
+        title=lambda _: "正在检查更新……",
+        button_text="检查更新",
+        button_enabled=False,
+        progress="indeterminate",
+    ),
+    UpdateStatus.DOWNLOAD: StateConfig(
+        title=lambda s: (
+            f"更新可用：{s._decision.target_version}"
+            if not s._decision.confirm_required
+            else f"需要确认的更新：{s._decision.target_version}"
+        ),
+        detail=lambda s: f"上次检查时间：{s._last_check or '暂未检查'}",
+        button_text="下载",
+    ),
+    UpdateStatus.DOWNLOADING: StateConfig(
+        title=lambda _: "正在下载更新……",
+        button_text="取消",
+        progress="determinate",
+    ),
+    UpdateStatus.DOWNLOAD_CANCELED: StateConfig(
+        title=lambda s: (
+            f"更新可用：{s._decision.target_version}"
+            if not s._decision.confirm_required
+            else f"需要确认的更新：{s._decision.target_version}"
+        ),
+        detail=lambda s: (
+            f"上次检查时间：{s._last_check or '暂未检查'}"
+            if s._tried_downloads < 2
+            else "若多次尝试后仍下载缓慢或无法下载，可启用镜像下载源"
+        ),
+        button_text="下载",
+    ),
+    UpdateStatus.INSTALL: StateConfig(
+        title=lambda _: "更新已就绪",
+        detail=lambda _: (
+            "应用退出后将自动应用更新，或者你也可以现在重启以应用更新"
+            if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value
+            else "需要手动确认以应用更新"
+        ),
+        button_text="重启并应用更新",
+        progress="none",
+    ),
+    UpdateStatus.FAILED: StateConfig(
+        title=lambda _: "发生错误",
+        detail=lambda s: f"错误信息：{s._last_error}" if s._last_error else "未知错误，请重试或向开发者报告问题",
+        button_text="重试",
+        progress="none",
+    ),
+}
+
+
 class UpdatePage(QWidget):
     def __init__(self):
         super().__init__()
@@ -1518,11 +1588,11 @@ class UpdatePage(QWidget):
         font.setPixelSize(24)
         self.title.setFont(font)
         self.detail = BodyLabel()
-        self.progress_bar = IndeterminateProgressBar()
+        self.indeterminate_progress_bar = IndeterminateProgressBar()
+        self.indeterminate_progress_bar.hide()
+        self.progress_bar = ProgressBar()
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.hide()
-        self.download_progress_bar = ProgressBar()
-        self.download_progress_bar.setRange(0, 100)
-        self.download_progress_bar.hide()
         self.action_button = PrimaryPushButton()
         self.action_button.clicked.connect(self.handle_button_action)
 
@@ -1531,8 +1601,8 @@ class UpdatePage(QWidget):
         text_layout.addWidget(self.title)
         text_layout.addSpacing(3)
         text_layout.addWidget(self.detail)
+        text_layout.addWidget(self.indeterminate_progress_bar)
         text_layout.addWidget(self.progress_bar)
-        text_layout.addWidget(self.download_progress_bar)
         status_layout.addLayout(text_layout)
         status_layout.addSpacing(8)
         status_layout.addWidget(self.action_button, alignment=Qt.AlignRight)
@@ -1552,37 +1622,16 @@ class UpdatePage(QWidget):
         """更新状态管理"""
         self._action = new
 
-        self.title.setText("TITLE")
-        self.detail.hide()
-        self.detail.setText("DETAIL")
-        self.progress_bar.hide()
-        self.download_progress_bar.hide()
-        self.action_button.setEnabled(True)
-        self.action_button.setText("ACTION")
-
+        # 内部逻辑处理
         match new:
             case UpdateStatus.CHECK:
-                self.title.setText("你使用的是最新版本")
-                self.detail.show()
-                self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
-                self.action_button.setText("检查更新")
                 self.content_widget.set_change_log(None)
-            case UpdateStatus.CHECKING:
-                self.title.setText("正在检查更新……")
-                self.progress_bar.show()
-                self.action_button.setText("检查更新")
-                self.action_button.setEnabled(False)
             case UpdateStatus.DOWNLOAD:
                 if not self._decision:
                     self._last_error = "无可用更新"
                     self.action = UpdateStatus.FAILED
                     return
                 logger.info(
-                    f"更新可用：{self._decision.target_version}"
-                    if not self._decision.confirm_required
-                    else f"需要确认的更新：{self._decision.target_version}"
-                )
-                self.title.setText(
                     f"更新可用：{self._decision.target_version}"
                     if not self._decision.confirm_required
                     else f"需要确认的更新：{self._decision.target_version}"
@@ -1594,62 +1643,55 @@ class UpdatePage(QWidget):
                     icon_hint_crop=windows11toast.IconCrop.NONE,
                     icon_src=utils.get_resource("EasiAuto.ico"),
                 )
-                self.detail.show()
-                self.detail.setText(f"上次检查时间：{self._last_check or '暂未检查'}")
-                self.action_button.setText("下载")
                 self.content_widget.set_change_log(self._decision.change_log)
                 if (
                     config.Update.Mode.value >= UpdateMode.CHECK_AND_DOWNLOAD.value
                     and not self._decision.confirm_required
                 ):
                     update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
+                    # 状态在 download_started() 中通过事件响应更新
             case UpdateStatus.DOWNLOADING:
                 logger.info("正在下载更新")
-                self.title.setText("正在下载更新……")
-                self.download_progress_bar.show()
-                self.action_button.setText("取消")
             case UpdateStatus.DOWNLOAD_CANCELED:
                 if not self._decision:
                     self._last_error = "无可用更新"
                     self.action = UpdateStatus.FAILED
                     return
-                self.title.setText(f"更新可用：{self._decision.target_version}")
-                self.detail.show()
-                self.detail.setText(
-                    "若多次尝试后仍下载缓慢或无法下载，可启用镜像下载源"
-                    if self._tried_downloads >= 2
-                    else f"上次检查时间：{self._last_check or '暂未检查'}"
-                )
-                self.action_button.setText("下载")
             case UpdateStatus.INSTALL:
                 logger.success("更新已就绪")
-                self.title.setText("更新已就绪")
-                self.detail.show()
                 if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
                     app.aboutToQuit.connect(
                         lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
                     )
                     self._signal_connected = True
-                    self.detail.setText("应用退出后将自动应用更新，或者你也可以现在重启以应用更新")
-                else:
-                    self.detail.setText("需要手动确认以应用更新")
-                self.action_button.setText("重启并应用更新")
 
             case UpdateStatus.FAILED:
                 logger.error("检查更新时发生错误")
-                self.title.setText("发生错误")
-                self.detail.show()
-                if self._last_error:
-                    self.detail.setText(f"错误信息：{self._last_error}")
-                    self._last_error = None
-                else:
-                    self.detail.setText("未知错误，请重试或向开发者报告问题")
-                self.action_button.setText("重试")
+                # 清除错误已延后至UI更新后
 
-    # NOTE: 上下部分逻辑重合，需要同步修改
+        # 界面更新
+        self.update_ui(UPDATE_STATUS_MAP[new])
+
+        # 其他内部逻辑处理
+        if new == UpdateStatus.FAILED and self._last_error:
+            self._last_error = None
+
+    def update_ui(self, cfg: StateConfig):
+        """使用状态数据更新界面"""
+        self.title.setText(cfg.title(self))
+
+        if detail_visible := (cfg.detail is not None):
+            self.detail.setText(cfg.detail(self))
+        self.detail.setVisible(detail_visible)
+
+        self.action_button.setText(cfg.button_text)
+        self.action_button.setEnabled(cfg.button_enabled)
+
+        self.indeterminate_progress_bar.setVisible(cfg.progress == "indeterminate")
+        self.progress_bar.setVisible(cfg.progress == "determinate")
 
     def handle_button_action(self):
-        """响应更新各步骤的操作"""
+        """响应更新各步骤的操作（按钮点击）"""
         match self.action:
             case UpdateStatus.CHECK | UpdateStatus.FAILED:
                 update_checker.check_async()
@@ -1691,14 +1733,18 @@ class UpdatePage(QWidget):
         self.action = UpdateStatus.DOWNLOADING
 
     def download_progress(self, downloaded, total):
-        self.download_progress_bar.setValue(round(100 * downloaded / total))
+        if total > 0:
+            self.progress_bar.setValue(round(100 * downloaded / total))
+        else:
+            self.progress_bar.hide()
+            self.indeterminate_progress_bar.show()
 
     def download_finished(self):
         self.action = UpdateStatus.INSTALL
 
     def download_failed(self, error):
         if "取消" in error:
-            self.download_progress_bar.setValue(0)
+            self.progress_bar.setValue(0)
             self.action = UpdateStatus.DOWNLOAD_CANCELED
         else:
             self._last_error = error

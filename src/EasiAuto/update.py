@@ -286,7 +286,7 @@ class UpdateChecker(QObject):
         ]
 
         script.write_text("\r\n".join(script_content), encoding="utf-8")
-        logger.info(f"已生成脚本： {script} ")
+        logger.success(f"已生成更新脚本： {script} ")
 
         self._update_script_path = script
         return script
