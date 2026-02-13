@@ -1817,7 +1817,7 @@ class AboutPage(SmoothScrollArea):
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignBottom)
         title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel(f"版本 {__version__}", self)
+        subtitle = SubtitleLabel(f"版本 v{__version__} ({'FULL' if USE_CV else 'LITE'})", self)
         title_layout.addWidget(title)
         title_layout.addSpacing(6)
         title_layout.addWidget(subtitle)
