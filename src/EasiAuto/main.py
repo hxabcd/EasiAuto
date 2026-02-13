@@ -147,6 +147,7 @@ def main():
     # 单例检查
     if not utils.check_singleton():
         utils.stop()
+        return  # 强行退出
 
     # 解析命令行参数
     parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
