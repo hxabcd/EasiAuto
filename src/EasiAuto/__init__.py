@@ -4,17 +4,10 @@ __version__ = "1.1.1"
 __author__ = "hxabcd"
 
 import sys
-from importlib.util import find_spec
-from pathlib import Path
 
-USE_CV = False
-try:
-    find_spec("cv2")
-except ModuleNotFoundError:
-    USE_CV = True
+from .consts import IS_DEV, VENDOR_PATH
 
-
-if "__compiled__" not in globals():
+if IS_DEV:
     from loguru import logger
 
     logger.debug(rf"""
@@ -28,8 +21,5 @@ You are running in development environment.
 Author: {__author__}
 Github Repo: https://github.com/hxabcd/EasiAuto""")
 
-    root_dir = Path(__file__).resolve().parent.parent.parent
-    vendor_path = root_dir / "vendor"
-
-    if str(vendor_path) not in sys.path:
-        sys.path.insert(0, str(vendor_path))
+    if str(VENDOR_PATH) not in sys.path:
+        sys.path.insert(0, str(VENDOR_PATH))

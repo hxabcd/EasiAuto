@@ -1,6 +1,7 @@
 import sys
 import time
 from argparse import ArgumentParser
+from typing import assert_never
 
 import windows11toast
 from loguru import logger
@@ -89,6 +90,8 @@ def cmd_login(args):
                         delays += 1
                         time.sleep(config.Warning.DelayTime)
                         continue
+                    case unreachable:
+                        assert_never(unreachable)
         except Exception:
             logger.error("显示警告弹窗时出错，跳过警告")
 
@@ -113,6 +116,8 @@ def cmd_login(args):
             automator_type = CVAutomator
         case LoginMethod.FIXED:
             automator_type = FixedAutomator
+        case unreachable:
+            assert_never(unreachable)
 
     automator = automator_type(args.account, args.password)
 

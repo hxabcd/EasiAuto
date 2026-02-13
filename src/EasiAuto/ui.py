@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Literal, assert_never
 
 import windows11toast
 from loguru import logger
@@ -415,7 +415,8 @@ class AutomationStatusBar(QWidget):
                 self.status_label.setText("未运行")
                 self.action_button.setText("启动")
                 self.action_button.setEnabled(True)
-
+            case unreachable:
+                assert_never(unreachable)
     def handle_action_button_clicked(self):
         if not manager:
             return
@@ -878,6 +879,8 @@ class AutomationManageSubpage(QWidget):
                 automator_type = CVAutomator
             case LoginMethod.FIXED:
                 automator_type = FixedAutomator
+            case unreachable:
+                assert_never(unreachable)
 
         self.automator = automator_type(automation.account, automation.password)
 
