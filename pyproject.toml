@@ -3,7 +3,7 @@ dev = ["nuitka>=2.8.9"]
 
 [project]
 name = "EasiAuto"
-version = "1.1.1"
+version = "1.1.2"
 description = "一款自动登录希沃白板的小工具"
 readme = "README.md"
 requires-python = ">=3.12"
