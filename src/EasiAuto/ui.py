@@ -1529,7 +1529,7 @@ UPDATE_STATUS_MAP: dict[UpdateStatus, StateConfig] = {
         title=lambda _: "更新已就绪",
         detail=lambda _: (
             "应用退出后将自动应用更新，或者你也可以现在重启以应用更新"
-            if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value
+            if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL
             else "需要手动确认以应用更新"
         ),
         button_text="重启并应用更新",
@@ -1570,7 +1570,7 @@ class UpdatePage(QWidget):
 
         self.init_ui()
         self.action = UpdateStatus.CHECK
-        if config.Update.Mode.value > UpdateMode.NEVER.value:
+        if config.Update.Mode > UpdateMode.NEVER:
             update_checker.check_async()
 
     def init_ui(self):
@@ -1652,10 +1652,7 @@ class UpdatePage(QWidget):
                     icon_src=utils.get_resource("EasiAuto.ico"),
                 )
                 self.content_widget.set_change_log(self._decision.change_log)
-                if (
-                    config.Update.Mode.value >= UpdateMode.CHECK_AND_DOWNLOAD.value
-                    and not self._decision.confirm_required
-                ):
+                if config.Update.Mode >= UpdateMode.CHECK_AND_DOWNLOAD and not self._decision.confirm_required:
                     update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
                     # 状态在 download_started() 中通过事件响应更新
             case UpdateStatus.DOWNLOADING:
@@ -1667,7 +1664,7 @@ class UpdatePage(QWidget):
                     return
             case UpdateStatus.INSTALL:
                 logger.success("更新已就绪")
-                if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
+                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
                     app.aboutToQuit.connect(
                         lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
                     )
