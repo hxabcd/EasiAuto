@@ -88,7 +88,7 @@ class ConfigModel(BaseModel):
             logger.warning("配置文件路径为空，无法保存")
             return
         try:
-            data = root.model_dump(mode="json", exclude_defaults=True)
+            data = root.model_dump(mode="json")
             root._file.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
         except Exception as e:
             logger.error(f"保存配置文件库失败: {e}")
@@ -521,9 +521,9 @@ class Config(ConfigModel):
                 sys.exit(1)
         else:
             cfg = cls()
-            # data = cfg.model_dump(mode="json")
-            # path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
-            # logger.info(f"配置文件 {file} 不存在，自动生成")
+            data = cfg.model_dump(mode="json")
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
+            logger.info(f"配置文件 {file} 不存在，自动生成")
 
         cfg.attach(path)
 
