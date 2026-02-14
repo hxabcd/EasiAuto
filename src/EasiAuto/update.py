@@ -290,7 +290,7 @@ class UpdateChecker(QObject):
         logger.success(f"已生成更新脚本： {script} ")
 
         self._update_script_path = script
-        return script
+        return script.resolve()
 
     def apply_script(self, zip_path: Path, reopen: bool = False) -> None:
         """执行更新脚本（通常此时应退出主程序）"""
