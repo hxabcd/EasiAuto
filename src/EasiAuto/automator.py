@@ -495,7 +495,14 @@ class InjectAutomator(BaseAutomator):
 
         try:
             logger.info(f"正在注入 PID {pid} -> {target.class_name}")
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=20)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=20,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
             logger.debug(f"输出: {result.stdout}")
             return True
         except Exception as e:
