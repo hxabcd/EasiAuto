@@ -8,18 +8,26 @@ from loguru import logger
 from packaging.version import Version
 
 from EasiAuto import __version__, utils
+from EasiAuto.components import WarningBanner
 from EasiAuto.config import LoginMethod, UpdateMode, config
 from EasiAuto.ui import MainWindow, app
 
 utils.init_exception_handler()
 utils.init_exit_signal_handlers()
 
+banner: WarningBanner | None = None
 
 def login_finished(message: str):
     """登录结束后的回调"""
-    # 检查是否失败
+
+    # 关闭警示横幅
+    if banner is not None:
+        banner.close()
+        banner.deleteLater()
+
+    # 检查是否登录失败
     if "失败" in message:
-        logger.error(f"自动化登录失败: {message}")
+        logger.error(f"自动登录失败: {message}")
         windows11toast.notify(
             title="自动登录失败",
             body=f"{message}\n请检查日志获取详细信息",
