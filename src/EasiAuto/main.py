@@ -32,10 +32,10 @@ def login_finished(message: str):
     # 成功则检查更新
     from EasiAuto.update import update_checker
 
-    if config.Update.CheckAfterLogin and config.Update.Mode.value > UpdateMode.NEVER.value:
+    if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
         decision = update_checker.check()
         if decision.available and decision.downloads:
-            if config.Update.Mode.value >= UpdateMode.CHECK_AND_INSTALL.value:
+            if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
                 file = update_checker.download_update(decision.downloads[0])
                 app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
             else:  # 其他情形仅通知

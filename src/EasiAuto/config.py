@@ -4,6 +4,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Any
 
@@ -17,12 +18,18 @@ from PySide6.QtGui import QColor
 from EasiAuto.consts import EA_BASEDIR
 
 
+@total_ordering
 class InformativeEnum(Enum):
     """带显示名称的枚举类"""
 
     def __init__(self, value, display_name):
         self.display_name = display_name
         self._value_ = value
+
+    def __lt__(self, other: InformativeEnum):
+        if self.__class__ is other.__class__ and isinstance(self.value, int) and isinstance(other.value, int):
+            return self.value < other.value
+        return NotImplemented
 
 
 class LogLevelEnum(InformativeEnum):
