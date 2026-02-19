@@ -4,18 +4,18 @@
 
 一款自动登录希沃白板的小工具，通过模拟登录流程来实现自动登录。
 
-[![最新版本](https://img.shields.io/github/v/release/hxabcd/EasiAuto?style=for-the-badge&color=00b4ab&label=最新正式版)](https://github.com/hxabcd/EasiAuto/releases/latest)
-[![上次更新](https://img.shields.io/github/last-commit/hxabcd/EasiAuto?style=for-the-badge&color=00b4ab&label=最后更新时间)](https://github.com/hxabcd/EasiAuto/commits/master)
-[![下载统计](https://img.shields.io/github/downloads/hxabcd/EasiAuto/total?style=for-the-badge&color=00b4ab&label=累计下载)](https://github.com/hxabcd/EasiAuto/releases)
+[![Release](https://img.shields.io/github/v/release/hxabcd/EasiAuto?color=blue&label=最新版本)](https://github.com/hxabcd/EasiAuto/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/hxabcd/EasiAuto?color=orange&label=上次更新)](https://github.com/hxabcd/EasiAuto/commits/master)
+[![Downloads](https://img.shields.io/github/downloads/hxabcd/EasiAuto/total?color=brightgreen&label=下载统计)](https://github.com/hxabcd/EasiAuto/releases)
 
-[![QQ群](https://img.shields.io/badge/-QQ%E7%BE%A4%EF%BD%9C821944413%20%28BSOD%E2%80%94MEMZ%29-blue?style=for-the-badge&logo=QQ)](https://qm.qq.com/q/5TV3Pvb2M2)
-[![bilibili](https://img.shields.io/badge/-哔哩哔哩-%23FB7299?style=for-the-badge&logo=bilibili)](https://space.bilibili.com/401002238)
+[![QQ群](https://img.shields.io/badge/QQ群_(BSOD--MEMZ)-821944413-blue.svg)](https://qm.qq.com/q/5TV3Pvb2M2)
+[![哔哩哔哩](https://img.shields.io/badge/哔哩哔哩-%40hxabcd-FF69B4.svg)](https://space.bilibili.com/401002238)
 
-![Python](https://img.shields.io/badge/基于Python%203.13-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-![uv](https://img.shields.io/badge/使用uv管理-%23DE5FE9.svg?style=for-the-badge&logo=uv&logoColor=white)
-![PySide6](https://img.shields.io/badge/PySide6-%23217346.svg?style=for-the-badge&logo=Qt&logoColor=white)
-![Sentry](https://img.shields.io/badge/已接入sentry-%23362D59.svg?style=for-the-badge&logo=sentry&logoColor=white)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://opensource.org/licenses/GPL-3.0)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://python.org)
+[![PySide6](https://img.shields.io/badge/PySide6-6.10+-green.svg)](https://doc.qt.io/qtforpython/)
+[![uv](https://img.shields.io/badge/uv-%23DE5FE9.svg)](https://docs.astral.sh/uv/)
+[![Sentry](https://img.shields.io/badge/Sentry-%23362D59.svg)](https://sentry.io/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](LICENSE)
 
 </div>
 
