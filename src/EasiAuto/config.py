@@ -15,7 +15,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.consts import EA_BASEDIR
+from EasiAuto.consts import EA_BASEDIR, IS_FULL
 
 
 @total_ordering
@@ -61,9 +61,13 @@ class UpdateMode(InformativeEnum):
     CHECK_AND_INSTALL = (3, "自动检查更新并安装")
 
 
-class UpdateChannal(InformativeEnum):
+class UpdateChannals(InformativeEnum):
     RELEASE = ("release", "稳定通道")
     DEV = ("dev", "测试通道")
+
+class PackageChannels(InformativeEnum):
+    DEFAULT = ("default", "完整版")
+    LITE = ("lite", "精简版")
 
 
 class ConfigModel(BaseModel):
@@ -472,10 +476,16 @@ class UpdateConfig(ConfigModel):
         description="设置应用的更新模式",
         json_schema_extra={"icon": "Application"},
     )
-    Channal: UpdateChannal = Field(
-        default=UpdateChannal.RELEASE,
+    UpdateChannel: UpdateChannals = Field(
+        default=UpdateChannals.RELEASE,
         title="更新通道",
         description="控制应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
+        json_schema_extra={"icon": "Tag"},
+    )
+    PackageChannel: PackageChannels = Field(
+        default=PackageChannels.DEFAULT if IS_FULL else PackageChannels.LITE,
+        title="更新包分支",
+        description="控制应用的更新包分支",
         json_schema_extra={"icon": "Tag"},
     )
     CheckAfterLogin: bool = Field(

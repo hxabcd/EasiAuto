@@ -17,6 +17,7 @@ wheels/
 # Development environments
 .env
 opencv_minimal_build
+TODO
 
 # EasiAuto-generated files
 logs
