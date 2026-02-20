@@ -17,7 +17,7 @@ from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
-from EasiAuto.config import UpdateChannal, config
+from EasiAuto.config import PackageChannels, UpdateChannals, config
 from EasiAuto.consts import BACKUP_MANIFEST_URL, EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URL
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
@@ -143,11 +143,9 @@ class UpdateChecker(QObject):
     def __init__(
         self,
         *,
-        package_channel: str = "default",  # default/no_cv/...
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.package_channel = package_channel
         self.session = requests.Session()
 
         # 线程管理
@@ -420,7 +418,7 @@ class UpdateChecker(QObject):
             raise UpdateError(f"manifest JSON 解析失败：{e!s}") from e
 
     def _decide(self, manifest: dict[str, Any], force: bool = False) -> UpdateDecision:
-        target_key = "latest_dev" if config.Update.Channal == UpdateChannal.DEV else "latest"
+        target_key = "latest_dev" if config.Update.UpdateChannel == UpdateChannals.DEV else "latest"
         target_ver_str = manifest.get(target_key)
 
         if not target_ver_str:
@@ -437,7 +435,13 @@ class UpdateChecker(QObject):
 
         all_downloads = self._extract_downloads(target_info)
         # 筛选符合当前 package_channel 的下载项
-        downloads = tuple(d for d in all_downloads if d.channel == self.package_channel)
+        downloads = tuple(d for d in all_downloads if d.channel == config.Update.PackageChannel.value)
+        if not downloads and config.Update.UpdateChannel != PackageChannels.DEFAULT:
+            logger.warning(f"未找到 {config.Update.UpdateChannel.value} 分支的下载项，回退至 default 分支")
+            downloads = tuple(d for d in all_downloads if d.channel == "default")
+
+        if not downloads:
+            logger.warning("获取到的下载项为空")
 
         return UpdateDecision(True, target_ver_str, confirm_required, changelog, downloads)
 
@@ -470,7 +474,9 @@ class UpdateChecker(QObject):
         others = []
         for v in in_range:
             info: dict = versions[v]
-            if bool(info.get("is_dev")) != (config.Update.Channal == UpdateChannal.DEV):  # 不读取不同通道的更新日志
+            if bool(info.get("is_dev")) != (
+                config.Update.UpdateChannel == UpdateChannals.DEV
+            ):  # 不读取不同通道的更新日志
                 continue
 
             if d := info.get("description"):
