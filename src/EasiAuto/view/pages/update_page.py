@@ -25,6 +25,8 @@ from qfluentwidgets import (
     HorizontalSeparator,
     IconWidget,
     IndeterminateProgressBar,
+    InfoBar,
+    InfoBarPosition,
     Pivot,
     PrimaryPushButton,
     ProgressBar,
@@ -32,15 +34,17 @@ from qfluentwidgets import (
     SmoothScrollArea,
     SubtitleLabel,
     TitleLabel,
+    ToolTipFilter,
+    TransparentPushButton,
     setFont,
 )
 
 from EasiAuto.common import utils
-from EasiAuto.common.config import UpdateMode, config
+from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.consts import EA_BASEDIR
 from EasiAuto.common.update import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.view.components import SettingCard
-from EasiAuto.view.utils import get_app
+from EasiAuto.view.utils import get_app, get_main_container
 
 
 class HighlightedChangeLogCard(CardWidget):
@@ -124,6 +128,41 @@ class UpdateContentView(QWidget):
 
         return scroll_area
 
+    def _attach_settings(self, layout):
+        # 手动检测延迟按钮
+        download_source_card = SettingCard.index["Update.TargetDownloadSource"]
+        download_source_card.widget.setMinimumWidth(180)
+        self.check_latency_button = TransparentPushButton(icon=FluentIcon.WIFI, text="重测延迟")
+        self.check_latency_button.setToolTip("重新检测各下载源的连接延迟，并显示结果")
+        self.check_latency_button.installEventFilter(ToolTipFilter(self.check_latency_button))
+
+        self.check_latency_button.clicked.connect(update_checker.test_source_latency_async)
+
+        self.check_latency_button.setEnabled(config.Update.TargetDownloadSource == DownloadSource.AUTO)
+        download_source_card.valueChanged.connect(self._handle_source_change)
+        download_source_card.hBoxLayout.insertWidget(5, self.check_latency_button)
+        download_source_card.hBoxLayout.insertSpacing(6, 12)
+
+        self.download_source_combo = download_source_card.widget
+        self._auto_source_index = download_source_card.options_index.index(DownloadSource.AUTO)
+        self._current_auto_source: DownloadSource | None = update_checker._auto_selected_source
+        update_checker.latency_test_started.connect(self._on_latency_test_started)
+        update_checker.latency_test_finished.connect(self._on_latency_test_finished)
+        update_checker.latency_test_failed.connect(self._on_latency_test_failed)
+        self._update_auto_option_text()
+
+        # 强制检查更新按钮
+        reset_card = PushSettingCard(
+            text="强制检查",
+            icon=FluentIcon.ASTERISK,
+            title="强制检查更新",
+            content="强制将应用更新到当前通道及分支上的最新版本，可以通过这种方式切换分支",
+        )
+        reset_card.clicked.connect(lambda: update_checker.check_async(force=True))
+        layout.addWidget(reset_card)
+
+        layout.addStretch(1)
+
     def _init_update_settings(self):
         container = QWidget()
         scroll_layout = QVBoxLayout(container)
@@ -132,16 +171,7 @@ class UpdateContentView(QWidget):
         for item in config.iter_items(only=["Update"])[0].children:
             scroll_layout.addWidget(SettingCard.from_config(item))
 
-        reset_card = PushSettingCard(
-            text="强制检查",
-            icon=FluentIcon.ASTERISK,
-            title="强制检查更新",
-            content="强制将应用更新到当前通道及分支上的最新版本，可以通过这种方式切换分支",
-        )
-        reset_card.clicked.connect(lambda: update_checker.check_async(force=True))
-        scroll_layout.addWidget(reset_card)
-
-        scroll_layout.addStretch(1)
+        self._attach_settings(scroll_layout)
 
         # Make it scrollable again!
         scroll_area = SmoothScrollArea(self)
@@ -200,6 +230,42 @@ class UpdateContentView(QWidget):
         widget = self.stacked_widget.widget(index)
         self.pivot.setCurrentItem(widget.objectName())
 
+    def _handle_source_change(self, value):
+        is_auto = value == DownloadSource.AUTO
+        self.check_latency_button.setEnabled(is_auto and self.check_latency_button.text() != "检测中…")
+        self._update_auto_option_text()
+        if is_auto:
+            update_checker.start_latency_warmup()
+
+    def _on_latency_test_started(self):
+        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
+            self.download_source_combo.setItemText(self._auto_source_index, "自动选择（检测中）")
+
+    def _on_latency_test_finished(self, result: dict[DownloadSource, float | None]):
+        available = [(source, latency) for source, latency in result.items() if latency is not None]
+        self._current_auto_source = min(available, key=lambda x: x[1])[0] if available else DownloadSource.GITHUB
+        self._update_auto_option_text()
+
+    def _on_latency_test_failed(self, _error: str):
+        self._update_auto_option_text()
+
+    def _update_auto_option_text(self):
+        # 果检测已在界面初始化前完成，直接同步 checker 内部结果
+        if update_checker._auto_selected_source is not None:
+            self._current_auto_source = update_checker._auto_selected_source
+
+        is_auto = config.Update.TargetDownloadSource == DownloadSource.AUTO
+        if not is_auto:
+            self.download_source_combo.setItemText(self._auto_source_index, DownloadSource.AUTO.display_name)
+            return
+
+        if self._current_auto_source is None:
+            self.download_source_combo.setItemText(self._auto_source_index, "自动选择（检测中）")
+        else:
+            self.download_source_combo.setItemText(
+                self._auto_source_index, f"自动选择（{self._current_auto_source.display_name}）"
+            )
+
 
 class UpdateStatus(Enum):
     FAILED = "failed"
@@ -255,7 +321,7 @@ UPDATE_STATUS_MAP: dict[UpdateStatus, StateConfig] = {
         detail=lambda s: (
             f"上次检查时间：{s._last_check or '暂未检查'}"
             if s._tried_downloads < 2
-            else "若多次尝试后仍下载缓慢或无法下载，可启用镜像下载源"
+            else "若多次尝试后仍下载缓慢或无法下载，可在设置中手动切换镜像下载源"
         ),
         button_text="下载",
     ),
@@ -293,6 +359,9 @@ class UpdatePage(QWidget):
         update_checker.download_progress.connect(self.download_progress)
         update_checker.download_finished.connect(self.download_finished)
         update_checker.download_failed.connect(self.download_failed)
+        update_checker.latency_test_started.connect(self.latency_test_started)
+        update_checker.latency_test_finished.connect(self.latency_test_finished)
+        update_checker.latency_test_failed.connect(self.latency_test_failed)
 
         self._action: UpdateStatus
         self._decision: UpdateDecision | None = None
@@ -480,6 +549,8 @@ class UpdatePage(QWidget):
 
     def download_finished(self):
         self.action = UpdateStatus.INSTALL
+        if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
+            utils.stop()
 
     def download_failed(self, error):
         if "取消" in error:
@@ -488,3 +559,41 @@ class UpdatePage(QWidget):
         else:
             self._last_error = error
             self.action = UpdateStatus.FAILED
+
+    def latency_test_started(self):
+        self.content_widget.check_latency_button.setEnabled(False)
+
+    def latency_test_finished(self, result):
+        self.content_widget.check_latency_button.setEnabled(config.Update.TargetDownloadSource == DownloadSource.AUTO)
+
+        selected = update_checker._auto_selected_source
+        lines = []
+        for source, latency in result.items():
+            if latency is None:
+                lines.append(f"{source.display_name}: 连接失败")
+            else:
+                lines.append(
+                    f"{source.display_name}: {latency * 1000:.0f} ms{' （当前）' if source == selected else ''}"
+                )
+
+        InfoBar.info(
+            title="镜像源延迟测试",
+            content="\n".join(lines),
+            orient=Qt.Orientation.Vertical,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=get_main_container(),
+        )
+
+    def latency_test_failed(self, error: str):
+        self.content_widget.check_latency_button.setEnabled(config.Update.TargetDownloadSource == DownloadSource.AUTO)
+        InfoBar.error(
+            title="镜像源延迟测试失败",
+            content=error,
+            orient=Qt.Orientation.Vertical,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=get_main_container(),
+        )

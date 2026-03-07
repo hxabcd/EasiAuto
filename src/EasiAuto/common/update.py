@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import contextlib
 import hashlib
 import socket
 import subprocess
 import tempfile
+import time
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,18 +20,37 @@ from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
-from EasiAuto.common.config import PackageChannels, UpdateChannals, config
+from EasiAuto.common.config import DownloadSource, PackageChannel, UpdateChannal, config
 from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+from EasiAuto.view.utils import get_app
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
-MIRROR = "https://ghproxy.net/"
+
 MANIFEST_TIMEOUT = (3, 5)  # connect, read
 DOWNLOAD_TIMEOUT = (8, 60)  # connect, read
+LATENCY_TIMEOUT = (2, 3)  # connect, read
 
 MANIFEST_URLS = [
     "https://easiauto.0xabcd.dev/update.json",
     "https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
 ]
+
+
+DOWNLOAD_SOURCE_PREFIXES: dict[DownloadSource, str] = {
+    DownloadSource.GITHUB: "",
+    DownloadSource.GHPROXY: "https://ghproxy.net/",
+    DownloadSource.GHFAST: "https://ghfast.top/",
+}
+DOWNLOAD_SOURCE_HOSTS: dict[DownloadSource, str] = {
+    DownloadSource.GITHUB: "github.com",
+    DownloadSource.GHPROXY: "ghproxy.net",
+    DownloadSource.GHFAST: "ghfast.top",
+}
+DOWNLOAD_SOURCE_PROBE_URLS: dict[DownloadSource, str] = {
+    DownloadSource.GITHUB: "https://github.com/",
+    DownloadSource.GHPROXY: "https://ghproxy.net/https://github.com/",
+    DownloadSource.GHFAST: "https://ghfast.top/https://github.com/",
+}
 
 
 @dataclass(frozen=True)
@@ -66,20 +88,21 @@ class DownloadCancelled(UpdateError):
 
 
 class CheckWorker(QObject):
-    """负责执行检查逻辑的子线程 Worker"""
+    """执行检查更新的子线程 Worker"""
 
     finished = Signal(object)  # UpdateDecision
     failed = Signal(str)
 
-    def __init__(self, check_func: Callable[[], UpdateDecision]):
+    def __init__(self, checker: UpdateChecker, force: bool):
         super().__init__()
-        self._func = check_func
+        self._checker = checker
+        self._force = force
 
     @Slot()
     def run(self):
         try:
             # 在子线程执行耗时的同步网络请求
-            result = self._func()
+            result = self._checker.check(self._force)
             self.finished.emit(result)
         except Exception as e:
             logger.error(f"检查更新失败: {e}")
@@ -87,7 +110,7 @@ class CheckWorker(QObject):
 
 
 class DownloadWorker(QObject):
-    """负责执行下载逻辑的子线程 Worker"""
+    """执行下载更新的子线程 Worker"""
 
     started = Signal(str)  # url
     progress = Signal(int, int)  # done, total
@@ -96,22 +119,20 @@ class DownloadWorker(QObject):
 
     def __init__(
         self,
-        download_func: Callable[..., Path],
+        checker: UpdateChecker,
         item: DownloadItem,
         filename: str | None,
         chunk_size: int,
-        cancel_check_func: Callable[[], bool],
     ):
         super().__init__()
-        self._func = download_func
+        self._checker = checker
         self.item = item
         self.filename = filename
         self.chunk_size = chunk_size
-        self._cancel_check_func = cancel_check_func
 
     @Slot()
     def run(self):
-        full_url = (MIRROR + self.item.url) if config.Update.UseMirror else self.item.url
+        full_url = self._checker.resolve_download_url(self.item.url, allow_latency_check=False)
         self.started.emit(full_url)
         try:
             # 定义回调函数将进度转发给信号
@@ -119,12 +140,13 @@ class DownloadWorker(QObject):
                 self.progress.emit(done, total)
 
             # 执行同步下载
-            path = self._func(
+            path = self._checker.download_update(
                 self.item,
                 filename=self.filename,
                 chunk_size=self.chunk_size,
                 on_progress=_on_progress,
-                cancel_checker=self._cancel_check_func,
+                cancel_checker=self._checker._is_download_cancelled,
+                resolved_url=full_url,
             )
             self.finished.emit(str(path))
         except DownloadCancelled as e:
@@ -132,6 +154,26 @@ class DownloadWorker(QObject):
             self.failed.emit(str(e))
         except Exception as e:
             logger.error(f"下载更新失败: {e}")
+            self.failed.emit(str(e))
+
+
+class LatencyWorker(QObject):
+    """执行延迟检测的 Worker"""
+
+    finished = Signal(object)  # dict[DownloadSource, float | None] | None
+    failed = Signal(str)
+
+    def __init__(self, checker: UpdateChecker, *, emit_result: bool):
+        super().__init__()
+        self._checker = checker
+        self._emit_result = emit_result
+
+    @Slot()
+    def run(self):
+        try:
+            result = self._checker.test_source_latency()
+            self.finished.emit(result if self._emit_result else None)
+        except Exception as e:
             self.failed.emit(str(e))
 
 
@@ -150,6 +192,9 @@ class UpdateChecker(QObject):
     download_progress = Signal(int, int)  # bytes_done, total_bytes(-1未知)
     download_finished = Signal(str)  # zip 文件路径
     download_failed = Signal(str)
+    latency_test_started = Signal()
+    latency_test_finished = Signal(object)  # dict[DownloadSource, float | None]
+    latency_test_failed = Signal(str)
 
     def __init__(
         self,
@@ -165,6 +210,12 @@ class UpdateChecker(QObject):
         self._active_response: requests.Response | None = None
         self._update_script_path: Path | None = None
         self._script_reopen: bool = False
+        self._auto_selected_source: DownloadSource | None = None
+        self._latency_probe_running = False
+        self._shutting_down = False
+
+        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
+            self.start_latency_warmup()
 
     # ================== 同步 API ==================
 
@@ -181,6 +232,7 @@ class UpdateChecker(QObject):
         chunk_size: int = 1024 * 1024,
         on_progress: Callable[[int, int], None] | None = None,
         cancel_checker: Callable[[], bool] | None = None,
+        resolved_url: str | None = None,
     ) -> Path:
         """下载更新"""
         dest_dir = Path(EA_BASEDIR / "cache")
@@ -197,7 +249,7 @@ class UpdateChecker(QObject):
             return out_path
 
         # 2. 准备下载
-        url = (MIRROR + item.url) if config.Update.UseMirror else item.url
+        url = resolved_url or self.resolve_download_url(item.url, allow_latency_check=False)
         total = -1
         done = 0
         logger.info(f"开始下载更新包: {url}")
@@ -220,6 +272,65 @@ class UpdateChecker(QObject):
             logger.success(f"下载完成(无校验): {out_path}")
 
         return out_path
+
+    def resolve_download_url(self, raw_url: str, *, allow_latency_check: bool = False) -> str:
+        """为 Github URL 应用镜像源"""
+        hostname = (urlparse(raw_url).hostname or "").lower()
+        if hostname not in {"github.com", "www.github.com"}:
+            return raw_url
+
+        selected_source = config.Update.TargetDownloadSource
+        if selected_source == DownloadSource.AUTO:
+            if not allow_latency_check:
+                # 优先使用最近一次测速结果
+                if self._auto_selected_source is not None:
+                    selected_source = self._auto_selected_source
+                else:
+                    return raw_url
+            else:
+                selected_source = self._auto_select_source()
+
+        return DOWNLOAD_SOURCE_PREFIXES.get(selected_source, "") + raw_url
+
+    def test_source_latency(self) -> dict[DownloadSource, float | None]:
+        candidates = (DownloadSource.GITHUB, DownloadSource.GHPROXY, DownloadSource.GHFAST)
+        result: dict[DownloadSource, float | None] = dict.fromkeys(candidates)
+        available: list[tuple[DownloadSource, float]] = []
+
+        for source in candidates:
+            try:
+                latency = self._probe_source_latency(source)
+            except Exception:
+                latency = None
+            result[source] = latency
+            if latency is not None:
+                available.append((source, latency))
+
+        if available:
+            self._auto_selected_source = min(available, key=lambda x: x[1])[0]
+        else:
+            self._auto_selected_source = DownloadSource.GITHUB
+
+        logger.success(f"成功检测下载源延迟，已选中 {self._auto_selected_source.display_name}")
+        return result
+
+    def start_latency_warmup(self) -> None:
+        """预测试延迟"""
+        self._ensure_auto_selected_source(async_warmup=True)
+
+    def test_source_latency_async(self) -> None:
+        """异步检测延迟，避免阻塞 UI 线程"""
+        worker = LatencyWorker(self, emit_result=True)
+
+        def _connect_signals(thread: QThread) -> None:
+            thread.started.connect(self.latency_test_started)
+            thread.started.connect(worker.run)
+            worker.finished.connect(self.latency_test_finished)
+            worker.failed.connect(self.latency_test_failed)
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
+
+        self._start_worker_thread(worker, connect_signals=_connect_signals)
 
     def create_update_script(self, zip_path: Path, reopen: bool = True) -> Path:
         """解压更新包并生成批处理脚本"""
@@ -291,30 +402,20 @@ class UpdateChecker(QObject):
     # ================== 异步 API ==================
 
     def check_async(self, force: bool = False) -> None:
-        self._cleanup_threads()
+        worker = CheckWorker(self, force)
 
-        thread = QThread()
-        # 将 check 方法传入 Worker
-        worker = CheckWorker(lambda: self.check(force))
-        worker.moveToThread(thread)
-        thread._worker_ref = worker  # 保存引用
+        def _connect_signals(thread: QThread) -> None:
+            # 信号转发：Worker -> Self (直接连接)
+            worker.finished.connect(self.check_finished)
+            worker.failed.connect(self.check_failed)
 
-        # 信号转发：Worker -> Self (直接连接)
-        worker.finished.connect(self.check_finished)
-        worker.failed.connect(self.check_failed)
+            # 生命周期管理
+            thread.started.connect(self.check_started)
+            thread.started.connect(worker.run)
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
 
-        # 生命周期管理
-        thread.started.connect(self.check_started)
-        thread.started.connect(worker.run)
-
-        worker.finished.connect(thread.quit)
-        worker.failed.connect(thread.quit)
-
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(worker.deleteLater)
-
-        self._threads.append(thread)
-        thread.start()
+        self._start_worker_thread(worker, connect_signals=_connect_signals)
 
     def download_async(
         self,
@@ -324,35 +425,28 @@ class UpdateChecker(QObject):
         chunk_size: int = 1024 * 1024,
     ) -> None:
         """启动异步下载线程"""
-        self._cleanup_threads()
         self._cancel_download_flag = False
 
-        thread = QThread()
         worker = DownloadWorker(
-            self.download_update,
+            self,
             item,
             filename,
             chunk_size,
-            lambda: self._cancel_download_flag,  # 传入闭包用于检查状态
         )
-        worker.moveToThread(thread)
-        thread._worker_ref = worker  # 保存引用
 
-        # 信号转发
-        worker.started.connect(self.download_started)
-        worker.progress.connect(self.download_progress)
-        worker.finished.connect(self.download_finished)
-        worker.failed.connect(self.download_failed)
+        def _connect_signals(thread: QThread) -> None:
+            # 信号转发
+            worker.started.connect(self.download_started)
+            worker.progress.connect(self.download_progress)
+            worker.finished.connect(self.download_finished)
+            worker.failed.connect(self.download_failed)
 
-        # 生命周期管理
-        thread.started.connect(worker.run)
-        worker.finished.connect(thread.quit)
-        worker.failed.connect(thread.quit)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(worker.deleteLater)
+            # 生命周期管理
+            thread.started.connect(worker.run)
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
 
-        self._threads.append(thread)
-        thread.start()
+        self._start_worker_thread(worker, connect_signals=_connect_signals)
 
     def cancel_download(self) -> None:
         """取消当前下载"""
@@ -361,6 +455,38 @@ class UpdateChecker(QObject):
         if self._active_response:
             with contextlib.suppress(Exception):
                 self._active_response.close()
+
+    def _is_download_cancelled(self) -> bool:
+        return self._cancel_download_flag
+
+    def shutdown(self, *, wait_ms: int = 2) -> None:
+        """应用退出前停止内部线程，避免 QThread 在运行中被销毁。"""
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        try:
+            self.cancel_download()
+            with contextlib.suppress(Exception):
+                self.session.close()
+
+            self._cleanup_threads()
+            for thread in list(self._threads):
+                with contextlib.suppress(RuntimeError):
+                    if not thread.isRunning():
+                        continue
+                    thread.quit()
+                    if thread.wait(wait_ms):
+                        continue
+                    logger.warning("更新线程未在超时内退出，正在强制结束")
+                    thread.quit()
+                    thread.wait(500)
+        finally:
+            self._cleanup_threads()
+            self._shutting_down = False
+
+    def bind_app_shutdown(self) -> None:
+        app = get_app()
+        app.aboutToQuit.connect(self.shutdown)
 
     # ================== 内部辅助方法 ==================
 
@@ -373,6 +499,26 @@ class UpdateChecker(QObject):
                     cleaned_threads.append(t)
         self._threads = cleaned_threads
 
+    def _start_worker_thread(
+        self,
+        worker: QObject,
+        *,
+        connect_signals: Callable[[QThread], None],
+    ) -> None:
+        self._cleanup_threads()
+
+        thread = QThread()
+        worker.moveToThread(thread)
+        thread._worker_ref = worker  # 保存引用
+
+        connect_signals(thread)
+
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(worker.deleteLater)
+
+        self._threads.append(thread)
+        thread.start()
+
     def _fetch_manifest(self) -> dict[str, Any]:
         if self._likely_offline():
             raise UpdateError("设备似乎处于离线状态")
@@ -383,15 +529,16 @@ class UpdateChecker(QObject):
         for url in MANIFEST_URLS:
             resp, last_error = self._try_fetch_manifest(url)
             if resp is not None:
+                logger.success("成功获取更新清单")
                 break
 
         if resp is None or resp.status_code != 200:
-            raise last_error or UpdateError("所有 manifest URL 都不可用")
+            raise last_error or UpdateError("所有更新清单 URL 都不可用")
 
         return self._parse_manifest_json(resp)
 
     def _decide(self, manifest: dict[str, Any], force: bool = False) -> UpdateDecision:
-        target_key = "latest_dev" if config.Update.UpdateChannel == UpdateChannals.DEV else "latest"
+        target_key = "latest_dev" if config.Update.TargetUpdateChannel == UpdateChannal.DEV else "latest"
         target_ver_str = manifest.get(target_key)
 
         if not target_ver_str:
@@ -408,6 +555,8 @@ class UpdateChecker(QObject):
 
         all_downloads = self._extract_downloads(target_info)
         downloads = self._select_downloads(all_downloads)
+        if downloads:
+            self._ensure_auto_selected_source(async_warmup=False)
 
         return UpdateDecision(True, target_ver_str, confirm_required, changelog, downloads)
 
@@ -441,7 +590,7 @@ class UpdateChecker(QObject):
         for v in in_range:
             info: dict = versions[v]
             if bool(info.get("is_dev")) != (
-                config.Update.UpdateChannel == UpdateChannals.DEV
+                config.Update.TargetUpdateChannel == UpdateChannal.DEV
             ):  # 不读取不同通道的更新日志
                 continue
 
@@ -471,15 +620,16 @@ class UpdateChecker(QObject):
 
     def _select_downloads(self, all_downloads: list[DownloadItem]) -> tuple[DownloadItem, ...]:
         # 筛选符合当前 package_channel 的下载项
-        downloads = tuple(d for d in all_downloads if d.channel == config.Update.PackageChannel.value)
+        downloads = tuple(d for d in all_downloads if d.channel == config.Update.TargetPackageChannel.value)
 
         # 仅在当前包通道不是 default 时，才回退到 default
-        if not downloads and config.Update.PackageChannel != PackageChannels.DEFAULT:
-            logger.warning(f"未找到 {config.Update.PackageChannel.value} 分支的下载项，回退至 default 分支")
-            downloads = tuple(d for d in all_downloads if d.channel == PackageChannels.DEFAULT.value)
+        if not downloads and config.Update.TargetPackageChannel != PackageChannel.DEFAULT:
+            logger.warning(f"未找到 {config.Update.TargetPackageChannel.value} 分支的下载项，回退至 default 分支")
+            downloads = tuple(d for d in all_downloads if d.channel == PackageChannel.DEFAULT.value)
 
         if not downloads:
             logger.warning("获取到的下载项为空")
+            return ()
 
         return downloads
 
@@ -507,6 +657,93 @@ class UpdateChecker(QObject):
         if len(entries) == 1 and entries[0].is_dir():
             return entries[0]
         return extract_dir
+
+    def _auto_select_source(self) -> DownloadSource:
+        if self._auto_selected_source is not None:
+            return self._auto_selected_source
+
+        results = self.test_source_latency()
+        available = [(source, latency) for source, latency in results.items() if latency is not None]
+
+        if not available:
+            logger.warning("镜像源延迟检测失败，回退至 GitHub 直连")
+            return DownloadSource.GITHUB
+
+        selected_source, selected_latency = min(available, key=lambda x: x[1])
+        logger.info(f"自动选择下载源：{selected_source.display_name} ({selected_latency * 1000:.0f} ms)")
+        return selected_source
+
+    def _ensure_auto_selected_source(self, *, async_warmup: bool) -> None:
+        if config.Update.TargetDownloadSource != DownloadSource.AUTO:
+            return
+        if self._auto_selected_source is not None:
+            return
+        if self._latency_probe_running:
+            return
+
+        if async_warmup:
+            worker = LatencyWorker(self, emit_result=False)
+            self._latency_probe_running = True
+
+            def _connect_signals(thread: QThread) -> None:
+                thread.started.connect(worker.run)
+                worker.finished.connect(thread.quit)
+                worker.failed.connect(thread.quit)
+                worker.finished.connect(lambda _=None: self._set_latency_probe_running(False))
+                worker.failed.connect(lambda e: logger.debug(f"启动延迟预热失败: {e}"))
+                worker.failed.connect(lambda _=None: self._set_latency_probe_running(False))
+
+            self._start_worker_thread(worker, connect_signals=_connect_signals)
+            return
+
+        try:
+            self._auto_select_source()
+        except Exception as e:
+            logger.warning(f"预热下载源失败，已回退默认直连: {e}")
+
+    def _set_latency_probe_running(self, value: bool) -> None:
+        self._latency_probe_running = value
+
+    def _probe_source_latency(self, source: DownloadSource) -> float | None:
+        # 优先通过 requests 探测，避免 TUN 代理下不可用
+        probe_url = DOWNLOAD_SOURCE_PROBE_URLS.get(source)
+        if probe_url:
+            latency = self._probe_http_latency(probe_url)
+            if latency is not None:
+                return latency
+
+        # HTTP 探测失败再回退到原始 TCP 探测
+        host = DOWNLOAD_SOURCE_HOSTS.get(source)
+        if not host:
+            return None
+
+        return self._probe_tcp_latency(host)
+
+    def _probe_http_latency(self, url: str) -> float | None:
+        start = time.perf_counter()
+        try:
+            with self.session.get(
+                url,
+                headers={**HEADERS, "Range": "bytes=0-0"},
+                timeout=LATENCY_TIMEOUT,
+                stream=True,
+                allow_redirects=False,
+            ) as response:
+                # 接收到可用响应即认为连通，避免对特定状态码过于苛刻
+                if response.status_code >= 500:
+                    return None
+            return time.perf_counter() - start
+        except Exception:
+            return None
+
+    def _probe_tcp_latency(self, host: str, port: int = 443) -> float | None:
+        start = time.perf_counter()
+        try:
+            with socket.create_connection((host, port), timeout=LATENCY_TIMEOUT[0]):
+                pass
+            return time.perf_counter() - start
+        except Exception:
+            return None
 
     @staticmethod
     def _quote(s: str) -> str:
@@ -596,10 +833,10 @@ class UpdateChecker(QObject):
 
     def _try_fetch_manifest(self, url: str) -> tuple[requests.Response | None, UpdateError | None]:
         try:
-            logger.info(f"尝试从 {url} 获取 manifest")
+            logger.info(f"尝试从 {url} 获取更新清单")
             resp = self.session.get(url, headers=HEADERS, timeout=MANIFEST_TIMEOUT)
             if resp.status_code != 200:
-                err = UpdateError(f"manifest 服务器返回错误：{resp.status_code}")
+                err = UpdateError(f"更新清单服务器返回错误：{resp.status_code}")
                 logger.warning(f"URL {url} 失败: {err}")
                 return None, err
             return resp, None
@@ -612,7 +849,7 @@ class UpdateChecker(QObject):
         try:
             return resp.json()
         except ValueError as e:
-            raise UpdateError(f"manifest JSON 解析失败：{e!s}") from e
+            raise UpdateError(f"更新清单 JSON 解析失败：{e!s}") from e
 
 
 update_checker = UpdateChecker()

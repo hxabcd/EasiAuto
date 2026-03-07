@@ -61,14 +61,21 @@ class UpdateMode(InformativeEnum):
     CHECK_AND_INSTALL = (3, "自动检查更新并安装")
 
 
-class UpdateChannals(InformativeEnum):
+class UpdateChannal(InformativeEnum):
     RELEASE = ("release", "稳定通道")
     DEV = ("dev", "测试通道")
 
 
-class PackageChannels(InformativeEnum):
+class PackageChannel(InformativeEnum):
     DEFAULT = ("default", "完整版")
     LITE = ("lite", "精简版")
+
+
+class DownloadSource(InformativeEnum):
+    AUTO = ("auto", "自动选择")
+    GITHUB = ("github", "GitHub")
+    GHPROXY = ("ghproxy", "ghproxy")
+    GHFAST = ("ghfast", "ghfast")
 
 
 class ConfigModel(BaseModel):
@@ -477,28 +484,28 @@ class UpdateConfig(ConfigModel):
         description="设置应用的更新模式",
         json_schema_extra={"icon": "Application"},
     )
-    UpdateChannel: UpdateChannals = Field(
-        default=UpdateChannals.RELEASE,
-        title="更新通道",
-        description="控制应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
-        json_schema_extra={"icon": "Tag"},
-    )
-    PackageChannel: PackageChannels = Field(
-        default=PackageChannels.DEFAULT if IS_FULL else PackageChannels.LITE,
-        title="更新包分支",
-        description="控制应用的更新包分支",
-        json_schema_extra={"icon": "Tag"},
-    )
     CheckAfterLogin: bool = Field(
         default=True,
-        title="登录后更新",
+        title="登录后检查更新",
         description="登录完成后，尝试按照设置的更新模式检查更新（安装时将会静默）",
         json_schema_extra={"icon": "Megaphone"},
     )
-    UseMirror: bool = Field(
-        default=False,
-        title="使用镜像",
-        description="下载较慢时，可尝试启用镜像源下载 (ghproxy)",
+    TargetUpdateChannel: UpdateChannal = Field(
+        default=UpdateChannal.RELEASE,
+        title="更新通道",
+        description="设置应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
+        json_schema_extra={"icon": "Tag"},
+    )
+    TargetPackageChannel: PackageChannel = Field(
+        default=PackageChannel.DEFAULT if IS_FULL else PackageChannel.LITE,
+        title="更新包分支",
+        description="设置应用的更新包分支",
+        json_schema_extra={"icon": "Tag"},
+    )
+    TargetDownloadSource: DownloadSource = Field(
+        default=DownloadSource.AUTO,
+        title="下载镜像源设置",
+        description="设置更新包的下载镜像源",
         json_schema_extra={"icon": "Download"},
     )
 

@@ -38,6 +38,8 @@ app.installTranslator(translator)
 setTheme(Theme(config.App.Theme.value))
 setThemeColor("#00C884")
 
+update_checker.bind_app_shutdown()
+
 
 class Launcher:
     def __init__(self) -> None:
