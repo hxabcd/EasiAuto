@@ -15,7 +15,7 @@
             "name": "Debug: UI",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/EasiAuto/main.py",
+            "program": "main.py",
             "console": "integratedTerminal",
             "args": [
                 "settings"
@@ -25,7 +25,7 @@
             "name": "Debug: Login",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/EasiAuto/main.py",
+            "program": "main.py",
             "console": "integratedTerminal",
             "args": [
                 "login",

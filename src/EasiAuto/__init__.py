@@ -18,4 +18,3 @@ EasiAuto v{__version__} ({"FULL" if IS_FULL else "LITE"})
 You are running in development environment.
 Author: {__author__}
 Github Repo: https://github.com/hxabcd/EasiAuto""")
-

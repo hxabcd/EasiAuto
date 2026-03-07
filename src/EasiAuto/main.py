@@ -199,6 +199,3 @@ def main():
     else:
         cmd_settings(args)
 
-
-if __name__ == "__main__":
-    main()
