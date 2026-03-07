@@ -33,7 +33,6 @@ class SettingIconWidget(IconWidget):
         drawIcon(self._icon, painter, self.rect())
 
 
-
 class ListItemDelegate(TableItemDelegate):
     """
     为什么要重写这个？原先的组件加个 Spacing 会直接干掉 Indicator 的绘制
@@ -199,7 +198,7 @@ class SettingCardGroup(QWidget):
         self.cardLayout = ExpandLayout()
 
         self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
-        self.vBoxLayout.setAlignment(Qt.AlignTop)
+        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.vBoxLayout.setSpacing(0)
         self.cardLayout.setContentsMargins(0, 0, 0, 0)
         self.cardLayout.setSpacing(2)
