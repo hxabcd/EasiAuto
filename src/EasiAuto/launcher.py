@@ -8,6 +8,14 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
+from PySide6.QtWidgets import QApplication
+from qfluentwidgets import (
+    FluentTranslator,
+    Theme,
+    setTheme,
+    setThemeColor,
+)
+
 from EasiAuto import __version__
 from EasiAuto.common import utils
 from EasiAuto.common.config import UpdateMode, config
@@ -15,14 +23,21 @@ from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_excepti
 from EasiAuto.common.update import UpdateError, update_checker
 from EasiAuto.core.manager import AutomationManager
 from EasiAuto.view.components import DialogResponse, PreRunPopup, WarningBanner
-from EasiAuto.view.main_window import MainWindow, app
-
-init_exception_handler()
-utils.init_exit_signal_handlers()
+from EasiAuto.view.main_window import MainWindow
 
 IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
 UI_COMMANDS = {None, "settings"}
 FORWARDABLE_COMMANDS = {"login", "skip"}
+
+init_exception_handler()
+utils.init_exit_signal_handlers()
+
+app = QApplication(sys.argv)
+translator = FluentTranslator()
+app.installTranslator(translator)
+setTheme(Theme(config.App.Theme.value))
+setThemeColor("#00C884")
+
 
 class Launcher:
     def __init__(self) -> None:
