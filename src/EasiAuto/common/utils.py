@@ -289,7 +289,7 @@ def init_exception_handler():
 
         sentry_sdk.init(
             dsn=SENTRY_DSN,
-            integrations=[LoguruIntegration(event_level=None)],
+            integrations=[LoguruIntegration(event_level=50)],  # CRITICAL
             before_send=before_send,
             release=f"EasiAuto@{__version__}",
             environment="development" if IS_DEV else "production",
