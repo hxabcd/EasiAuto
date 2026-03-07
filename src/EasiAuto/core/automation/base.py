@@ -43,7 +43,7 @@ class QABCMeta(type(QThread), ABCMeta):  # type: ignore
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
-    finished = Signal(str)
+    finished = Signal(bool, str)
     task_update = Signal(str)
     progress_update = Signal(str)
 
@@ -148,7 +148,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.restart_easinote()
                 self.login()
 
-                self.finished.emit("登录完成")
+                self.finished.emit(True, "登录完成")
                 return
             except BaseException as e:
                 retries += 1
@@ -159,5 +159,5 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     time.sleep(2)
                 else:
                     logger.critical(f"{retries}次尝试均登录失败: {e}")
-                    self.finished.emit(f"登录失败: {e}")
+                    self.finished.emit(False, f"登录失败: {e}")
                     return

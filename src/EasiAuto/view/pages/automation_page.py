@@ -621,13 +621,12 @@ class AutomationManageSubpage(QWidget):
         _manager.finished.connect(self._handle_finish)
         _manager.run()
 
-    def _handle_finish(self, message: str):
+    def _handle_finish(self, success: bool, message: str):
         if hasattr(self, "banner"):
             self.banner.close()
             del self.banner
 
-        # 根据返回消息弹出提示
-        if "失败" in message:
+        if not success:
             InfoBar.error(
                 title="自动登录失败",
                 content=message,
@@ -648,7 +647,6 @@ class AutomationManageSubpage(QWidget):
                 parent=get_main_container(),
             )
 
-        self.automator.terminate()  # 保险起见 双重退出
         logger.success(f"自动化运行结束: {message}")
 
     def _handle_action_export(self, guid: str):
