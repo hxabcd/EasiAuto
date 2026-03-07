@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import socket
 import subprocess
 import tempfile
 import zipfile
@@ -7,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import requests
 from loguru import logger
@@ -20,6 +22,8 @@ from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_U
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
+MANIFEST_TIMEOUT = (3, 5)  # connect, read
+DOWNLOAD_TIMEOUT = (8, 60)  # connect, read
 
 
 @dataclass(frozen=True)
@@ -193,7 +197,7 @@ class UpdateChecker(QObject):
             with self.session.get(
                 url,
                 headers=HEADERS,
-                timeout=180,
+                timeout=DOWNLOAD_TIMEOUT,
                 stream=True,
             ) as r:
                 self._active_response = r  # 保存引用以便取消
@@ -227,7 +231,7 @@ class UpdateChecker(QObject):
             # 如果是主动关闭 socket 引发的错误，视为取消
             if self._cancel_download_flag:
                 raise UpdateError("下载已取消") from e
-            raise UpdateError(f"下载过程中出错: {e!s}") from e
+            raise UpdateError(self._format_network_error("下载更新包", e)) from e
         finally:
             self._active_response = None
 
@@ -388,18 +392,21 @@ class UpdateChecker(QObject):
         cleaned_threads = []
         for t in self._threads:
             with contextlib.suppress(RuntimeError):
-                if t.isRunning:
+                if t.isRunning():
                     cleaned_threads.append(t)
         self._threads = cleaned_threads
 
     def _fetch_manifest(self) -> dict[str, Any]:
+        if self._likely_offline():
+            raise UpdateError("设备似乎处于离线状态")
+
         last_error = None
         resp = None
 
         for url in MANIFEST_URLS:
             try:
                 logger.info(f"尝试获取 manifest 从：{url}")
-                resp = self.session.get(url, headers=HEADERS, timeout=15)
+                resp = self.session.get(url, headers=HEADERS, timeout=MANIFEST_TIMEOUT)
                 if resp.status_code != 200:
                     last_error = UpdateError(f"manifest 服务器返回错误：{resp.status_code}")
                     logger.warning(f"URL {url} 失败: {last_error}")
@@ -407,7 +414,7 @@ class UpdateChecker(QObject):
                 # 成功获取，跳出循环
                 break
             except requests.RequestException as e:
-                last_error = UpdateError(f"manifest URL 网络请求失败：{e!s}")
+                last_error = UpdateError(self._format_network_error("检查更新", e))
                 logger.warning(f"URL {url} 请求异常: {last_error}")
                 continue
 
@@ -536,6 +543,32 @@ class UpdateChecker(QObject):
         if any(c in s for c in ' \t"'):
             return '"' + s.replace('"', '\\"') + '"'
         return s
+
+    def _likely_offline(self) -> bool:
+        """通过快速 DNS 解析判断是否可能离线，避免无网环境下长时间等待。"""
+        hosts = {urlparse(url).hostname for url in MANIFEST_URLS}
+        hosts.discard(None)
+
+        for host in hosts:
+            try:
+                socket.getaddrinfo(str(host), 443, proto=socket.IPPROTO_TCP)
+                return False
+            except socket.gaierror:
+                continue
+            except OSError:
+                continue
+        return True
+
+    def _format_network_error(self, action: str, err: Exception) -> str:
+        if isinstance(err, requests.ConnectTimeout):
+            return f"{action}失败：连接超时，请检查网络后重试"
+        if isinstance(err, requests.ReadTimeout):
+            return f"{action}失败：读取超时，请稍后重试"
+        if isinstance(err, requests.ConnectionError):
+            return f"{action}失败：网络不可用或服务器无法连接"
+        if isinstance(err, OSError):
+            return f"{action}失败：网络异常（{err!s}）"
+        return f"{action}失败：{err!s}"
 
 
 update_checker = UpdateChecker()

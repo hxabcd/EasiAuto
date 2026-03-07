@@ -41,22 +41,27 @@ def login_finished(success: bool, message: str):
         utils.stop(1)
 
     # 成功则检查更新
-    from EasiAuto.common.update import update_checker
+    from EasiAuto.common.update import UpdateError, update_checker
 
     if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
-        decision = update_checker.check()
-        if decision.available and decision.downloads:
-            if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                file = update_checker.download_update(decision.downloads[0])
-                app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
-            else:  # 其他情形仅通知
-                windows11toast.notify(
-                    title="更新可用",
-                    body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
-                    icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                    icon_hint_crop=windows11toast.IconCrop.NONE,
-                    icon_src=utils.get_resource("EasiAuto.ico"),
-                )
+        try:
+            decision = update_checker.check()
+            if decision.available and decision.downloads:
+                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
+                    file = update_checker.download_update(decision.downloads[0])
+                    app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
+                else:  # 其他情形仅通知
+                    windows11toast.notify(
+                        title="更新可用",
+                        body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
+                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                        icon_hint_crop=windows11toast.IconCrop.NONE,
+                        icon_src=utils.get_resource("EasiAuto.ico"),
+                    )
+        except UpdateError as e:
+            logger.warning(f"检查更新时发生异常，已跳过：{e}")
+        except Exception as e:
+            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
 
     utils.stop()
 
