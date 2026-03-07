@@ -1004,6 +1004,8 @@ class AutomationPage(QWidget):
             if self.manager_page.overlay.isVisible() != running:
                 self.status_bar.update_status()
                 self.manager_page.set_ci_running_state(running)
+                if not running:
+                    self.manager_page._init_selector(reload=True)
 
         if self.main_widget.currentWidget() != target_page:
             logger.debug(f"切换自动化页面到: {target_page.__class__.__name__}")
