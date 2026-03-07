@@ -1,17 +1,17 @@
+# pyright: reportAttributeAccessIssue=none
 from __future__ import annotations
 
 import weakref
 from enum import Enum, auto
-from typing import Any, assert_never
+from typing import Any, assert_never, cast
 
 import qt_pydantic as qtp
 from annotated_types import Ge, Gt, Le, Lt
 from loguru import logger
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -21,218 +21,19 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import (
     ColorPickerButton,
     ComboBox,
-    Dialog,
     DoubleSpinBox,
     ExpandGroupSettingCard,
     FluentIcon,
     FluentStyleSheet,
-    ImageLabel,
     LineEdit,
-    PrimaryPushButton,
-    PushButton,
     Slider,
     SpinBox,
     SwitchButton,
     isDarkTheme,
 )
 
-from EasiAuto.config import BannerStyleConfig, ConfigGroup, ConfigItem
-from EasiAuto.qfw_widgets import SettingIconWidget
-from EasiAuto.utils import get_resource
-
-
-class DialogResponse(Enum):
-    CANCEL = 0
-    CONTINUE = 1
-    TIMEOUT = 2
-    DELAY = 3
-
-
-class PreRunPopup(Dialog):
-    """运行前的确认弹窗"""
-
-    recievedResponse = Signal(DialogResponse)
-
-    def __init__(self):
-        super().__init__(
-            title="EasiAuto",
-            content="将在 N/A 秒后继续执行",
-        )
-        self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
-
-        self.is_dragging = False
-        self.drag_position = QPoint()
-        self.title_bar_height = 30
-
-        self.title_layout = QHBoxLayout()
-
-        self.iconLabel = ImageLabel()
-        self.iconLabel.setImage(get_resource("EasiAuto.ico"))
-        self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, "取消")
-        self.delay_btn = PushButton(FluentIcon.PAUSE, "推迟")
-        self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, "立即执行")
-
-        self.iconLabel.setScaledContents(True)
-        self.iconLabel.setFixedSize(50, 50)
-        self.titleLabel.setText("即将运行希沃白板自动登录")
-        self.titleLabel.setStyleSheet("font-size: 25px; font-weight: bold;")
-        self.contentLabel.setStyleSheet("font-size: 16px;")
-        self.cancel_btn.setFixedWidth(100)
-        self.delay_btn.setFixedWidth(100)
-        self.execute_btn.setFixedWidth(150)
-        self.yesButton.hide()
-        self.cancelButton.hide()
-        self.title_layout.setSpacing(12)
-        QApplication.processEvents()
-
-        self.cancel_btn.clicked.connect(lambda: self.respond(DialogResponse.CANCEL))
-        self.delay_btn.clicked.connect(lambda: self.respond(DialogResponse.DELAY))
-        self.execute_btn.clicked.connect(lambda: self.respond(DialogResponse.CONTINUE))
-
-        self.title_layout.addWidget(self.iconLabel)  # 标题布局
-        self.title_layout.addWidget(self.titleLabel)
-        self.textLayout.insertLayout(0, self.title_layout)  # 页面
-        self.buttonLayout.insertStretch(0, 1)  # 按钮布局
-        self.buttonLayout.insertWidget(1, self.cancel_btn)
-        self.buttonLayout.insertWidget(2, self.delay_btn)
-        self.buttonLayout.insertWidget(3, self.execute_btn)
-
-        self.response: DialogResponse = DialogResponse.CANCEL
-
-    def exec(self) -> int:
-        self.setStayOnTop(True)  # 必须在显示时才能设置置顶，否则窗口显示位置不会居中
-        return super().exec()
-
-    def respond(self, result: DialogResponse):
-        self.close()
-        self.response = result
-        self.recievedResponse.emit(result)
-
-    def countdown(self, timeout: int):
-        # 设置倒计时
-        if timeout <= 0:
-            raise ValueError("倒计时时长必须是正整数")
-
-        # 更新倒计时文本
-        def update_text():
-            nonlocal timeout
-            if timeout > 0:
-                self.contentLabel.setText(
-                    "<span style='color: transparent;'>占位文本</span>"
-                    + f"将在 <span style='font-size: 20px; font-weight: 600;'>{timeout}</span> 秒后继续执行"
-                )
-                timeout -= 1
-            else:
-                self.respond(DialogResponse.TIMEOUT)
-
-        update_text()
-
-        # 计时器
-        timer = QTimer()
-        timer.timeout.connect(update_text)
-        timer.setInterval(1000)
-        timer.start()
-
-        self.exec()
-
-        timer.stop()
-        return self.response
-
-    def mousePressEvent(self, event: Any) -> None:
-        if event.button() == Qt.LeftButton and event.y() <= self.title_bar_height:
-            self.is_dragging = True
-            self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
-
-    def mouseMoveEvent(self, event: Any) -> None:
-        if self.is_dragging:
-            self.move(event.globalPos() - self.drag_position)
-
-    def mouseReleaseEvent(self, event: Any) -> None:
-        if event.button() == Qt.LeftButton:
-            self.is_dragging = False
-
-
-class WarningBanner(QWidget):
-    """顶部警示横幅"""
-
-    def __init__(self, config: BannerStyleConfig):
-        super().__init__()
-        self.config = config
-
-        self.setFixedHeight(140)  # 横幅高度
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-
-        # 置顶、无边框、点击穿透
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
-
-        self.text_x = 0
-
-        font_families = ["Microsoft YaHei UI", "sans-serif"]
-        if self.config.TextFont != "":
-            font_families.insert(0, self.config.TextFont)
-        font = QFont(font_families, pointSize=36, weight=QFont.Bold)
-        self.text_font = font
-
-        # 生成斜纹
-        self.stripe = QPixmap(40, 32)
-        self.stripe.fill(Qt.transparent)
-        painter = QPainter(self.stripe)
-        painter.setBrush(QColor(self.config.FgColor))
-        painter.setPen(Qt.NoPen)
-        painter.drawPolygon([QPoint(0, 32), QPoint(16, 0), QPoint(32, 0), QPoint(16, 32)])
-        painter.end()
-
-        self.offset = 0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.animate)
-        self.timer.start(1000 // self.config.Fps)
-
-    def animate(self):
-        # 条纹滚动
-        self.offset = (self.offset + 1) % self.stripe.width()
-
-        # 文字滚动
-        self.text_x -= self.config.TextSpeed
-        # 文字总长度
-        total_text_width = QFontMetrics(self.text_font).horizontalAdvance(self.config.Text)
-        if self.text_x < -total_text_width:
-            self.text_x += total_text_width  # 循环滚动，不跳空
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-
-        # 背景颜色
-        painter.fillRect(self.rect(), QColor(self.config.BgColor))
-        # 顶部条纹
-        y = 0
-        x = -self.offset
-        while x < self.width():
-            painter.drawPixmap(x, y, self.stripe)
-            x += self.stripe.width()
-
-        # 分割线（条纹下边缘）
-        painter.setPen(QPen(QColor(self.config.FgColor), 4))
-        painter.drawLine(0, self.stripe.height(), self.width(), self.stripe.height())
-
-        # 底部条纹
-        y = self.height() - self.stripe.height()
-        x = -self.offset
-        while x < self.width():
-            painter.drawPixmap(x, y, self.stripe)
-            x += self.stripe.width()
-
-        # 分割线（条纹上边缘）
-        painter.drawLine(0, y, self.width(), y)
-
-        # 滚动文字（循环绘制多份）
-        painter.setFont(self.text_font)
-        painter.setPen(QColor(self.config.TextColor))
-        text_width = painter.fontMetrics().horizontalAdvance(self.config.Text)
-        x = self.text_x
-        while x < self.width():
-            painter.drawText(x, int(self.height() / 2 + self.config.YOffset), self.config.Text)
-            x += text_width
+from EasiAuto.common.config import ConfigGroup, ConfigItem
+from EasiAuto.view.components.qfw_widgets import SettingIconWidget
 
 
 class CardType(Enum):
@@ -286,7 +87,7 @@ class SettingCard(QFrame):
         icon: str | QIcon | FluentIcon | None,
         title: str,
         content: str | None = None,
-        config_item: ConfigItem | ConfigGroup | None = None,
+        config_item: ConfigItem | None = None,
         is_item: bool = False,
         item_margin: bool = True,
         parent=None,
@@ -294,7 +95,7 @@ class SettingCard(QFrame):
     ):
         super().__init__(parent=parent)
         self.card_type: CardType = card_type
-        self.config_item: ConfigItem | ConfigGroup | None = config_item
+        self.config_item: ConfigItem | None = config_item
         self.is_item: bool = is_item
         self.item_margin: bool = item_margin
         self._widget: QWidget  # 主控件
@@ -341,20 +142,20 @@ class SettingCard(QFrame):
 
         self.hBoxLayout.setSpacing(0)
         self.hBoxLayout.setContentsMargins(48 if self.is_item and self.item_margin else 16, 0, 0, 0)
-        self.hBoxLayout.setAlignment(Qt.AlignVCenter)
+        self.hBoxLayout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.vBoxLayout.setSpacing(0)
         self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
-        self.vBoxLayout.setAlignment(Qt.AlignVCenter)
+        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         if self.has_icon:
-            self.hBoxLayout.addWidget(self.iconLabel, 0, Qt.AlignLeft)
+            self.hBoxLayout.addWidget(self.iconLabel, 0, Qt.AlignmentFlag.AlignLeft)
             self.hBoxLayout.addSpacing(16)
 
         self.hBoxLayout.addLayout(self.vBoxLayout)
-        self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignLeft)
+        self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignmentFlag.AlignLeft)
         if content:
-            self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignLeft)
+            self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignmentFlag.AlignLeft)
 
         self.hBoxLayout.addSpacing(16)
         self.hBoxLayout.addStretch(1)
@@ -476,12 +277,12 @@ class SettingCard(QFrame):
                 assert_never(unreachable)
 
         # 添加控件到布局
-        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
     def _create_range_widget(self):
         """创建滑条控件（特殊布局）"""
-        self._widget = Slider(Qt.Horizontal, self)
+        self._widget = Slider(Qt.Orientation.Horizontal, self)
         self.valueLabel = QLabel(self)
         self.valueLabel.setObjectName("valueLabel")
 
@@ -495,9 +296,9 @@ class SettingCard(QFrame):
             self.valueLabel.setNum(self.config_item.value)
 
         self.hBoxLayout.addStretch(1)
-        self.hBoxLayout.addWidget(self.valueLabel, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self.valueLabel, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(6)
-        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
         self._widget.valueChanged.connect(self._on_value_changed)
@@ -727,7 +528,7 @@ class SettingCard(QFrame):
             icon=icon,
             title=config_item.title,
             content=config_item.description,
-            config_item=config_item,
+            config_item=cast(ConfigItem, config_item),
             is_item=is_item,
             item_margin=item_margin,
             parent=parent,

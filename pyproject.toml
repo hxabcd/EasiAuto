@@ -1,5 +1,8 @@
 [dependency-groups]
-dev = ["nuitka>=2.8.9"]
+dev = [
+    "nuitka>=2.8.9",
+    "ruff>=0.15.5",
+]
 
 [project]
 name = "EasiAuto"
@@ -35,7 +38,7 @@ default = true
 
 [tool.pyright]
 autoImportCompletions = true
-exclude = ["**/.venv", "**/__pycache__", "build"]
+exclude = ["**/.venv", "**/__pycache__", "build", "**/node_modules", "**/.*"]
 include = ["**/*.py"]
 pythonVersion = "3.12"
 reportArgumentType = "warning"
@@ -72,6 +75,8 @@ useLibraryCodeForTypes = true
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+src = ["src"]
+exclude = ["**/.venv", "**/__pycache__", "build", "**/node_modules", "**/.*"]
 
 [tool.ruff.lint]
 select = [
