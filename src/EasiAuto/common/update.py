@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import hashlib
 import subprocess
@@ -17,8 +15,8 @@ from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
-from EasiAuto.config import PackageChannels, UpdateChannals, config
-from EasiAuto.consts import BACKUP_MANIFEST_URL, EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URL
+from EasiAuto.common.config import PackageChannels, UpdateChannals, config
+from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URLS
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
@@ -395,22 +393,26 @@ class UpdateChecker(QObject):
         self._threads = cleaned_threads
 
     def _fetch_manifest(self) -> dict[str, Any]:
-        try:
+        last_error = None
+        resp = None
+
+        for url in MANIFEST_URLS:
             try:
-                resp = self.session.get(MANIFEST_URL, headers=HEADERS, timeout=15)
+                logger.info(f"尝试获取 manifest 从：{url}")
+                resp = self.session.get(url, headers=HEADERS, timeout=15)
+                if resp.status_code != 200:
+                    last_error = UpdateError(f"manifest 服务器返回错误：{resp.status_code}")
+                    logger.warning(f"URL {url} 失败: {last_error}")
+                    continue
+                # 成功获取，跳出循环
+                break
             except requests.RequestException as e:
-                raise UpdateError(f"主 manifest URL 网络请求失败：{e!s}") from e
-            if resp.status_code != 200:
-                raise UpdateError(f"主 manifest 服务器返回错误：{resp.status_code}")
-        except UpdateError:
-            # 主 manifest URL 失败，尝试备用 URL
-            logger.warning("尝试使用备用 manifest URL")
-            try:
-                resp = self.session.get(BACKUP_MANIFEST_URL, headers=HEADERS, timeout=15)
-            except requests.RequestException as e:
-                raise UpdateError(f"备用 manifest URL 请求失败：{e!s}") from e
-            if resp.status_code != 200:
-                raise UpdateError(f"备用 manifest 服务器返回错误：{resp.status_code}")  # noqa: B904
+                last_error = UpdateError(f"manifest URL 网络请求失败：{e!s}")
+                logger.warning(f"URL {url} 请求异常: {last_error}")
+                continue
+
+        if resp is None or resp.status_code != 200:
+            raise last_error or UpdateError("所有 manifest URL 都不可用")
 
         try:
             return resp.json()

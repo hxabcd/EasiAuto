@@ -8,11 +8,10 @@ EA_EXECUTABLE = (Path(sys.executable) if not IS_DEV else Path(sys.argv[0]).paren
 EA_BASEDIR = EA_EXECUTABLE.parent
 
 SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
-MANIFEST_URL = "https://0xabcd.dev/update/EasiAuto.json"
-# 以防我域名过期，放个指向 Github 的链接作为备份
-BACKUP_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/hxabcd/0xabcd-log/refs/heads/master/public/update/EasiAuto.json"
-)
+MANIFEST_URLS = [
+    "https://easiauto.0xabcd.dev/update.json",
+    "https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
+]
 
 
 VENDOR_PATH = EA_BASEDIR / "vendors"

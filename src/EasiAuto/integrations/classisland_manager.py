@@ -3,6 +3,7 @@ import os
 import re
 import uuid
 from pathlib import Path
+from typing import cast
 
 import pywintypes
 import win32api
@@ -13,8 +14,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.config import config
-from EasiAuto.consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.common.config import config
+from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
 
 
 class CiSubject(BaseModel):
@@ -428,4 +429,4 @@ class _CiManagerProxy:
         return self._impl is not None
 
 
-manager: CiManager | None = _CiManagerProxy()  # type: ignore
+manager = cast(CiManager | None, _CiManagerProxy())

@@ -7,17 +7,20 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
-from EasiAuto import __version__, utils
-from EasiAuto.components import WarningBanner
-from EasiAuto.config import LoginMethod, UpdateMode, config
-from EasiAuto.ui import MainWindow, app
+from EasiAuto import __version__
+from EasiAuto.common import utils
+from EasiAuto.common.config import UpdateMode, config
+from EasiAuto.core.manager import AutomationManager
+from EasiAuto.view.components import DialogResponse, PreRunPopup, WarningBanner
+from EasiAuto.view.main_window import MainWindow, app
 
 utils.init_exception_handler()
 utils.init_exit_signal_handlers()
 
 banner: WarningBanner | None = None
 
-def login_finished(message: str):
+
+def login_finished(success: bool, message: str):
     """登录结束后的回调"""
 
     # 关闭警示横幅
@@ -26,7 +29,7 @@ def login_finished(message: str):
         banner.deleteLater()
 
     # 检查是否登录失败
-    if "失败" in message:
+    if not success:
         logger.error(f"自动登录失败: {message}")
         windows11toast.notify(
             title="自动登录失败",
@@ -38,7 +41,7 @@ def login_finished(message: str):
         utils.stop(1)
 
     # 成功则检查更新
-    from EasiAuto.update import update_checker
+    from EasiAuto.common.update import update_checker
 
     if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
         decision = update_checker.check()
@@ -69,9 +72,6 @@ def cmd_login(args):
         utils.stop()
 
     logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
-
-    from EasiAuto.automator import CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
-    from EasiAuto.components import DialogResponse, PreRunPopup, WarningBanner
 
     # 显示警告弹窗
     if config.Warning.Enabled and not args.manual:
@@ -117,22 +117,10 @@ def cmd_login(args):
 
     # 执行登录
     logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-    match config.Login.Method:  # 选择登录方案
-        case LoginMethod.UIA:
-            automator_type = UIAAutomator
-        case LoginMethod.OPENCV:
-            automator_type = CVAutomator
-        case LoginMethod.FIXED:
-            automator_type = FixedAutomator
-        case LoginMethod.INJECT:
-            automator_type = InjectAutomator
-        case unreachable:
-            assert_never(unreachable)
+    manager = AutomationManager(account=args.account, password=args.password)
+    manager.finished.connect(login_finished)
+    manager.run()
 
-    automator = automator_type(args.account, args.password)
-
-    automator.start()
-    automator.finished.connect(login_finished)
     sys.exit(app.exec())
 
 
@@ -178,24 +166,23 @@ def main():
 
     args = parser.parse_args()
 
-    if hasattr(args, "func"):
-        if args.func != cmd_skip:
-            if config.Update.LastVersion != "Unknown":
-                try:
-                    last_version = Version(config.Update.LastVersion)
-                except Exception as e:
-                    logger.warning(f"解析上个版本时发生异常：{e}")
-                else:
-                    if last_version < Version(__version__):
-                        windows11toast.notify(
-                            title=f"已更新至 {__version__}",
-                            body=f"{config.Update.LastVersion} -> {__version__}",
-                            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                            icon_hint_crop=windows11toast.IconCrop.NONE,
-                            icon_src=utils.get_resource("EasiAuto.ico"),
-                        )
-            config.Update.LastVersion = __version__
-        args.func(args)
-    else:
-        cmd_settings(args)
+    func = args.func if hasattr(args, "func") else cmd_settings
 
+    if func != cmd_skip:
+        if config.Update.LastVersion != "Unknown":
+            try:
+                last_version = Version(config.Update.LastVersion)
+            except Exception as e:
+                logger.warning(f"解析上个版本时发生异常：{e}")
+            else:
+                if last_version < Version(__version__):
+                    windows11toast.notify(
+                        title=f"已更新至 {__version__}",
+                        body=f"{config.Update.LastVersion} -> {__version__}",
+                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                        icon_hint_crop=windows11toast.IconCrop.NONE,
+                        icon_src=utils.get_resource("EasiAuto.ico"),
+                    )
+        config.Update.LastVersion = __version__
+
+    func(args)

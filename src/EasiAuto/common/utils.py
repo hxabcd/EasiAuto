@@ -40,8 +40,8 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.config import config
-from EasiAuto.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, SENTRY_DSN
+from EasiAuto.common.config import config
+from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, SENTRY_DSN
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
@@ -402,7 +402,7 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             InfoBar.success(
                 title="成功",
                 content=f"已在桌面创建 {name}",
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
@@ -414,7 +414,7 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             InfoBar.error(
                 title="创建失败",
                 content=str(e),
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,

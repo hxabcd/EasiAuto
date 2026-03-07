@@ -15,7 +15,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.consts import EA_BASEDIR, IS_FULL
+from EasiAuto.common.consts import EA_BASEDIR, IS_FULL
 
 
 @total_ordering
@@ -43,7 +43,7 @@ class LogLevelEnum(InformativeEnum):
 
 class LoginMethod(InformativeEnum):
     FIXED = (0, "固定位置（较稳定，极快）")
-    OPENCV = (1, "图像识别（不稳定，较快）")
+    CV = (1, "图像识别（不稳定，较快）")
     UIA = (2, "自动定位（最稳定，较慢）")
     INJECT = (3, "进程注入（不稳定，最快）")
 
@@ -64,6 +64,7 @@ class UpdateMode(InformativeEnum):
 class UpdateChannals(InformativeEnum):
     RELEASE = ("release", "稳定通道")
     DEV = ("dev", "测试通道")
+
 
 class PackageChannels(InformativeEnum):
     DEFAULT = ("default", "完整版")
