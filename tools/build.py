@@ -32,7 +32,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         # ------ 基本参数 ------
         f"--main={MAIN}",
         "--mode=standalone",
-        "--msvc=latest",
+        # "--msvc=latest",
         "--assume-yes-for-downloads",
         "--include-data-dir=resources=resources",
         # ------ 导入控制 ------
