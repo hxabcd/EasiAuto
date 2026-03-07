@@ -1,44 +1,30 @@
-from __future__ import annotations
-
-import sys
-
 from loguru import logger
 
 from PySide6.QtCore import QSize, QTimer
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (
-    QApplication,
-    QWidget,
-)
 from qfluentwidgets import (
     FluentIcon,
-    FluentTranslator,
     MSFluentWindow,
     NavigationItemPosition,
     SplashScreen,
     SystemThemeListener,
-    Theme,
     isDarkTheme,
     qconfig,
     setTheme,
-    setThemeColor,
 )
 
-from EasiAuto.common.config import config
 from EasiAuto.common.utils import get_resource
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, UpdatePage
 
 
 class MainWindow(MSFluentWindow):
-    container: QWidget | None = None
-
     def __init__(self):
         logger.debug("初始化界面")
         super().__init__()
         self.initWindow()
 
         # 启动页面
-        self.splashScreen = SplashScreen(self.windowIcon(), self)
+        self.splashScreen = SplashScreen(self.windowIcon(), self)  # TODO: 无法显示，貌似出现于重构结构后
         self.splashScreen.setIconSize(QSize(102, 102))
         logger.debug("显示启动页面")
         self.show()
@@ -80,12 +66,3 @@ class MainWindow(MSFluentWindow):
         # 云母特效启用时需要增加重试机制
         if self.isMicaEffectEnabled():
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
-
-
-# os.environ['QT_SCALE_FACTOR'] = ...
-
-app = QApplication(sys.argv)
-translator = FluentTranslator()
-app.installTranslator(translator)
-setTheme(Theme(config.App.Theme.value))
-setThemeColor("#00C884")
