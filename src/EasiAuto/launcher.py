@@ -76,8 +76,6 @@ def cmd_login(args):
 
         utils.stop()
 
-    logger.debug(f"传入的参数：\n{'\n'.join([f' - {key}: {value}' for key, value in vars(args).items()])}")
-
     # 显示警告弹窗
     if config.Warning.Enabled and not args.manual:
         try:
