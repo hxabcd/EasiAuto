@@ -8,10 +8,7 @@ from typing import Literal
 # ------ 配置区 ------
 APP_NAME = "EasiAuto"
 COMPANY_NAME = "HxAbCd"
-MAIN = "src/EasiAuto/main.py"
-RESOURCE_DIR = "src/EasiAuto/resources"
-EXTENSION_DIR = "src/EasiAuto/extensions"
-ICO_PATH = "src/EasiAuto/resources/EasiAuto.ico"
+MAIN = "main.py"
 OUTPUT_DIR = Path("build")
 
 
@@ -37,7 +34,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         "--mode=standalone",
         "--msvc=latest",
         "--assume-yes-for-downloads",
-        f"--include-data-dir={RESOURCE_DIR}=resources",
+        "--include-data-dir=resources=resources",
         # ------ 导入控制 ------
         "--enable-plugins=pyside6",
         "--follow-imports",
@@ -54,7 +51,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         "--remove-output",
         # ------ Windows 配置 ------
         "--windows-console-mode=disable",
-        f"--windows-icon-from-ico={ICO_PATH}",
+        "--windows-icon-from-ico=resources/EasiAuto.ico",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={APP_NAME}",
         f"--product-version={base_version}",
@@ -65,9 +62,6 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         cmd.append("--nofollow-import-to=numpy")
     else:
         print("Building FULL version...")
-        cmd.append("--include-data-files=vendors/cv2.cp313-win_amd64.pyd=cv2.pyd")
-        cmd.append(f"--include-data-dir={EXTENSION_DIR}=extensions")
-        cmd.append("--include-data-dir=vendors/Snoop=vendors/Snoop")
 
     print(f"Executing command: {' '.join(cmd)}")
 
@@ -77,6 +71,17 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
     except subprocess.CalledProcessError as e:
         print(f"Build failed: {e}")
         sys.exit(1)
+
+    # FULL 版本手动复制 vendors 目录
+    if build_type == "full":
+        dist_path = target_dir / "main.dist"
+        if Path("vendors").exists():
+            dest_vendors = dist_path / "vendors"
+            dest_vendors.parent.mkdir(parents=True, exist_ok=True)
+            if dest_vendors.exists():
+                shutil.rmtree(dest_vendors)
+            print(f"Copying vendors to {dest_vendors}...")
+            shutil.copytree("vendors", dest_vendors)
 
     # 删除冗余文件
     if build_type == "lite":
@@ -106,8 +111,6 @@ if __name__ == "__main__":
     parser.add_argument("--type", choices=["full", "lite"], default="full")
     args = parser.parse_args()
 
-    # 1. 获取基础版本 (如 1.1.0)
     raw_v = get_version()
 
-    # 2. 执行打包
     run_nuitka(raw_v, args.type)
