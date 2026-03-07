@@ -151,12 +151,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.finished.emit("登录完成")
                 return
             except BaseException as e:
-                import sys
-
-                from EasiAuto.common.utils import log_exception
-
                 retries += 1
-                log_exception(*sys.exc_info(), prefix=f"登录子线程发生异常（尝试 {retries}/{config.App.MaxRetries}）")  # type: ignore
 
                 if retries <= config.App.MaxRetries:
                     logger.error(f"登录过程中发生错误 ({type(e).__name__}): {e}")
