@@ -153,7 +153,7 @@ class UpdateContentView(QWidget):
         return scroll_area
 
     def set_change_log(self, change_log: ChangeLog | None):
-        """允许初始化后传入/更新 changelog。"""
+        """允许初始化后传入/更新 changelog"""
         self.description_label.setText("")
         self.highlights_layout.takeAllWidgets()
         while self.others_layout.count():

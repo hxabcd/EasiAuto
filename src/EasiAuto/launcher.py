@@ -1,6 +1,7 @@
 import sys
 import time
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
+from contextlib import contextmanager
 from typing import assert_never
 
 import windows11toast
@@ -10,168 +11,240 @@ from packaging.version import Version
 from EasiAuto import __version__
 from EasiAuto.common import utils
 from EasiAuto.common.config import UpdateMode, config
+from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
+from EasiAuto.common.update import UpdateError, update_checker
 from EasiAuto.core.manager import AutomationManager
 from EasiAuto.view.components import DialogResponse, PreRunPopup, WarningBanner
 from EasiAuto.view.main_window import MainWindow, app
 
-utils.init_exception_handler()
+init_exception_handler()
 utils.init_exit_signal_handlers()
 
-banner: WarningBanner | None = None
+IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
+UI_COMMANDS = {None, "settings"}
+FORWARDABLE_COMMANDS = {"login", "skip"}
 
+class Launcher:
+    def __init__(self) -> None:
+        self.ipc_server: ArgvIpcServer | None = None
+        self.main_window: MainWindow | None = None
+        self.banner: WarningBanner | None = None
+        self.active_login_manager: AutomationManager | None = None
+        self.login_running = False
+        self._ipc_context = False
+        self._active_login_from_ipc = False
 
-def login_finished(success: bool, message: str):
-    """登录结束后的回调"""
+    def _show_settings_window(self) -> None:
+        if self.main_window is None:
+            self.main_window = MainWindow()
+        self.main_window.show()
+        self.main_window.raise_()
+        self.main_window.activateWindow()
 
-    # 关闭警示横幅
-    if banner is not None:
-        banner.close()
-        banner.deleteLater()
+    def _build_parser(self) -> ArgumentParser:
+        parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
+        subparsers = parser.add_subparsers(title="子命令", dest="command")
 
-    # 检查是否登录失败
-    if not success:
-        logger.error(f"自动登录失败: {message}")
-        windows11toast.notify(
-            title="自动登录失败",
-            body=f"{message}\n请检查日志获取详细信息",
-            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-            icon_hint_crop=windows11toast.IconCrop.NONE,
-            icon_src=utils.get_resource("EasiAuto.ico"),
-        )
-        utils.stop(1)
+        login_parser = subparsers.add_parser("login", help="登录账号")
+        login_parser.add_argument("-a", "--account", required=True, help="账号")
+        login_parser.add_argument("-p", "--password", required=True, help="密码")
+        login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
 
-    # 成功则检查更新
-    from EasiAuto.common.update import UpdateError, update_checker
+        subparsers.add_parser("settings", help="打开设置界面")
+        subparsers.add_parser("skip", help="跳过下一次登录")
+        return parser
 
-    if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
-        try:
-            decision = update_checker.check()
-            if decision.available and decision.downloads:
-                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                    file = update_checker.download_update(decision.downloads[0])
-                    app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
-                else:  # 其他情形仅通知
-                    windows11toast.notify(
-                        title="更新可用",
-                        body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
-                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                        icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("EasiAuto.ico"),
-                    )
-        except UpdateError as e:
-            logger.warning(f"检查更新时发生异常，已跳过：{e}")
-        except Exception as e:
-            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
+    def _on_login_finished(self, success: bool, message: str) -> None:
+        """登录结束后的回调"""
+        from_ipc = self._active_login_from_ipc
+        if self.banner is not None:
+            self.banner.close()
+            self.banner.deleteLater()
+            self.banner = None
 
-    utils.stop()
+        self.active_login_manager = None
+        self.login_running = False
+        self._active_login_from_ipc = False
 
+        if not success:
+            logger.error(f"自动登录失败: {message}")
+            windows11toast.notify(
+                title="自动登录失败",
+                body=f"{message}\n请检查日志获取详细信息",
+                icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                icon_hint_crop=windows11toast.IconCrop.NONE,
+                icon_src=utils.get_resource("EasiAuto.ico"),
+            )
+            if not from_ipc:
+                utils.stop(1)
+            return
 
-def cmd_login(args):
-    """login 子命令 - 执行自动登录"""
+        if from_ipc:
+            return  # 通过 IPC 触发不退出，保持主实例运行
 
-    # 若临时禁用，则退出程序
-    if config.Login.SkipOnce:
-        logger.info("已通过配置文件禁用，正在退出")
-        config.Login.SkipOnce = False
+        if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
+            try:
+                decision = update_checker.check()
+                if decision.available and decision.downloads:
+                    if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
+                        file = update_checker.download_update(decision.downloads[0])
+                        app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
+                    else:
+                        windows11toast.notify(
+                            title="更新可用",
+                            body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
+                            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                            icon_hint_crop=windows11toast.IconCrop.NONE,
+                            icon_src=utils.get_resource("EasiAuto.ico"),
+                        )
+            except UpdateError as e:
+                logger.warning(f"检查更新时发生异常，已跳过：{e}")
+            except Exception as e:
+                logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
 
         utils.stop()
 
-    # 显示警告弹窗
-    if config.Warning.Enabled and not args.manual:
-        try:
-            msgbox = PreRunPopup()
-            delays = 0
-            while True:
-                if delays >= config.Warning.MaxDelays:
-                    msgbox.delay_btn.hide()
-                response = msgbox.countdown(config.Warning.Timeout)
-                match response:
-                    case DialogResponse.CANCEL:
-                        logger.info("用户取消操作，正在退出")
-                        utils.stop()
-                        sys.exit(0)
-                    case DialogResponse.CONTINUE:
-                        logger.info("用户确认继续，继续执行")
-                        break
-                    case DialogResponse.TIMEOUT:
-                        logger.info("等待超时，继续执行")
-                        break
-                    case DialogResponse.DELAY:
-                        logger.info(f"用户选择推迟，等待 {config.Warning.DelayTime} 秒...")
-                        delays += 1
-                        time.sleep(config.Warning.DelayTime)
-                        continue
-                    case unreachable:
-                        assert_never(unreachable)
-        except Exception:
-            logger.error("显示警告弹窗时出错，跳过警告")
+    def _start_login(self, args: Namespace) -> bool:
+        """启动登录任务；若已有任务在运行则拒绝"""
+        from_ipc = self._ipc_context
+        if self.login_running:
+            logger.warning("登录任务已在执行中，拒绝新的 login 请求")
+            return False
 
-    # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
+        if config.Login.SkipOnce:
+            logger.info("已通过配置文件禁用，正在退出")
+            config.Login.SkipOnce = False
+            if not from_ipc:
+                utils.stop()
+            return False
 
-    # 显示警示横幅
-    if config.Banner.Enabled:
-        try:
-            screen = app.primaryScreen().geometry()
-            banner = WarningBanner(config.Banner.Style)
-            banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
-            banner.show()
-        except Exception:
-            logger.error("显示横幅时出错，跳过横幅")
+        if config.Warning.Enabled and not args.manual:
+            try:
+                msgbox = PreRunPopup()
+                delays = 0
+                while True:
+                    if delays >= config.Warning.MaxDelays:
+                        msgbox.delay_btn.hide()
+                    response = msgbox.countdown(config.Warning.Timeout)
+                    match response:
+                        case DialogResponse.CANCEL:
+                            logger.info("用户取消操作，正在退出")
+                            if not from_ipc:
+                                utils.stop()
+                                sys.exit(0)
+                            return False
+                        case DialogResponse.CONTINUE:
+                            logger.info("用户确认继续，继续执行")
+                            break
+                        case DialogResponse.TIMEOUT:
+                            logger.info("等待超时，继续执行")
+                            break
+                        case DialogResponse.DELAY:
+                            logger.info(f"用户选择推迟，等待 {config.Warning.DelayTime} 秒...")
+                            delays += 1
+                            time.sleep(config.Warning.DelayTime)
+                            continue
+                        case unreachable:
+                            assert_never(unreachable)
+            except Exception:
+                logger.error("显示警告弹窗时出错，跳过警告")
 
-    # 执行登录
-    logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-    manager = AutomationManager(account=args.account, password=args.password)
-    manager.finished.connect(login_finished)
-    manager.run()
+        # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
+        if config.Banner.Enabled:
+            try:
+                screen = app.primaryScreen().geometry()
+                self.banner = WarningBanner(config.Banner.Style)
+                self.banner.setGeometry(0, 80, screen.width(), 140)
+                self.banner.show()
+            except Exception:
+                logger.error("显示横幅时出错，跳过横幅")
 
-    sys.exit(app.exec())
+        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
+        manager = AutomationManager(account=args.account, password=args.password)
+        self._active_login_from_ipc = from_ipc
+        manager.finished.connect(self._on_login_finished)
+        manager.run()
 
+        self.active_login_manager = manager
+        self.login_running = True
+        return True
 
-def cmd_settings(_):
-    """settings 子命令 - 打开设置界面"""
+    def cmd_login(self, args: Namespace) -> bool:
+        """login 子命令 - 执行自动登录"""
+        if not self._start_login(args):
+            return False
 
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+        if not self._ipc_context:
+            sys.exit(app.exec())
+        return True
 
+    def cmd_settings(self, _) -> None:
+        """settings 子命令 - 打开设置界面"""
+        self._show_settings_window()
+        if not self._ipc_context:
+            sys.exit(app.exec())
 
-def cmd_skip(_):
-    """skip 子命令 - 跳过下一次登录"""
-    config.Login.SkipOnce = True
-    logger.success("已更新配置文件，正在退出")
-    utils.stop()
+    def cmd_skip(self, _) -> None:
+        """skip 子命令 - 跳过下一次登录"""
+        config.Login.SkipOnce = True
+        if self._ipc_context:
+            logger.success("已更新配置文件")
+            return
 
-
-def main():
-    # 单例检查
-    if not utils.check_singleton():
+        logger.success("已更新配置文件，正在退出")
         utils.stop()
-        return  # 强行退出
 
-    # 解析命令行参数
-    parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
-    subparsers = parser.add_subparsers(title="子命令", dest="command")
+    def _dispatch_command(self, args: Namespace) -> None:
+        command = getattr(args, "command", None)
+        match command:
+            case "login":
+                self.cmd_login(args)
+            case "skip":
+                self.cmd_skip(args)
+            case _:
+                self.cmd_settings(args)
 
-    # login 子命令
-    login_parser = subparsers.add_parser("login", help="登录账号")
-    login_parser.add_argument("-a", "--account", required=True, help="账号")
-    login_parser.add_argument("-p", "--password", required=True, help="密码")
-    login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
-    login_parser.set_defaults(func=cmd_login)
+    @contextmanager
+    def from_ipc(self):
+        prev_context = self._ipc_context
+        self._ipc_context = True
+        try:
+            yield
+        finally:
+            self._ipc_context = prev_context
 
-    # settings 子命令
-    setting_parser = subparsers.add_parser("settings", help="打开设置界面")
-    setting_parser.set_defaults(func=cmd_settings)
+    def _handle_external_argv(self, argv: list[str]) -> None:
+        """处理来自次实例的参数"""
+        parser = self._build_parser()
+        try:
+            args = parser.parse_args(argv[1:])
+        except SystemExit:
+            logger.warning(f"收到无效参数，已忽略: {argv!r}")
+            return
+        if (command := getattr(args, "command", None)) not in FORWARDABLE_COMMANDS:
+            logger.warning(f"忽略不被允许的 IPC 命令: {command!r}")
+            return
+        with self.from_ipc():
+            self._dispatch_command(args)
 
-    # skip 子命令
-    skip_parser = subparsers.add_parser("skip", help="跳过下一次登录")
-    skip_parser.set_defaults(func=cmd_skip)
+    def _forward_or_exit(self, command: str | None) -> None:
+        if command in FORWARDABLE_COMMANDS:
+            forwarded = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
+            if forwarded:
+                logger.info(f"已将参数转发到主实例: {command}")
+                utils.stop(0)
+                return
+            logger.warning("检测到已有实例，但参数转发失败（主实例可能未打开 UI）")
+            utils.stop(1)
+            return
 
-    args = parser.parse_args()
+        logger.info(f"检测到已有实例，命令 {command!r} 不允许转发，当前实例退出")
+        utils.stop(0)
 
-    func = args.func if hasattr(args, "func") else cmd_settings
+    def _notify_updated(self, command: str | None) -> None:
+        if command == "skip":
+            return
 
-    if func != cmd_skip:
         if config.Update.LastVersion != "Unknown":
             try:
                 last_version = Version(config.Update.LastVersion)
@@ -188,4 +261,22 @@ def main():
                     )
         config.Update.LastVersion = __version__
 
-    func(args)
+    def run(self) -> None:
+        parser = self._build_parser()
+        args = parser.parse_args()
+        command = getattr(args, "command", None)
+
+        if not check_singleton(focus_existing=(command == "settings")):
+            self._forward_or_exit(command)
+            return
+
+        if command in UI_COMMANDS:
+            self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)
+            self.ipc_server.start()
+
+        self._notify_updated(command)
+        self._dispatch_command(args)
+
+
+def main() -> None:
+    Launcher().run()
