@@ -29,7 +29,9 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.common.config import config
-from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, SENTRY_DSN
+from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+
+SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
 
 error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []

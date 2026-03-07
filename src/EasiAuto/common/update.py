@@ -18,12 +18,17 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
 from EasiAuto.common.config import PackageChannels, UpdateChannals, config
-from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV, MANIFEST_URLS
+from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 MIRROR = "https://ghproxy.net/"
 MANIFEST_TIMEOUT = (3, 5)  # connect, read
 DOWNLOAD_TIMEOUT = (8, 60)  # connect, read
+
+MANIFEST_URLS = [
+    "https://easiauto.0xabcd.dev/update.json",
+    "https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
+]
 
 
 @dataclass(frozen=True)
