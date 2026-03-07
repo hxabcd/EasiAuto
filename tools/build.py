@@ -41,7 +41,6 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         "--include-module=comtypes.stream",
         "--include-package=sentry_sdk.integrations",
         "--nofollow-import-to=PySide6.QtPdf",
-        "--nofollow-import-to=PySide6.QtNetwork",
         "--nofollow-import-to=PySide6.QtDataVisualization",
         "--nofollow-import-to=PySide6.QtOpenGL",
         "--nofollow-import-to=PySide6.QtOpenGLWidgets",

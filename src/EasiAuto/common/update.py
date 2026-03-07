@@ -268,7 +268,7 @@ class UpdateChecker(QObject):
         """执行更新脚本（通常此时应退出主程序）"""
 
         if IS_DEV:
-            logger.critical("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
+            logger.warning("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
             return
 
         if self._update_script_path and self._script_reopen == reopen:
@@ -511,7 +511,7 @@ class UpdateChecker(QObject):
         return s
 
     def _likely_offline(self) -> bool:
-        """通过快速 DNS 解析判断是否可能离线，避免无网环境下长时间等待。"""
+        """通过快速 DNS 解析判断是否可能离线，避免无网环境下长时间等待"""
         hosts = {urlparse(url).hostname for url in MANIFEST_URLS}
         hosts.discard(None)
 
