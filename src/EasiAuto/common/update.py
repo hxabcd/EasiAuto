@@ -53,6 +53,10 @@ class UpdateError(RuntimeError):
     pass
 
 
+class DownloadCancelled(UpdateError):
+    pass
+
+
 # -------------------- 独立 Worker 类 --------------------
 
 
@@ -118,11 +122,11 @@ class DownloadWorker(QObject):
                 cancel_checker=self._cancel_check_func,
             )
             self.finished.emit(str(path))
+        except DownloadCancelled as e:
+            logger.info("下载任务已取消")
+            self.failed.emit(str(e))
         except Exception as e:
-            if "取消" in str(e):
-                logger.info("下载任务已取消")
-            else:
-                logger.error(f"下载更新失败: {e}")
+            logger.error(f"下载更新失败: {e}")
             self.failed.emit(str(e))
 
 
@@ -193,47 +197,15 @@ class UpdateChecker(QObject):
         done = 0
         logger.info(f"开始下载更新包: {url}")
 
-        try:
-            with self.session.get(
-                url,
-                headers=HEADERS,
-                timeout=DOWNLOAD_TIMEOUT,
-                stream=True,
-            ) as r:
-                self._active_response = r  # 保存引用以便取消
-
-                if r.status_code != 200:
-                    raise UpdateError(f"下载失败 HTTP {r.status_code}: {r.text[:200]}")
-
-                total_hdr = r.headers.get("Content-Length")
-                total = int(total_hdr) if total_hdr and total_hdr.isdigit() else -1
-
-                h = hashlib.sha256()
-                with out_path.open("wb") as f:
-                    for chunk in r.iter_content(chunk_size=chunk_size):
-                        # 检查取消
-                        if cancel_checker and cancel_checker():
-                            raise UpdateError("下载已取消")
-                        if not chunk:
-                            continue
-
-                        f.write(chunk)
-                        h.update(chunk)
-                        done += len(chunk)
-
-                        if on_progress:
-                            on_progress(done, total)
-
-        except (requests.RequestException, OSError) as e:
-            # 清理未完成文件
-            with contextlib.suppress(Exception):
-                out_path.unlink(missing_ok=True)
-            # 如果是主动关闭 socket 引发的错误，视为取消
-            if self._cancel_download_flag:
-                raise UpdateError("下载已取消") from e
-            raise UpdateError(self._format_network_error("下载更新包", e)) from e
-        finally:
-            self._active_response = None
+        self._download_to_file(
+            url=url,
+            out_path=out_path,
+            chunk_size=chunk_size,
+            on_progress=on_progress,
+            cancel_checker=cancel_checker,
+            done=done,
+            total=total,
+        )
 
         # 3. 校验
         if item.sha256:
@@ -401,30 +373,17 @@ class UpdateChecker(QObject):
             raise UpdateError("设备似乎处于离线状态")
 
         last_error = None
-        resp = None
+        resp: requests.Response | None = None
 
         for url in MANIFEST_URLS:
-            try:
-                logger.info(f"尝试获取 manifest 从：{url}")
-                resp = self.session.get(url, headers=HEADERS, timeout=MANIFEST_TIMEOUT)
-                if resp.status_code != 200:
-                    last_error = UpdateError(f"manifest 服务器返回错误：{resp.status_code}")
-                    logger.warning(f"URL {url} 失败: {last_error}")
-                    continue
-                # 成功获取，跳出循环
+            resp, last_error = self._try_fetch_manifest(url)
+            if resp is not None:
                 break
-            except requests.RequestException as e:
-                last_error = UpdateError(self._format_network_error("检查更新", e))
-                logger.warning(f"URL {url} 请求异常: {last_error}")
-                continue
 
         if resp is None or resp.status_code != 200:
             raise last_error or UpdateError("所有 manifest URL 都不可用")
 
-        try:
-            return resp.json()
-        except ValueError as e:
-            raise UpdateError(f"manifest JSON 解析失败：{e!s}") from e
+        return self._parse_manifest_json(resp)
 
     def _decide(self, manifest: dict[str, Any], force: bool = False) -> UpdateDecision:
         target_key = "latest_dev" if config.Update.UpdateChannel == UpdateChannals.DEV else "latest"
@@ -443,14 +402,7 @@ class UpdateChecker(QObject):
         changelog = self._build_changelog(manifest, Version(target_ver_str), force=force)
 
         all_downloads = self._extract_downloads(target_info)
-        # 筛选符合当前 package_channel 的下载项
-        downloads = tuple(d for d in all_downloads if d.channel == config.Update.PackageChannel.value)
-        if not downloads and config.Update.UpdateChannel != PackageChannels.DEFAULT:
-            logger.warning(f"未找到 {config.Update.UpdateChannel.value} 分支的下载项，回退至 default 分支")
-            downloads = tuple(d for d in all_downloads if d.channel == "default")
-
-        if not downloads:
-            logger.warning("获取到的下载项为空")
+        downloads = self._select_downloads(all_downloads)
 
         return UpdateDecision(True, target_ver_str, confirm_required, changelog, downloads)
 
@@ -512,6 +464,20 @@ class UpdateChecker(QObject):
                 )
         return result
 
+    def _select_downloads(self, all_downloads: list[DownloadItem]) -> tuple[DownloadItem, ...]:
+        # 筛选符合当前 package_channel 的下载项
+        downloads = tuple(d for d in all_downloads if d.channel == config.Update.PackageChannel.value)
+
+        # 仅在当前包通道不是 default 时，才回退到 default
+        if not downloads and config.Update.PackageChannel != PackageChannels.DEFAULT:
+            logger.warning(f"未找到 {config.Update.PackageChannel.value} 分支的下载项，回退至 default 分支")
+            downloads = tuple(d for d in all_downloads if d.channel == PackageChannels.DEFAULT.value)
+
+        if not downloads:
+            logger.warning("获取到的下载项为空")
+
+        return downloads
+
     def _check_sha256(self, path: Path, expected_sha256: str) -> bool:
         expected = expected_sha256.lower().strip()
         h = hashlib.sha256()
@@ -569,6 +535,79 @@ class UpdateChecker(QObject):
         if isinstance(err, OSError):
             return f"{action}失败：网络异常（{err!s}）"
         return f"{action}失败：{err!s}"
+
+    def _download_to_file(
+        self,
+        *,
+        url: str,
+        out_path: Path,
+        chunk_size: int,
+        on_progress: Callable[[int, int], None] | None,
+        cancel_checker: Callable[[], bool] | None,
+        done: int,
+        total: int,
+    ) -> None:
+        try:
+            with self.session.get(
+                url,
+                headers=HEADERS,
+                timeout=DOWNLOAD_TIMEOUT,
+                stream=True,
+            ) as r:
+                self._active_response = r  # 保存引用以便取消
+
+                if r.status_code != 200:
+                    raise UpdateError(f"下载失败 HTTP {r.status_code}: {r.text[:200]}")
+
+                total_hdr = r.headers.get("Content-Length")
+                total = int(total_hdr) if total_hdr and total_hdr.isdigit() else -1
+
+                with out_path.open("wb") as f:
+                    for chunk in r.iter_content(chunk_size=chunk_size):
+                        # 检查取消
+                        if cancel_checker and cancel_checker():
+                            raise DownloadCancelled("下载已取消")
+                        if not chunk:
+                            continue
+
+                        f.write(chunk)
+                        done += len(chunk)
+
+                        if on_progress:
+                            on_progress(done, total)
+        except (requests.RequestException, OSError) as e:
+            self._handle_download_exception(e, out_path)
+        finally:
+            self._active_response = None
+
+    def _handle_download_exception(self, err: requests.RequestException | OSError, out_path: Path) -> None:
+        # 清理未完成文件
+        with contextlib.suppress(Exception):
+            out_path.unlink(missing_ok=True)
+        # 如果是主动关闭 socket 引发的错误，视为取消
+        if self._cancel_download_flag:
+            raise DownloadCancelled("下载已取消") from err
+        raise UpdateError(self._format_network_error("下载更新包", err)) from err
+
+    def _try_fetch_manifest(self, url: str) -> tuple[requests.Response | None, UpdateError | None]:
+        try:
+            logger.info(f"尝试从 {url} 获取 manifest")
+            resp = self.session.get(url, headers=HEADERS, timeout=MANIFEST_TIMEOUT)
+            if resp.status_code != 200:
+                err = UpdateError(f"manifest 服务器返回错误：{resp.status_code}")
+                logger.warning(f"URL {url} 失败: {err}")
+                return None, err
+            return resp, None
+        except requests.RequestException as e:
+            err = UpdateError(self._format_network_error("检查更新", e))
+            logger.warning(f"URL {url} 请求异常: {err}")
+            return None, err
+
+    def _parse_manifest_json(self, resp: requests.Response) -> dict[str, Any]:
+        try:
+            return resp.json()
+        except ValueError as e:
+            raise UpdateError(f"manifest JSON 解析失败：{e!s}") from e
 
 
 update_checker = UpdateChecker()
