@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
@@ -16,6 +15,7 @@ from pydantic.fields import FieldInfo
 from PySide6.QtGui import QColor
 
 from EasiAuto.common.consts import EA_BASEDIR, IS_FULL
+from EasiAuto.common.utils import stop
 
 
 @total_ordering
@@ -536,7 +536,7 @@ class Config(ConfigModel):
                 cfg = cls(**data)
             except Exception as e:
                 logger.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
-                sys.exit(1)
+                stop(1)
         else:
             cfg = cls()
             data = cfg.model_dump(mode="json")

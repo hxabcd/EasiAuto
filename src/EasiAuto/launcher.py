@@ -148,7 +148,6 @@ class Launcher:
                             logger.info("用户取消操作，正在退出")
                             if not from_ipc:
                                 utils.stop()
-                                sys.exit(0)
                             return False
                         case DialogResponse.CONTINUE:
                             logger.info("用户确认继续，继续执行")
