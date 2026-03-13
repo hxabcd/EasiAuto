@@ -1,4 +1,5 @@
 import sys
+import threading
 import time
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
@@ -8,6 +9,7 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentTranslator,
@@ -18,11 +20,18 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.common import utils
-from EasiAuto.common.config import UpdateMode, config
+from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.common.update import UpdateError, update_checker
-from EasiAuto.core.manager import AutomationManager
-from EasiAuto.view.components import DialogResponse, PreRunPopup, WarningBanner
+from EasiAuto.core.manager import automation_manager
+from EasiAuto.view.components import (
+    DialogResponse,
+    PreRunPopup,
+    SmallStatusOverlay,
+    StatusOverlay,
+    StatusOverlayBase,
+    WarningBanner,
+)
 from EasiAuto.view.main_window import MainWindow
 
 IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
@@ -46,10 +55,14 @@ class Launcher:
         self.ipc_server: ArgvIpcServer | None = None
         self.main_window: MainWindow | None = None
         self.banner: WarningBanner | None = None
-        self.active_login_manager: AutomationManager | None = None
+        self.status_overlay: StatusOverlayBase | None = None
         self.login_running = False
         self._ipc_context = False
         self._active_login_from_ipc = False
+        self._post_login_overlay_done = False
+        self._post_login_update_done = False
+        self._post_login_waiting = False
+        self._post_login_update_thread_idx = 0
 
     def _show_settings_window(self) -> None:
         if self.main_window is None:
@@ -71,23 +84,27 @@ class Launcher:
         subparsers.add_parser("skip", help="跳过下一次登录")
         return parser
 
-    def _on_login_finished(self, success: bool, message: str) -> None:
+    def _on_login_finished(self, error_message: str | None = None) -> None:
         """登录结束后的回调"""
         from_ipc = self._active_login_from_ipc
+
+        if not self.login_running:
+            return
+        self.login_running = False
+        logger.info("登录任务已停止运行")
+
         if self.banner is not None:
             self.banner.close()
             self.banner.deleteLater()
             self.banner = None
 
-        self.active_login_manager = None
-        self.login_running = False
         self._active_login_from_ipc = False
 
-        if not success:
-            logger.error(f"自动登录失败: {message}")
+        if error_message:
+            logger.error(f"自动登录失败: {error_message}")
             windows11toast.notify(
                 title="自动登录失败",
-                body=f"{message}\n请检查日志获取详细信息",
+                body=f"{error_message}\n检查日志以获取详细信息",
                 icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                 icon_hint_crop=windows11toast.IconCrop.NONE,
                 icon_src=utils.get_resource("EasiAuto.ico"),
@@ -97,29 +114,70 @@ class Launcher:
             return
 
         if from_ipc:
+            if self.status_overlay is not None:
+                QTimer.singleShot(3000, self._close_status_overlay)
             return  # 通过 IPC 触发不退出，保持主实例运行
 
-        if config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER:
-            try:
-                decision = update_checker.check()
-                if decision.available and decision.downloads:
-                    if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                        file = update_checker.download_update(decision.downloads[0])
-                        app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
-                    else:
-                        windows11toast.notify(
-                            title="更新可用",
-                            body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
-                            icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                            icon_hint_crop=windows11toast.IconCrop.NONE,
-                            icon_src=utils.get_resource("EasiAuto.ico"),
-                        )
-            except UpdateError as e:
-                logger.warning(f"检查更新时发生异常，已跳过：{e}")
-            except Exception as e:
-                logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
+        self._begin_post_login_shutdown(from_ipc=from_ipc)
 
-        utils.stop()
+    def _begin_post_login_shutdown(self, *, from_ipc: bool) -> None:
+        self._post_login_waiting = True
+        self._post_login_overlay_done = self.status_overlay is None
+        self._post_login_update_done = not (config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER)
+
+        if not self._post_login_overlay_done:
+            QTimer.singleShot(3000, self._close_status_overlay)
+
+        if not self._post_login_update_done:
+            self._post_login_update_thread_idx += 1
+            threading.Thread(
+                target=self._run_post_login_update_check,
+                daemon=True,
+                name=f"PostLoginUpdateCheck-{self._post_login_update_thread_idx}",
+            ).start()
+
+        self._maybe_exit_after_login(from_ipc)
+
+    def _close_status_overlay(self) -> None:
+        if self.status_overlay is not None:
+            self.status_overlay.close()
+            self.status_overlay.deleteLater()
+            self.status_overlay = None
+        self._post_login_overlay_done = True
+        self._maybe_exit_after_login(from_ipc=False)
+
+    def _run_post_login_update_check(self) -> None:
+        try:
+            decision = update_checker.check()
+            if decision.available and decision.downloads:
+                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
+                    file = update_checker.download_update(decision.downloads[0])
+                    QTimer.singleShot(
+                        0, lambda: app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
+                    )
+                else:
+                    windows11toast.notify(
+                        title="更新可用",
+                        body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
+                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                        icon_hint_crop=windows11toast.IconCrop.NONE,
+                        icon_src=utils.get_resource("EasiAuto.ico"),
+                    )
+        except UpdateError as e:
+            logger.warning(f"检查更新时发生异常，已跳过：{e}")
+        except Exception as e:
+            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
+        finally:
+            self._post_login_update_done = True
+            QTimer.singleShot(0, lambda: self._maybe_exit_after_login(False))
+
+    def _maybe_exit_after_login(self, from_ipc: bool) -> None:
+        if not self._post_login_waiting:
+            return
+        if from_ipc:
+            return
+        if self._post_login_overlay_done and self._post_login_update_done:
+            utils.stop()
 
     def _start_login(self, args: Namespace) -> bool:
         """启动登录任务；若已有任务在运行则拒绝"""
@@ -169,21 +227,39 @@ class Launcher:
         #       _handle_action_run() 中存在相同实现，如更改需同步替换
         if config.Banner.Enabled:
             try:
-                width, _ = utils.get_screen_size()
+                width = utils.get_screen_size()[0]
                 self.banner = WarningBanner(config.Banner.Style)
                 self.banner.setGeometry(0, 80, width, 140)
                 self.banner.show()
-            except Exception:
-                logger.error("显示横幅时出错，跳过横幅")
-
+            except Exception as e:
+                logger.error(f"显示横幅时出错，跳过横幅：{e}")
 
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        manager = AutomationManager(account=args.account, password=args.password)
         self._active_login_from_ipc = from_ipc
-        manager.finished.connect(self._on_login_finished)
-        manager.run()
+        automation_manager.finished.connect(self._on_login_finished)
+        automation_manager.failed.connect(self._on_login_finished)
 
-        self.active_login_manager = manager
+        if config.StatusOverlay.Enabled:
+            screen_height = utils.get_screen_size()[1]
+            login_window_buttom = utils.calc_relative_login_window_position(
+                utils.Point(config.Login.Position.AgreementCheckbox),
+                window_size=config.Login.Position.LoginWindowSize,
+                base_size=config.Login.Position.BaseSize,
+            ).y
+            available_space = screen_height - (login_window_buttom + 8)
+            try:
+                self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
+                self.status_overlay.stop_clicked.connect(automation_manager.stop)
+                automation_manager.started.connect(self.status_overlay.show)
+                automation_manager.finished.connect(self.status_overlay.on_finished)
+                automation_manager.failed.connect(self.status_overlay.on_failed)
+                automation_manager.task_update.connect(self.status_overlay.set_task_text)
+                automation_manager.progress_update.connect(self.status_overlay.set_progress_text)
+            except Exception as e:
+                logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
+
+        automation_manager.run(args.account, args.password)
+
         self.login_running = True
         return True
 
@@ -246,15 +322,14 @@ class Launcher:
             self._dispatch_command(args)
 
     def _forward_or_exit(self, command: str | None) -> None:
+        """转发参数至主实例或退出"""
         if command in FORWARDABLE_COMMANDS:
             forwarded = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
             if forwarded:
                 logger.info(f"已将参数转发到主实例: {command}")
                 utils.stop(0)
-                return
-            logger.warning("检测到已有实例，但参数转发失败（主实例可能未打开 UI）")
+            logger.warning("检测到已有实例，但参数转发失败")
             utils.stop(1)
-            return
 
         logger.info(f"检测到已有实例，命令 {command!r} 不允许转发，当前实例退出")
         utils.stop(0)
@@ -287,6 +362,9 @@ class Launcher:
         if not check_singleton(focus_existing=(command == "settings")):
             self._forward_or_exit(command)
             return
+
+        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
+            update_checker.start_latency_warmup()
 
         if command in UI_COMMANDS:
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)

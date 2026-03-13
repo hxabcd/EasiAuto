@@ -262,13 +262,13 @@ def restart() -> None:
 
 
 def clean_up(status) -> NoReturn:
-    logger.debug(f"程序退出({status})")
+    logger.info(f"程序退出({status})")
     sys.exit(status)
 
 
 def stop(status: int = 0) -> NoReturn:
     """退出程序"""
-    logger.debug("退出程序...")
+    logger.info("退出程序...")
     app = QApplication.instance()
     if app:
         app.quit()

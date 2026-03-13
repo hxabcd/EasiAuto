@@ -46,11 +46,11 @@ from qfluentwidgets import (
 
 from EasiAuto.common import utils
 from EasiAuto.common.config import config
-from EasiAuto.core.manager import AutomationManager
+from EasiAuto.core.manager import automation_manager
 from EasiAuto.integrations.classisland_manager import EasiAutomation, manager
-from EasiAuto.view.components import SettingCard, WarningBanner
+from EasiAuto.view.components import SettingCard, SmallStatusOverlay, StatusOverlay, WarningBanner
 from EasiAuto.view.components.qfw_widgets import ListWidget
-from EasiAuto.view.utils import get_app, get_main_container, get_main_window, set_enable_by
+from EasiAuto.view.utils import get_main_container, get_main_window, set_enable_by
 
 
 class AdvancedOptionsDialog(MessageBoxBase):
@@ -603,33 +603,56 @@ class AutomationManageSubpage(QWidget):
         if instance := get_main_window():
             instance.showMinimized()
 
-        # NOTE: 下方运行逻辑在 main.py cmd_login() 中存在相同实现，如更改需同步替换
+        # NOTE: 下方运行逻辑在 launcher.py _start_login() 中存在相同实现，如更改需同步替换
 
-        # 显示警示横幅
         if config.Banner.Enabled:
             try:
-                screen = get_app().primaryScreen().geometry()
+                width = utils.get_screen_size()[0]
                 self.banner = WarningBanner(config.Banner.Style)
-                self.banner.setGeometry(0, 80, screen.width(), 140)  # 顶部横幅
+                self.banner.setGeometry(0, 80, width, 140)
                 self.banner.show()
-            except Exception:
-                logger.error("显示横幅时出错，跳过横幅")
+            except Exception as e:
+                logger.error(f"显示横幅时出错，跳过横幅：{e}")
 
-        # 执行登录
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        _manager = AutomationManager(account=automation.account, password=automation.password)
-        _manager.finished.connect(self._handle_finish)
-        _manager.run()
+        automation_manager.finished.connect(self._handle_finish)
+        automation_manager.failed.connect(self._handle_finish)
 
-    def _handle_finish(self, success: bool, message: str):
+        if config.StatusOverlay.Enabled:
+            screen_height = utils.get_screen_size()[1]
+            login_window_buttom = utils.calc_relative_login_window_position(
+                utils.Point(config.Login.Position.AgreementCheckbox),
+                window_size=config.Login.Position.LoginWindowSize,
+                base_size=config.Login.Position.BaseSize,
+            ).y
+            available_space = screen_height - (login_window_buttom + 8)
+            try:
+                self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
+                self.status_overlay.stop_clicked.connect(automation_manager.stop)
+                automation_manager.started.connect(self.status_overlay.show)
+                automation_manager.finished.connect(self.status_overlay.on_finished)
+                automation_manager.failed.connect(self.status_overlay.on_failed)
+                automation_manager.task_update.connect(self.status_overlay.set_task_text)
+                automation_manager.progress_update.connect(self.status_overlay.set_progress_text)
+            except Exception as e:
+                logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
+
+        automation_manager.run(automation.account, automation.password)
+
+    def _handle_finish(self, error_message: str | None = None):
         if hasattr(self, "banner"):
             self.banner.close()
-            del self.banner
+            self.banner.deleteLater()
+            self.banner = None
+        if hasattr(self, "status_overlay"):
+            QTimer.singleShot(3000, self.status_overlay.close)
+            QTimer.singleShot(3000, self.status_overlay.deleteLater)
+            QTimer.singleShot(3000, lambda: setattr(self, "status_overlay", None))
 
-        if not success:
+        if error_message:
             InfoBar.error(
                 title="自动登录失败",
-                content=message,
+                content=error_message,
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -647,7 +670,7 @@ class AutomationManageSubpage(QWidget):
                 parent=get_main_container(),
             )
 
-        logger.success(f"自动化运行结束: {message}")
+        logger.success("自动化运行结束")
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
