@@ -14,7 +14,7 @@ class CVAutomator(BaseAutomator):
 
     def login(self):
         logger.info("尝试自动登录")
-        self.task_update.emit("自动登录")
+        self.task_update.emit("正在自动登录")
 
         # 直接登录与4K适配
         path_suffix = ""
@@ -31,6 +31,7 @@ class CVAutomator(BaseAutomator):
         checkbox_img = get_resource("EasiNoteUI/checkbox" + path_suffix)
 
         # 进入登录界面
+        self.check()
         if not config.Login.Directly:
             logger.info("点击进入登录界面")
             self.progress_update.emit("进入登录界面")
@@ -41,6 +42,7 @@ class CVAutomator(BaseAutomator):
             logger.info("直接进入登录界面")
 
         # 识别并点击账号登录按钮
+        self.check()
         logger.info("尝试识别账号登录按钮")
         self.progress_update.emit("切换至账号登录页")
 
@@ -66,6 +68,7 @@ class CVAutomator(BaseAutomator):
                 raise e
 
         # 输入账号
+        self.check()
         logger.info("尝试输入账号")
         self.progress_update.emit("输入账号")
         logger.debug(f"账号：{self.account}")
@@ -74,6 +77,7 @@ class CVAutomator(BaseAutomator):
         safe_input(self.account)
 
         # 输入密码
+        self.check()
         logger.info("尝试输入密码")
         self.progress_update.emit("输入密码")
         logger.debug(f"密码：{self.safe_for_log_password}")
@@ -82,6 +86,7 @@ class CVAutomator(BaseAutomator):
         safe_input(self.password)
 
         # 识别并勾选用户协议复选框
+        self.check()
         logger.info("尝试识别用户协议复选框")
         self.progress_update.emit("勾选同意用户协议")
 
@@ -99,6 +104,7 @@ class CVAutomator(BaseAutomator):
         pyautogui.click(agree_checkbox)
 
         # 点击登录按钮
+        self.check()
         logger.info("点击登录按钮")
         self.progress_update.emit("点击登录")
         pyautogui.press("enter")

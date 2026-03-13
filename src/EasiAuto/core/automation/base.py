@@ -40,7 +40,7 @@ def safe_input(text: str):
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
-    finished = Signal(bool, str)
+    failed = Signal(str)
     task_update = Signal(str)
     progress_update = Signal(str)
 
@@ -49,6 +49,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account = account
         self.password = password
         self.easinote_path = self.get_easinote_path()
+
+    def check(self):
+        if self.isInterruptionRequested():
+            raise InterruptedError()
+        return True
 
     @property
     def safe_for_log_password(self) -> str:
@@ -87,7 +92,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def start_easinote(self):
         logger.info("启动程序")
-        self.progress_update.emit("等待程序启动")
+        self.progress_update.emit("等待希沃白板启动")
         logger.debug(f"路径：{self.easinote_path}，参数：{config.Login.EasiNote.Args}")
 
         args = config.Login.EasiNote.Args
@@ -100,7 +105,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def wait_for_window(self, window_title: str, timeout: float, interval: float) -> bool:
         elapsed = 0
-        while elapsed < timeout:
+        while elapsed < timeout and self.check():
+            self.progress_update.emit(f"等待希沃白板窗口出现 ({int(elapsed)}/{int(timeout)}s)")
             self.hwnd = win32gui.FindWindow(None, window_title)
             if self.hwnd:
                 return True
@@ -115,6 +121,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.task_update.emit("重启希沃进程")
 
         self.kill_easinote_processes()
+        self.check()
         self.start_easinote()
 
         window_title = config.Login.EasiNote.WindowTitle
@@ -140,12 +147,13 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     def run(self):
         """完整登录流程"""
         retries = 0
-        while True:
+        while self.check():
             try:
                 self.restart_easinote()
                 self.login()
 
-                self.finished.emit(True, "登录完成")
+                return
+            except InterruptedError:
                 return
             except BaseException as e:
                 retries += 1
@@ -156,5 +164,5 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     time.sleep(2)
                 else:
                     logger.critical(f"{retries}次尝试均登录失败: {e}")
-                    self.finished.emit(False, f"登录失败: {e}")
+                    self.failed.emit(str(e))
                     return
