@@ -411,6 +411,14 @@ class BannerConfig(ConfigModel):
         json_schema_extra={"icon": "Brush"},
     )
 
+class StatusOverlayConfig(ConfigModel):
+    Enabled: bool = Field(
+        default=True,
+        title="启用状态浮窗",
+        description="登录时，在屏幕中间下方位置显示当前登录任务执行状态",
+        json_schema_extra={"icon": "Info"},
+    )
+
 
 class AppConfig(ConfigModel):
     MaxRetries: int = Field(
@@ -521,6 +529,7 @@ class Config(ConfigModel):
     Login: LoginConfig = Field(default_factory=LoginConfig, title="登录选项")
     Warning: WarningConfig = Field(default_factory=WarningConfig, title="警告弹窗")
     Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
+    StatusOverlay: StatusOverlayConfig = Field(default_factory=StatusOverlayConfig, title="状态浮窗")
     App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
 
     Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")

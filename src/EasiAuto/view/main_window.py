@@ -54,6 +54,7 @@ class MainWindow(MSFluentWindow):
         self.resize(960, 640)
 
         self.themeListener = SystemThemeListener(self)
+        self.themeListener.setObjectName("SystemThemeListener")
         qconfig.themeChanged.connect(setTheme)
 
     def closeEvent(self, e):
