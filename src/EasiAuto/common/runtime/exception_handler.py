@@ -29,7 +29,8 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.common.config import config
-from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+from EasiAuto.common.consts import EA_BASEDIR, IS_DEV
+from EasiAuto.common.utils import get_resource, restart, stop
 
 SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
 
@@ -37,23 +38,6 @@ error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
 ignore_errors = []
 last_error_time = dt.datetime.now() - error_cooldown  # 上一次错误
 error_dialog = None
-
-
-def _stop() -> None:
-    from EasiAuto.common.utils import stop
-
-    stop()
-
-
-def _restart() -> None:
-    from EasiAuto.common.utils import restart
-
-    restart()
-
-
-def _get_resource(filename: str) -> str:
-    return str(EA_EXECUTABLE.parent / "resources" / filename)
-
 
 class StreamToLogger:
     """重定向 print() 到 loguru"""
@@ -90,7 +74,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
     ) -> None:
         # KeyboardInterrupt 直接 exit
         if error_details.endswith(("KeyboardInterrupt", "KeyboardInterrupt\n")):
-            _stop()
+            stop()
 
         global error_dialog
 
@@ -111,7 +95,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 
         self.iconLabel = ImageLabel()
         try:
-            self.iconLabel.setImage(_get_resource("EasiAuto.ico"))
+            self.iconLabel.setImage(get_resource("EasiAuto.ico"))
         except Exception:
             logger.warning("未能加载崩溃报告图标")
         self.error_log = PlainTextEdit()
@@ -145,7 +129,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         )
         self.copy_log_btn.clicked.connect(self.copy_log)
         self.ignore_error_btn.clicked.connect(self.ignore_error)
-        self.restart_btn.clicked.connect(_restart)
+        self.restart_btn.clicked.connect(restart)
 
         self.title_layout.addWidget(self.iconLabel)  # 标题布局
         self.title_layout.addWidget(self.titleLabel)
