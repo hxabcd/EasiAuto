@@ -206,6 +206,7 @@ class UpdateChecker(QObject):
 
         # 线程管理
         self._threads: list[QThread] = []
+        self._thread_counter = 0
         self._cancel_download_flag: bool = False
         self._active_response: requests.Response | None = None
         self._update_script_path: Path | None = None
@@ -213,9 +214,6 @@ class UpdateChecker(QObject):
         self._auto_selected_source: DownloadSource | None = None
         self._latency_probe_running = False
         self._shutting_down = False
-
-        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
-            self.start_latency_warmup()
 
     # ================== 同步 API ==================
 
@@ -478,8 +476,7 @@ class UpdateChecker(QObject):
                     if thread.wait(wait_ms):
                         continue
                     logger.warning("更新线程未在超时内退出，正在强制结束")
-                    thread.quit()
-                    thread.wait(500)
+                    thread.terminate()
         finally:
             self._cleanup_threads()
             self._shutting_down = False
@@ -508,6 +505,8 @@ class UpdateChecker(QObject):
         self._cleanup_threads()
 
         thread = QThread()
+        self._thread_counter += 1
+        thread.setObjectName(f"UpdateWorker:{worker.__class__.__name__}#{self._thread_counter}")
         worker.moveToThread(thread)
         thread._worker_ref = worker  # 保存引用
 
