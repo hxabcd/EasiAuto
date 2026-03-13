@@ -1,7 +1,7 @@
 import subprocess
 import time
 import winreg
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from pathlib import Path
 
 import pyautogui
@@ -12,7 +12,7 @@ from loguru import logger
 from PySide6.QtCore import QThread, Signal
 
 from EasiAuto.common.config import config
-from EasiAuto.common.utils import get_scale, get_screen_size, switch_window
+from EasiAuto.common.utils import QABCMeta, get_scale, get_screen_size, switch_window
 
 compatibility_mode = False
 
@@ -37,9 +37,6 @@ def safe_input(text: str):
     else:
         pyautogui.typewrite(text, interval=0.01)
 
-
-class QABCMeta(type(QThread), ABCMeta):  # type: ignore
-    pass  # QThread 与抽象基类的兼容元类
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):

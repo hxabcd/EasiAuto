@@ -1,16 +1,20 @@
+from __future__ import annotations
+
 import ctypes
 import os
 import signal
 import sys
+from abc import ABCMeta
 from pathlib import Path
 from typing import NoReturn
 
+import pyautogui
 import win32com.client
 import win32con
 import win32gui
 from loguru import logger
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -22,9 +26,8 @@ def get_resource(filename: str):
     return str(EA_EXECUTABLE.parent / "resources" / filename)
 
 
-# 防止单例冲突，不使用 Qt 获取屏幕数据
 def get_scale() -> float:
-    """获取当前系统缩放比例"""
+    """获取当前系统缩放比例"""  # 不使用 Qt 获取以避免初始化问题
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
     hdc = ctypes.windll.user32.GetDC(0)
@@ -35,17 +38,84 @@ def get_scale() -> float:
 
 
 def get_screen_size() -> tuple[int, int]:
-    """获取屏幕尺寸
-
-    Returns:
-        tuple[int, int]: 屏幕宽度, 屏幕长度
-    """
+    """获取屏幕尺寸"""
     ctypes.windll.user32.SetProcessDPIAware()
 
     width = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
     height = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
 
     return width, height
+
+
+class Point:
+    """一个点，描述屏幕上的坐标。坐标值恒为整数"""
+
+    scale = get_scale()
+
+    def __init__(self, x: int | float | tuple[int | float, int | float], y: int | float | None = None):
+        if isinstance(x, tuple):
+            x_val, y_val = x
+        else:
+            if y is None:
+                raise ValueError("必须传入 y 坐标或一个二元组")
+            x_val, y_val = x, y
+
+        if x_val < 0 or y_val < 0:
+            raise ValueError("坐标值必须为非负数")
+
+        self.x: int = int(x_val)
+        self.y: int = int(y_val)
+
+    def __add__(self, other: Point) -> Point:
+        if not isinstance(other, Point):
+            return NotImplemented
+        return Point(self.x + other.x, self.y + other.y)
+
+    def __sub__(self, other: Point) -> Point:
+        if not isinstance(other, Point):
+            return NotImplemented
+        return Point(self.x - other.x, self.y - other.y)
+
+    def __mul__(self, other: int | float) -> Point:
+        if not isinstance(other, (int, float)):
+            return NotImplemented
+        return Point(self.x * other, self.y * other)
+
+    def __rmul__(self, other: int | float) -> Point:
+        return self.__mul__(other)
+
+    def __truediv__(self, other: int | float) -> Point:
+        return self.__mul__(1 / other)
+
+    def scaled(self) -> Point:
+        """获取缩放后的坐标"""
+        return Point(self.x * self.scale, self.y * self.scale)
+
+
+def calc_relative_login_window_position(
+    position: Point, window_size: tuple[int, int], base_size: tuple[int, int]
+) -> Point:
+    """计算相对登录窗口的位置
+
+    Args:
+        position (Point): 原始位置
+        window_size (tuple[int, int]): 窗口大小
+        base_size (tuple[int, int]): 原始位置与窗口大小所基于的屏幕分辨率
+    """
+
+    screen = Point(get_screen_size())
+    base_screen = Point(base_size)
+    window = Point(window_size)
+    window_position = (base_screen - window) / 2
+
+    rel_position = position - window_position
+    scaled_rel_position = rel_position.scaled()
+    scaled_top_left = (screen - window.scaled()) / 2
+    return scaled_rel_position + scaled_top_left
+
+
+class QABCMeta(type(QObject), ABCMeta):  # type: ignore
+    """QObject 与抽象基类的兼容元类"""
 
 
 def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None):
@@ -93,8 +163,9 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
 
 def switch_window(hwnd: int):
     """通过句柄切换焦点"""
-    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)  # 确保窗口不是最小化状态
-    win32gui.SetForegroundWindow(hwnd)  # 设置为前台窗口（获取焦点）
+    pyautogui.press("alt")  # 让 Windows 认为产生了用户交互
+    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+    win32gui.SetForegroundWindow(hwnd)
 
 
 def get_window_by_title(title: str):
@@ -162,7 +233,7 @@ def init_exit_signal_handlers() -> None:
 
     def signal_handler(signum, _):
         logger.debug(f"收到信号 {signal.Signals(signum).name}，退出...")
-        stop(0)
+        stop()
 
     signal.signal(signal.SIGTERM, signal_handler)  # taskkill
     signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
@@ -190,14 +261,12 @@ def restart() -> None:
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 
-def clean_up(status):
-    app = QApplication.instance()
+def clean_up(status) -> NoReturn:
     logger.debug(f"程序退出({status})")
-    if not app:
-        os._exit(status)
+    sys.exit(status)
 
 
-def stop(status: int = 0) -> None:
+def stop(status: int = 0) -> NoReturn:
     """退出程序"""
     logger.debug("退出程序...")
     app = QApplication.instance()
