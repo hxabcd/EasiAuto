@@ -49,6 +49,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account = account
         self.password = password
         self.easinote_path = self.get_easinote_path()
+        self.setObjectName(f"Automator:{self.__class__.__name__}")
 
     def check(self):
         if self.isInterruptionRequested():
