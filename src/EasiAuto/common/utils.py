@@ -24,6 +24,7 @@ def get_resource(filename: str):
 
 # 防止单例冲突，不使用 Qt 获取屏幕数据
 def get_scale() -> float:
+    """获取当前系统缩放比例"""
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
     hdc = ctypes.windll.user32.GetDC(0)
@@ -34,6 +35,11 @@ def get_scale() -> float:
 
 
 def get_screen_size() -> tuple[int, int]:
+    """获取屏幕尺寸
+
+    Returns:
+        tuple[int, int]: 屏幕宽度, 屏幕长度
+    """
     ctypes.windll.user32.SetProcessDPIAware()
 
     width = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
