@@ -166,15 +166,17 @@ class Launcher:
             except Exception:
                 logger.error("显示警告弹窗时出错，跳过警告")
 
-        # NOTE: 下方运行逻辑在 ui.py _handle_action_run() 中存在相同实现，如更改需同步替换
+        # NOTE: 下方运行逻辑在 view\pages\automation_page.py 的
+        #       _handle_action_run() 中存在相同实现，如更改需同步替换
         if config.Banner.Enabled:
             try:
-                screen = app.primaryScreen().geometry()
+                width, _ = utils.get_screen_size()
                 self.banner = WarningBanner(config.Banner.Style)
-                self.banner.setGeometry(0, 80, screen.width(), 140)
+                self.banner.setGeometry(0, 80, width, 140)
                 self.banner.show()
             except Exception:
                 logger.error("显示横幅时出错，跳过横幅")
+
 
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         manager = AutomationManager(account=args.account, password=args.password)
