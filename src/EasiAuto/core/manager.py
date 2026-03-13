@@ -1,4 +1,6 @@
-from PySide6.QtCore import QObject, QThread, Signal
+from loguru import logger
+
+from PySide6.QtCore import QObject, Signal
 
 from EasiAuto.common.config import LoginMethod, config
 
@@ -6,64 +8,46 @@ from . import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAu
 
 
 class AutomationManager(QObject):
+    started = Signal()
+    finished = Signal()
+    failed = Signal(str)
     task_update = Signal(str)
     progress_update = Signal(str)
-    finished = Signal(bool, str)
 
-    def __init__(self, account: str, password: str):
+    def __init__(self):
         super().__init__()
-        self._worker_thread: QThread | None = None
-        self._executor: BaseAutomator | None = None
-        self._account = account
-        self._password = password
+        self._automator: BaseAutomator | None = None
 
-    def _get_strategy_class(self) -> type[BaseAutomator]:
+    def _get_strategy_class(self, strategy: LoginMethod) -> type[BaseAutomator]:
         strategies: dict[LoginMethod, type[BaseAutomator]] = {
             LoginMethod.FIXED: FixedAutomator,
             LoginMethod.CV: CVAutomator,
             LoginMethod.UIA: UIAAutomator,
             LoginMethod.INJECT: InjectAutomator,
         }
-        return strategies.get(config.Login.Method, FixedAutomator)
+        return strategies.get(strategy, FixedAutomator)
 
-    def run(self):
-        if self._worker_thread and self._worker_thread.isRunning():
+    def run(self, account: str, password: str):
+        if self._automator and self._automator.isRunning():
+            logger.warning("已有一个正在运行的登录任务")
             return
 
-        strategy_class = self._get_strategy_class()
-        self._executor = strategy_class(account=self._account, password=self._password)
-        self._worker_thread = QThread()
+        strategy_class = self._get_strategy_class(config.Login.Method)
+        self._automator = strategy_class(account, password)
 
-        self._executor.moveToThread(self._worker_thread)
+        self._automator.started.connect(self.started)
+        self._automator.finished.connect(self.finished)
+        self._automator.failed.connect(self.failed)
+        self._automator.task_update.connect(self.task_update)
+        self._automator.progress_update.connect(self.progress_update)
 
-        self._executor.task_update.connect(self.task_update)
-        self._executor.progress_update.connect(self.progress_update)
-        self._executor.finished.connect(self._handle_finished)
-
-        self._worker_thread.started.connect(self._executor.run)
-        self._worker_thread.finished.connect(self._worker_thread.deleteLater)
-
-        self._worker_thread.start()
-
-    def _run_sync(self):
-        strategy_class = self._get_strategy_class()
-        self._executor = strategy_class(account=self._account, password=self._password)
-
-        self._executor.task_update.connect(self.task_update)
-        self._executor.progress_update.connect(self.progress_update)
-        self._executor.finished.connect(self._handle_finished)
-
-        self._executor.run()
-
-    def _handle_finished(self, success: bool, message: str):
-        """处理结束逻辑并关闭线程"""
-        self.finished.emit(success, message)
-
-        if self._worker_thread:
-            self._worker_thread.quit()
+        self._automator.start()
 
     def stop(self):
         """停止当前任务"""
-        if self._worker_thread and self._worker_thread.isRunning():
-            self._worker_thread.quit()
-            self._worker_thread.wait()
+        if self._automator and self._automator.isRunning():
+            logger.info("正在停止当前任务")
+            self._automator.requestInterruption()
+
+
+automation_manager = AutomationManager()
