@@ -47,7 +47,7 @@ app.installTranslator(translator)
 setTheme(Theme(config.App.Theme.value))
 setThemeColor("#00C884")
 
-update_checker.bind_app_shutdown()
+app.aboutToQuit.connect(update_checker.shutdown)
 
 
 class Launcher:

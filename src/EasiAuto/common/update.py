@@ -22,7 +22,6 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from EasiAuto import __version__
 from EasiAuto.common.config import DownloadSource, PackageChannel, UpdateChannal, config
 from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
-from EasiAuto.view.utils import get_app
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
@@ -33,25 +32,16 @@ LATENCY_TIMEOUT = (2, 3)  # connect, read
 MANIFEST_URLS = [
     "https://easiauto.0xabcd.dev/update.json",
     "https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
+    "https://ghproxy.net/https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
+    "https://ghfast.top/https://raw.githubusercontent.com/hxabcd/EasiAutoWeb/main/public/update.json",
 ]
 
 
-DOWNLOAD_SOURCE_PREFIXES: dict[DownloadSource, str] = {
-    DownloadSource.GITHUB: "",
-    DownloadSource.GHPROXY: "https://ghproxy.net/",
-    DownloadSource.GHFAST: "https://ghfast.top/",
+DOWNLOAD_SOURCES: dict[DownloadSource, str] = {
+    DownloadSource.GITHUB: "https://github.com",
+    DownloadSource.GHPROXY: "https://ghproxy.net/https://github.com",
+    DownloadSource.GHFAST: "https://ghfast.top/https://github.com",
 }
-DOWNLOAD_SOURCE_HOSTS: dict[DownloadSource, str] = {
-    DownloadSource.GITHUB: "github.com",
-    DownloadSource.GHPROXY: "ghproxy.net",
-    DownloadSource.GHFAST: "ghfast.top",
-}
-DOWNLOAD_SOURCE_PROBE_URLS: dict[DownloadSource, str] = {
-    DownloadSource.GITHUB: "https://github.com/",
-    DownloadSource.GHPROXY: "https://ghproxy.net/https://github.com/",
-    DownloadSource.GHFAST: "https://ghfast.top/https://github.com/",
-}
-
 
 @dataclass(frozen=True)
 class DownloadItem:
@@ -272,11 +262,7 @@ class UpdateChecker(QObject):
         return out_path
 
     def resolve_download_url(self, raw_url: str, *, allow_latency_check: bool = False) -> str:
-        """为 Github URL 应用镜像源"""
-        hostname = (urlparse(raw_url).hostname or "").lower()
-        if hostname not in {"github.com", "www.github.com"}:
-            return raw_url
-
+        """应用镜像源"""
         selected_source = config.Update.TargetDownloadSource
         if selected_source == DownloadSource.AUTO:
             if not allow_latency_check:
@@ -287,8 +273,9 @@ class UpdateChecker(QObject):
                     return raw_url
             else:
                 selected_source = self._auto_select_source()
+        mirror = DOWNLOAD_SOURCES.get(selected_source, "https://github.com")
 
-        return DOWNLOAD_SOURCE_PREFIXES.get(selected_source, "") + raw_url
+        return raw_url.replace("https://github.com", mirror, 1)
 
     def test_source_latency(self) -> dict[DownloadSource, float | None]:
         candidates = (DownloadSource.GITHUB, DownloadSource.GHPROXY, DownloadSource.GHFAST)
@@ -462,7 +449,7 @@ class UpdateChecker(QObject):
         return self._cancel_download_flag
 
     def shutdown(self, *, wait_ms: int = 2) -> None:
-        """应用退出前停止内部线程，避免 QThread 在运行中被销毁。"""
+        """应用退出前停止内部线程"""
         if self._shutting_down:
             return
         self._shutting_down = True
@@ -477,19 +464,12 @@ class UpdateChecker(QObject):
                     if not thread.isRunning():
                         continue
                     thread.quit()
-                    if thread.wait(wait_ms):
-                        continue
-                    logger.warning("更新线程未在超时内退出，正在强制结束")
-                    thread.terminate()
+                    thread.wait(wait_ms)
         finally:
             self._cleanup_threads()
             # 避免异常退出时状态卡住
             self._set_latency_probe_running(False)
             self._shutting_down = False
-
-    def bind_app_shutdown(self) -> None:
-        app = get_app()
-        app.aboutToQuit.connect(self.shutdown)
 
     # ================== 内部辅助方法 ==================
 
@@ -718,14 +698,15 @@ class UpdateChecker(QObject):
 
     def _probe_source_latency(self, source: DownloadSource) -> float | None:
         # 优先通过 requests 探测，避免 TUN 代理下不可用
-        probe_url = DOWNLOAD_SOURCE_PROBE_URLS.get(source)
+        probe_url = DOWNLOAD_SOURCES.get(source)
         if probe_url:
             latency = self._probe_http_latency(probe_url)
             if latency is not None:
                 return latency
 
-        # HTTP 探测失败再回退到原始 TCP 探测
-        host = DOWNLOAD_SOURCE_HOSTS.get(source)
+        # 失败则回退到 TCP 探测
+        raw_url = DOWNLOAD_SOURCES.get(source)
+        host = str(urlparse(raw_url).hostname or "").lower()
         if not host:
             return None
 
@@ -741,8 +722,7 @@ class UpdateChecker(QObject):
                 stream=True,
                 allow_redirects=False,
             ) as response:
-                # 接收到可用响应即认为连通，避免对特定状态码过于苛刻
-                if response.status_code >= 500:
+                if response.status_code >= 500:  # NOTE: 可能过于宽松
                     return None
             return time.perf_counter() - start
         except Exception:
