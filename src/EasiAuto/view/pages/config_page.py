@@ -117,7 +117,7 @@ class ConfigPage(QWidget):
 
         collapse_card.clicked.connect(utils.crash)
         self.content_layout.addWidget(collapse_card)
-        collapse_card.setVisible(config.App.DebugMode)
+        collapse_card.setVisible(config.Debug.DebugMode)
 
         # 额外属性
         for name, card in SettingCard.index.items():

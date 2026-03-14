@@ -908,12 +908,12 @@ class CiRunningWarnOverlay(QWidget):
 
         self.set_text()
         with contextlib.suppress(KeyError):
-            SettingCard.index["App.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
+            SettingCard.index["Debug.EasterEggEnabled"].valueChanged.connect(lambda _: self.set_text())
 
     def set_text(self, failed: bool = False):
         if not failed:
             self.hint_icon.setIcon(FluentIcon.BROOM)
-            if config.App.EasterEggEnabled:
+            if config.Debug.EasterEggEnabled:
                 self.hint_label.setText(self.labelE_running_text)
                 self.hint_desc.setText(self.labelE_running_desc)
             else:
@@ -922,7 +922,7 @@ class CiRunningWarnOverlay(QWidget):
                 self.action_button.show()
         else:
             self.hint_icon.setIcon(FluentIcon.QUESTION)
-            if config.App.EasterEggEnabled:
+            if config.Debug.EasterEggEnabled:
                 self.hint_label.setText(self.labelE_failed_text)
                 self.hint_desc.setText(self.labelE_failed_text)
             else:
