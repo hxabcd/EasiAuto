@@ -59,7 +59,7 @@ class EasiAutomation(BaseModel):
     def shortcut_name(self) -> str:
         if self.teacher_name:
             label = self.teacher_name
-        elif manager and (subject := manager.get_subject_by_id(self.subject_id)):
+        elif classisland_manager is not None and (subject := classisland_manager.subjects.get(self.subject_id)):
             label = subject.name
         else:
             label = self.account
@@ -67,7 +67,7 @@ class EasiAutomation(BaseModel):
         return f"希沃自动登录（{label}）"
 
 
-class CiManager(QObject):
+class ClassIslandManager(QObject):
     """ClassIsland 自动化管理器"""
 
     # 数据变更信号，参数为 GUID
@@ -106,14 +106,14 @@ class CiManager(QObject):
                     return True
         return False
 
-    def open_ci(self):
+    def start_ci(self):
         os.startfile(self.ci_executable_path, cwd=self.ci_executable_path.parent)
 
-    def close_ci(self):
+    def stop_ci(self):
         os.system(f"taskkill /f /im {'ClassIsland.Desktop.exe' if self.is_v2 else 'ClassIsland.exe'}")
 
     def init_ci(self, exe_path: Path | str):
-        """获取CI版本，定位数据目录并初始化"""
+        """获取 ClassIsland 版本，定位数据目录并初始化"""
         exe_path = Path(exe_path)
 
         info = win32api.GetFileVersionInfo(str(exe_path), "\\")
@@ -163,7 +163,7 @@ class CiManager(QObject):
 
     def _load_profile(self):
         """加载当前档案"""
-        ci_profile_name = self.ci_settings["SelectedProfile"]
+        ci_profile_name: str = self.ci_settings.get("SelectedProfile", "Default.json")
         ci_profile_path = self.ci_data_path / "Profiles" / ci_profile_name
 
         if not ci_profile_path.exists():
@@ -174,7 +174,7 @@ class CiManager(QObject):
 
     def _load_automations(self):
         """加载自动化配置"""
-        ci_automation_name = self.ci_settings["CurrentAutomationConfig"]
+        ci_automation_name: str = self.ci_settings.get("CurrentAutomationConfig", "Default")
         ci_automations_path = self.ci_data_path / "Config" / "Automations" / f"{ci_automation_name}.json"
 
         if not ci_automations_path.exists():
@@ -187,7 +187,7 @@ class CiManager(QObject):
         """构建科目和自动化的索引"""
         # 构建科目索引
         self.subjects.clear()
-        ci_subjects: dict = self.ci_profile["Subjects"]
+        ci_subjects: dict = self.ci_profile.get("Subjects", {})
         for subject_id, subject_data in ci_subjects.items():
             self.subjects[subject_id] = CiSubject(
                 id=subject_id,
@@ -255,29 +255,14 @@ class CiManager(QObject):
             logger.warning(f"解析自动化配置时出错: {e}")
             return None
 
-    def get_subject_by_id(self, subject_id: str) -> CiSubject | None:
-        """根据ID获取科目"""
-        return self.subjects.get(subject_id)
-
-    def get_automation_by_guid(self, guid: str) -> EasiAutomation | None:
-        """根据GUID获取自动化"""
-        return self.automations.get(guid)
-
-    def get_automations_by_subject(self, subject_id: str) -> list[EasiAutomation]:
-        """获取指定科目的所有自动化"""
-        return [auto for auto in self.automations.values() if auto.subject_id == subject_id]
-
     def create_automation(self, automation: EasiAutomation) -> bool:
         """创建新的自动化"""
-        # 验证科目存在
+        if automation.guid in self.automations:
+            raise ValueError(f"自动化GUID {automation.guid} 已存在")
         if automation.subject_id not in self.subjects:
             raise ValueError(f"科目ID {automation.subject_id} 不存在")
 
-        # 验证GUID唯一性
-        if automation.guid in self.automations:
-            raise ValueError(f"自动化GUID {automation.guid} 已存在")
-
-        # 创建CI自动化配置
+        # 创建 ClassIsland 自动化配置
         ci_automation = self._build_ci_automation(automation)
         self.ci_automations.append(ci_automation)
 
@@ -300,22 +285,16 @@ class CiManager(QObject):
         """
         if _guid not in self.automations:
             raise ValueError(f"自动化GUID {_guid} 不存在")
-
-        original_automation = self.automations[_guid]
-
-        # 构建更新后的自动化对象
-        update_data = original_automation.model_dump()
-        update_data.update(updates)
-
-        # 验证科目
         if "subject_id" in updates and updates["subject_id"] not in self.subjects:
             raise ValueError(f"科目ID {updates['subject_id']} 不存在")
 
+        original_automation = self.automations[_guid]
+        update_data = original_automation.model_dump()
+        update_data.update(updates)
         updated_automation = EasiAutomation(**update_data)
 
         # 替换更新后的自动化并保存
         self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != _guid]
-
         new_ci_automation = self._build_ci_automation(updated_automation)
         self.ci_automations.append(new_ci_automation)
 
@@ -330,7 +309,7 @@ class CiManager(QObject):
         if guid not in self.automations:
             raise ValueError(f"自动化GUID {guid} 不存在")
 
-        # 从CI自动化列表中移除
+        # 从 ClassIsland 自动化列表中移除
         self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != guid]
 
         # 保存到文件
@@ -341,7 +320,7 @@ class CiManager(QObject):
         return False
 
     def _build_ci_automation(self, automation: EasiAutomation) -> dict:
-        """构建CI自动化配置对象"""
+        """构建 ClassIsland 自动化配置对象"""
         return {
             "Ruleset": {
                 "Mode": 0,
@@ -413,12 +392,12 @@ class CiManager(QObject):
         return list(self.automations.values())
 
 
-class _CiManagerProxy:
+class _ClassIslandManagerProxy:
     def __init__(self):
-        self._impl: CiManager | None = None
+        self._impl: ClassIslandManager | None = None
 
     def initialize(self, path: Path):
-        self._impl = CiManager(path)
+        self._impl = ClassIslandManager(path)
 
     def __getattr__(self, item):
         if self._impl:
@@ -429,4 +408,4 @@ class _CiManagerProxy:
         return self._impl is not None
 
 
-manager = cast(CiManager | None, _CiManagerProxy())
+classisland_manager = cast(ClassIslandManager | None, _ClassIslandManagerProxy())
