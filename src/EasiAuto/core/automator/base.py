@@ -5,8 +5,6 @@ from abc import abstractmethod
 from contextlib import suppress
 from pathlib import Path
 
-import pyautogui
-import pyperclip
 import win32gui
 from loguru import logger
 
@@ -14,30 +12,6 @@ from PySide6.QtCore import QThread, Signal
 
 from EasiAuto.common.config import config
 from EasiAuto.common.utils import QABCMeta, get_scale, get_screen_size, switch_window
-
-compatibility_mode = False
-
-screen_size = get_screen_size()
-scale = get_scale()
-logger.debug(f"当前分辨率: {screen_size[0]}x{screen_size[1]}，缩放比例: {scale}")
-if config.Login.ForceEnableScaling:
-    logger.warning("已强制启用兼容模式输入")
-    compatibility_mode = True
-elif screen_size[1] / scale < 720:
-    logger.info("检测到屏幕高度较低，启用兼容模式输入")
-    compatibility_mode = True
-
-
-def safe_input(text: str):
-    pyautogui.hotkey("ctrl", "a")
-    pyautogui.press("backspace")
-    if compatibility_mode:
-        # 使用剪贴板输入，避免输入法遮挡等问题
-        pyperclip.copy(text)
-        pyautogui.hotkey("ctrl", "v")
-    else:
-        pyautogui.typewrite(text, interval=0.01)
-
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
@@ -52,6 +26,29 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account = account
         self.password = password
         self.easinote_path = self.get_easinote_path()
+
+        self.compatibility_mode: bool = False
+        screen_size = get_screen_size()
+        scale = get_scale()
+        if config.Login.ForceEnableScaling:
+            logger.warning("已强制启用兼容模式输入")
+            self.compatibility_mode = True
+        elif screen_size[1] / scale < 720:
+            logger.info("检测到屏幕高度较低，启用兼容模式输入")
+            self.compatibility_mode = True
+
+    def input(self, text: str):
+        import pyautogui
+        import pyperclip
+
+        pyautogui.hotkey("ctrl", "a")
+        pyautogui.press("backspace")
+        if self.compatibility_mode:
+            # 使用剪贴板输入，避免输入法遮挡等问题
+            pyperclip.copy(text)
+            pyautogui.hotkey("ctrl", "v")
+        else:
+            pyautogui.typewrite(text, interval=0.01)
 
     def check(self):
         if self.isInterruptionRequested():

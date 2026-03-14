@@ -1,16 +1,17 @@
 import time
 
 from loguru import logger
-from pywinauto import Application, Desktop
 
 from EasiAuto.common.config import config
-from EasiAuto.core.automation.base import BaseAutomator
+
+from .base import BaseAutomator
 
 
 class UIAAutomator(BaseAutomator):
     """通过 UI Automation 自动定位组件位置来登录"""
 
     def login(self):
+        from pywinauto import Application, Desktop
 
         logger.info("尝试自动登录")
         self.task_update.emit("正在自动登录")
