@@ -74,19 +74,18 @@ class PreRunPopup(Dialog):
         self.buttonLayout.insertWidget(2, self.delay_btn)
         self.buttonLayout.insertWidget(3, self.execute_btn)
 
-        self.response: DialogResponse = DialogResponse.CANCEL
+        self.response: DialogResponse
 
     def exec(self) -> int:
         self.setStayOnTop(True)  # 必须在显示时才能设置置顶，否则窗口显示位置不会居中
         return super().exec()
 
-    def respond(self, result: DialogResponse):
+    def respond(self, result: DialogResponse) -> None:
         self.close()
         self.response = result
         self.recievedResponse.emit(result)
 
-    def countdown(self, timeout: int):
-        # 设置倒计时
+    def countdown(self, timeout: int) -> DialogResponse:
         self.response: DialogResponse = DialogResponse.CANCEL
 
         if timeout <= 0:
@@ -98,7 +97,7 @@ class PreRunPopup(Dialog):
             if timeout > 0:
                 self.contentLabel.setText(
                     "<span style='color: transparent;'>占位文本</span>"
-                    + f"将在 <span style='font-size: 20px; font-weight: 600;'>{timeout}</span> 秒后继续执行"
+                    + f"将在 <span style='font-size: 20px; font-weight: 600; font-family: monospace;'>{timeout}</span> 秒后继续执行"
                 )
                 timeout -= 1
             else:
