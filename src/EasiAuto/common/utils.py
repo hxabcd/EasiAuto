@@ -8,8 +8,9 @@ from abc import ABCMeta
 from pathlib import Path
 from typing import NoReturn
 
-import pyautogui
-import win32com.client
+import pywintypes
+import win32api
+import win32com
 import win32con
 import win32gui
 from loguru import logger
@@ -161,11 +162,26 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             )
 
 
-def switch_window(hwnd: int):
+def switch_window(hwnd: int, press_key: bool = False):
     """通过句柄切换焦点"""
-    pyautogui.press("alt")  # 让 Windows 认为产生了用户交互
-    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-    win32gui.SetForegroundWindow(hwnd)
+    try:
+        if win32gui.GetForegroundWindow() == hwnd:
+            return True
+
+        # 强制恢复并显示
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        if win32gui.GetForegroundWindow() == hwnd:
+            return True
+
+        if press_key:  # 模拟 Alt 键以确保系统标记当前为交互状态
+            win32api.keybd_event(win32con.VK_MENU, 0, 0, 0)
+            win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+        win32gui.SetForegroundWindow(hwnd)
+
+        return True
+    except pywintypes.error as e:
+        logger.warning(f"切换窗口焦点失败: {e}")
+        return False
 
 
 def get_window_by_title(title: str):

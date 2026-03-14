@@ -14,7 +14,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.common.consts import EA_BASEDIR, IS_FULL
+from EasiAuto.common.consts import EA_BASEDIR, IS_DEV, IS_FULL
 from EasiAuto.common.utils import stop
 
 
@@ -449,17 +449,27 @@ class AppConfig(ConfigModel):
         description="通过 Sentry SDK 收集此应用的错误信息以帮助我们改进此应用\n你的信息会匿名上传，且不会包含任何你的个人信息。你随时可以手动关闭该选项",
         json_schema_extra={"icon": "Feedback"},
     )
+
+
+class DebugConfig(ConfigModel):
     EasterEggEnabled: bool = Field(
         default=False,
         title="启用彩蛋",
         description="唔……似乎某些地方有点不对劲的说喵？",
-        json_schema_extra={"icon": "Question", "hidden": True},
+        json_schema_extra={"icon": "Question"},
     )
     DebugMode: bool = Field(
         default=False,
         title="启用开发选项",
-        json_schema_extra={"icon": "DeveloperTools", "hidden": True},
+        json_schema_extra={"icon": "DeveloperTools"},
     )
+    VerboseLog: bool = Field(
+        default=False,
+        title="启用诊断日志",
+        json_schema_extra={"icon": "DeveloperTools"},
+    )
+    AlternateFindWindowMethod: bool = Field(default=False)
+    AlternateSwitchWindowMethod: bool = Field(default=False)
 
 
 class ClassIslandConfig(ConfigModel):
@@ -533,6 +543,7 @@ class Config(ConfigModel):
     Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
     StatusOverlay: StatusOverlayConfig = Field(default_factory=StatusOverlayConfig, title="状态浮窗")
     App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
+    Debug: DebugConfig = Field(default_factory=DebugConfig, title="调试选项", json_schema_extra={"hidden": not IS_DEV})
 
     Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")

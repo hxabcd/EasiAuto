@@ -2,6 +2,7 @@ import subprocess
 import time
 import winreg
 from abc import abstractmethod
+from contextlib import suppress
 from pathlib import Path
 
 import pyautogui
@@ -46,10 +47,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def __init__(self, account: str, password: str) -> None:
         super().__init__()
+        self.setObjectName(f"Automator:{self.__class__.__name__}")
+
         self.account = account
         self.password = password
         self.easinote_path = self.get_easinote_path()
-        self.setObjectName(f"Automator:{self.__class__.__name__}")
 
     def check(self):
         if self.isInterruptionRequested():
@@ -104,13 +106,59 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         subprocess.Popen([self.easinote_path, *args.split(" ")] if args != "" else self.easinote_path)
 
-    def wait_for_window(self, window_title: str, timeout: float, interval: float) -> bool:
+    def enum_all_windows(self) -> list[tuple[int, str, str]]:
+        """枚举所有顶层窗口"""
+
+        def callback(hwnd, windows):
+            # if win32gui.IsWindowVisible(hwnd):  # 只获取可见窗口
+            window_text = win32gui.GetWindowText(hwnd)
+            class_name = win32gui.GetClassName(hwnd)
+            if window_text or "easinote" in class_name.lower():
+                windows.append((hwnd, window_text, class_name))
+            return True
+
+        windows = []
+        win32gui.EnumWindows(callback, windows)
+
+        return windows
+
+    def log_all_windows(self):
+        windows = self.enum_all_windows()
+
+        # 按窗口标题排序
+        windows.sort(key=lambda x: x[1])
+
+        logger.debug("==========当前窗口==========")
+        for hwnd, text, class_name in windows:
+            logger.debug(f"句柄: {hwnd:8x} | 标题: {text[:30]:30} | 类名: {class_name}")
+
+    def wait_for_window(self, window_title: str, timeout: float, interval: float) -> int | None:
+        """等待窗口出现
+
+        Args:
+            window_title (str): 目标窗口标题
+            timeout (float): 超时时长
+            interval (float): 检查间隔
+
+        Returns:
+            int: 窗口句柄
+        """
         elapsed = 0
+        hwnd = None
         while elapsed < timeout and self.check():
-            self.progress_update.emit(f"等待希沃白板窗口出现 ({int(elapsed)}/{int(timeout)}s)")
-            self.hwnd = win32gui.FindWindow(None, window_title)
-            if self.hwnd:
-                return True
+            self.progress_update.emit(f"等待窗口 {window_title} 出现 ({int(elapsed)}/{int(timeout)}s)")
+            if config.Debug.AlternateFindWindowMethod:
+                windows = self.enum_all_windows()
+                for w in windows:
+                    if window_title in w[1]:
+                        hwnd = w[0]
+                        break
+            else:
+                hwnd = win32gui.FindWindow(None, window_title)
+            if config.Debug.VerboseLog:
+                self.enum_all_windows()
+            if hwnd:
+                return hwnd
             time.sleep(interval)
             elapsed += interval
         return False
@@ -130,15 +178,16 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         interval = config.Login.Timeout.LaunchPollingInterval
 
         logger.info(f"等待窗口 {window_title} 打开...")
-        if self.wait_for_window(window_title, timeout, interval):
-            logger.success(f"窗口已打开：{window_title}")
+        if hwnd := self.wait_for_window(window_title, timeout, interval):
+            logger.success(f"窗口 {window_title} 已打开")
             self.task_update.emit("等待登录")
             self.progress_update.emit("希沃白板已启动")
             time.sleep(config.Login.Timeout.AfterLaunch)
-            switch_window(self.hwnd)
+            with suppress(Exception):
+                switch_window(hwnd, press_key=config.Debug.AlternateSwitchWindowMethod)
         else:
-            logger.error(f"窗口在 {timeout} 秒内未打开：{window_title}")
-            raise TimeoutError(f"窗口在 {timeout} 秒内未打开：{window_title}")
+            logger.error(f"窗口 {window_title} 在 {timeout} 秒内未打开")
+            raise TimeoutError(f"窗口 {window_title} 在 {timeout} 秒内未打开")
 
     @abstractmethod
     def login(self):
