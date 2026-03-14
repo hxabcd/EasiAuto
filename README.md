@@ -28,7 +28,9 @@
 
 
 > [!NOTE]
-> 系统需求：Windows 10 及以上版本 | [下载](https://github.com/hxabcd/EasiAuto/releases/latest)
+> 系统需求：Windows 10 及以上版本
+
+下载（官网）：https://easiauto.0xabcd.dev
 
 ## ✨亮点
 
