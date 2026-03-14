@@ -9,7 +9,7 @@ from typing import Any
 
 import qt_pydantic as qtp
 from loguru import logger
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
@@ -80,6 +80,8 @@ class DownloadSource(InformativeEnum):
 
 class ConfigModel(BaseModel):
     """带自动保存能力的配置模型"""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     _parent: ConfigModel | None = PrivateAttr(default=None)
     _file: Path | None = PrivateAttr(default=None)
@@ -341,7 +343,7 @@ class WarningConfig(ConfigModel):
         title="推迟时长",
         description="选择推迟时要等待的时长（秒）",
         json_schema_extra={"icon": "History"},
-        alias="Delay",
+        validation_alias="Delay",
     )
 
 
