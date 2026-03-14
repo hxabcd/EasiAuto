@@ -364,7 +364,7 @@ class Launcher:
             return
 
         if config.Update.TargetDownloadSource == DownloadSource.AUTO:
-            update_checker.start_latency_warmup()
+            update_checker.init_latency()
 
         if command in UI_COMMANDS:
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)

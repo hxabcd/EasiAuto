@@ -23,7 +23,7 @@ class InformativeEnum(Enum):
     """带显示名称的枚举类"""
 
     def __init__(self, value, display_name):
-        self.display_name = display_name
+        self.display_name: str = display_name
         self._value_ = value
 
     def __lt__(self, other: InformativeEnum):
