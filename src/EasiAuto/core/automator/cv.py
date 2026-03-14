@@ -1,18 +1,20 @@
 import time
 
-import pyautogui
 from loguru import logger
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import IS_FULL
 from EasiAuto.common.utils import get_resource
-from EasiAuto.core.automation.base import BaseAutomator, safe_input
+
+from .base import BaseAutomator
 
 
 class CVAutomator(BaseAutomator):
     """通过识别图像登录"""
 
     def login(self):
+        import pyautogui
+
         logger.info("尝试自动登录")
         self.task_update.emit("正在自动登录")
 
@@ -74,7 +76,7 @@ class CVAutomator(BaseAutomator):
         logger.debug(f"账号：{self.account}")
 
         pyautogui.click(button_button.x, button_button.y + 70 * scale)
-        safe_input(self.account)
+        self.input(self.account)
 
         # 输入密码
         self.check()
@@ -83,7 +85,7 @@ class CVAutomator(BaseAutomator):
         logger.debug(f"密码：{self.safe_for_log_password}")
 
         pyautogui.click(button_button.x, button_button.y + 134 * scale)
-        safe_input(self.password)
+        self.input(self.password)
 
         # 识别并勾选用户协议复选框
         self.check()

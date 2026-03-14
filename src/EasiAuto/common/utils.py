@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import ctypes
 import os
 import signal
 import sys
 from abc import ABCMeta
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, cast
 
 import pywintypes
 import win32api
@@ -28,30 +27,32 @@ def get_resource(filename: str):
 
 
 def get_scale() -> float:
-    """获取当前系统缩放比例"""  # 不使用 Qt 获取以避免初始化问题
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-
-    hdc = ctypes.windll.user32.GetDC(0)
-    dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
-    ctypes.windll.user32.ReleaseDC(0, hdc)
-
-    return dpi / 96.0
+    """获取当前系统缩放比例"""
+    app = cast(QApplication, QApplication.instance())
+    if app is None:
+        raise RuntimeError("QApplication 未初始化")
+    screen = app.primaryScreen()
+    if screen is None:
+        raise RuntimeError("无法获取主屏幕信息")
+    return screen.logicalDotsPerInch() / 96.0
 
 
 def get_screen_size() -> tuple[int, int]:
     """获取屏幕尺寸"""
-    ctypes.windll.user32.SetProcessDPIAware()
-
-    width = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
-    height = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
-
-    return width, height
+    app = cast(QApplication, QApplication.instance())
+    if app is None:
+        raise RuntimeError("QApplication 未初始化")
+    screen = app.primaryScreen()
+    if screen is None:
+        raise RuntimeError("无法获取主屏幕信息")
+    geo = screen.geometry()
+    return (geo.width(), geo.height())
 
 
 class Point:
     """一个点，描述屏幕上的坐标。坐标值恒为整数"""
 
-    scale = get_scale()
+    scale: float | None = None
 
     def __init__(self, x: int | float | tuple[int | float, int | float], y: int | float | None = None):
         if isinstance(x, tuple):
@@ -90,7 +91,9 @@ class Point:
 
     def scaled(self) -> Point:
         """获取缩放后的坐标"""
-        return Point(self.x * self.scale, self.y * self.scale)
+        if Point.scale is None:
+            Point.scale = get_scale()
+        return Point(self.x * Point.scale, self.y * Point.scale)
 
 
 def calc_relative_login_window_position(

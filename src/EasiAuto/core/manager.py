@@ -3,8 +3,7 @@ from loguru import logger
 from PySide6.QtCore import QObject, Signal
 
 from EasiAuto.common.config import LoginMethod, config
-
-from . import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
+from EasiAuto.core.automator import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
 
 
 class AutomationManager(QObject):
