@@ -163,16 +163,15 @@ class LatencyWorker(QObject):
     finished = Signal(object)  # dict[DownloadSource, float | None] | None
     failed = Signal(str)
 
-    def __init__(self, checker: UpdateChecker, *, emit_result: bool):
+    def __init__(self, checker: UpdateChecker):
         super().__init__()
         self._checker = checker
-        self._emit_result = emit_result
 
     @Slot()
     def run(self):
         try:
             result = self._checker.test_source_latency()
-            self.finished.emit(result if self._emit_result else None)
+            self.finished.emit(result)
         except Exception as e:
             self.failed.emit(str(e))
 
@@ -193,8 +192,8 @@ class UpdateChecker(QObject):
     download_finished = Signal(str)  # zip 文件路径
     download_failed = Signal(str)
     latency_test_started = Signal()
-    latency_test_finished = Signal(object)  # dict[DownloadSource, float | None]
-    latency_test_failed = Signal(str)
+    latency_test_finished = Signal(object, bool)  # dict[DownloadSource, float | None], manual
+    latency_test_failed = Signal(str, bool)  # error, manual
 
     def __init__(
         self,
@@ -204,6 +203,8 @@ class UpdateChecker(QObject):
         super().__init__(parent)
         self.session = requests.Session()
 
+        self.auto_selected_source: DownloadSource | None = None
+
         # 线程管理
         self._threads: list[QThread] = []
         self._thread_counter = 0
@@ -211,7 +212,6 @@ class UpdateChecker(QObject):
         self._active_response: requests.Response | None = None
         self._update_script_path: Path | None = None
         self._script_reopen: bool = False
-        self._auto_selected_source: DownloadSource | None = None
         self._latency_probe_running = False
         self._shutting_down = False
 
@@ -281,8 +281,8 @@ class UpdateChecker(QObject):
         if selected_source == DownloadSource.AUTO:
             if not allow_latency_check:
                 # 优先使用最近一次测速结果
-                if self._auto_selected_source is not None:
-                    selected_source = self._auto_selected_source
+                if self.auto_selected_source is not None:
+                    selected_source = self.auto_selected_source
                 else:
                     return raw_url
             else:
@@ -305,28 +305,32 @@ class UpdateChecker(QObject):
                 available.append((source, latency))
 
         if available:
-            self._auto_selected_source = min(available, key=lambda x: x[1])[0]
+            self.auto_selected_source = min(available, key=lambda x: x[1])[0]
         else:
-            self._auto_selected_source = DownloadSource.GITHUB
+            self.auto_selected_source = DownloadSource.GITHUB
 
-        logger.success(f"成功检测下载源延迟，已选中 {self._auto_selected_source.display_name}")
+        logger.success(f"成功检测下载源延迟，已选中 {self.auto_selected_source.display_name}")
         return result
 
-    def start_latency_warmup(self) -> None:
+    def init_latency(self) -> None:
         """预测试延迟"""
-        self._ensure_auto_selected_source(async_warmup=True)
+        self._ensure_auto_selected_source(is_init=True)
 
     def test_source_latency_async(self) -> None:
         """异步检测延迟，避免阻塞 UI 线程"""
-        worker = LatencyWorker(self, emit_result=True)
+        worker = LatencyWorker(self)
+        self._set_latency_probe_running(True)
 
         def _connect_signals(thread: QThread) -> None:
             thread.started.connect(self.latency_test_started)
             thread.started.connect(worker.run)
-            worker.finished.connect(self.latency_test_finished)
-            worker.failed.connect(self.latency_test_failed)
+            worker.finished.connect(lambda result: self.latency_test_finished.emit(result, True))
+            worker.failed.connect(lambda error: self.latency_test_failed.emit(error, True))
+            worker.finished.connect(lambda _=None: self._set_latency_probe_running(False))
+            worker.failed.connect(lambda _=None: self._set_latency_probe_running(False))
             worker.finished.connect(thread.quit)
             worker.failed.connect(thread.quit)
+            thread.finished.connect(lambda _=None: self._set_latency_probe_running(False))
 
         self._start_worker_thread(worker, connect_signals=_connect_signals)
 
@@ -479,6 +483,8 @@ class UpdateChecker(QObject):
                     thread.terminate()
         finally:
             self._cleanup_threads()
+            # 避免异常退出时状态卡住
+            self._set_latency_probe_running(False)
             self._shutting_down = False
 
     def bind_app_shutdown(self) -> None:
@@ -501,7 +507,7 @@ class UpdateChecker(QObject):
         worker: QObject,
         *,
         connect_signals: Callable[[QThread], None],
-    ) -> None:
+    ) -> QThread:
         self._cleanup_threads()
 
         thread = QThread()
@@ -517,6 +523,7 @@ class UpdateChecker(QObject):
 
         self._threads.append(thread)
         thread.start()
+        return thread
 
     def _fetch_manifest(self) -> dict[str, Any]:
         if self._likely_offline():
@@ -555,7 +562,7 @@ class UpdateChecker(QObject):
         all_downloads = self._extract_downloads(target_info)
         downloads = self._select_downloads(all_downloads)
         if downloads:
-            self._ensure_auto_selected_source(async_warmup=False)
+            self._ensure_auto_selected_source(is_init=False)
 
         return UpdateDecision(True, target_ver_str, confirm_required, changelog, downloads)
 
@@ -658,8 +665,8 @@ class UpdateChecker(QObject):
         return extract_dir
 
     def _auto_select_source(self) -> DownloadSource:
-        if self._auto_selected_source is not None:
-            return self._auto_selected_source
+        if self.auto_selected_source is not None:
+            return self.auto_selected_source
 
         results = self.test_source_latency()
         available = [(source, latency) for source, latency in results.items() if latency is not None]
@@ -672,25 +679,27 @@ class UpdateChecker(QObject):
         logger.info(f"自动选择下载源：{selected_source.display_name} ({selected_latency * 1000:.0f} ms)")
         return selected_source
 
-    def _ensure_auto_selected_source(self, *, async_warmup: bool) -> None:
+    def _ensure_auto_selected_source(self, *, is_init: bool) -> None:
         if config.Update.TargetDownloadSource != DownloadSource.AUTO:
             return
-        if self._auto_selected_source is not None:
+        if self.auto_selected_source is not None:
             return
         if self._latency_probe_running:
             return
 
-        if async_warmup:
-            worker = LatencyWorker(self, emit_result=False)
+        if is_init:
+            worker = LatencyWorker(self)
             self._latency_probe_running = True
 
             def _connect_signals(thread: QThread) -> None:
                 thread.started.connect(worker.run)
-                worker.finished.connect(thread.quit)
-                worker.failed.connect(thread.quit)
+                worker.finished.connect(lambda result: self.latency_test_finished.emit(result, False))
+                worker.failed.connect(lambda error: self.latency_test_failed.emit(error, False))
                 worker.finished.connect(lambda _=None: self._set_latency_probe_running(False))
-                worker.failed.connect(lambda e: logger.debug(f"启动延迟预热失败: {e}"))
+                worker.finished.connect(thread.quit)
+                worker.failed.connect(lambda e: logger.warning(f"启动延迟初始化失败: {e}"))
                 worker.failed.connect(lambda _=None: self._set_latency_probe_running(False))
+                worker.failed.connect(thread.quit)
 
             self._start_worker_thread(worker, connect_signals=_connect_signals)
             return
@@ -698,10 +707,14 @@ class UpdateChecker(QObject):
         try:
             self._auto_select_source()
         except Exception as e:
-            logger.warning(f"预热下载源失败，已回退默认直连: {e}")
+            logger.warning(f"初始化下载源失败，已回退默认直连: {e}")
 
     def _set_latency_probe_running(self, value: bool) -> None:
         self._latency_probe_running = value
+
+    @property
+    def latency_probe_running(self) -> bool:
+        return self._latency_probe_running
 
     def _probe_source_latency(self, source: DownloadSource) -> float | None:
         # 优先通过 requests 探测，避免 TUN 代理下不可用
