@@ -42,8 +42,8 @@ from qfluentwidgets import (
 )
 
 # 配置信息（也可以通过环境变量传入）
-MANIFEST_REPO = "hxabcd/0xabcd-log"
-MANIFEST_FILE_PATH = "public/update/EasiAuto.json"
+MANIFEST_REPO = "hxabcd/EasiAutoWeb"
+MANIFEST_FILE_PATH = "public/update.json"
 OWNER_REPO = os.getenv("GITHUB_REPOSITORY", "hxabcd/EasiAuto")
 
 
