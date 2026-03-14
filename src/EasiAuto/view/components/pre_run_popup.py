@@ -87,6 +87,8 @@ class PreRunPopup(Dialog):
 
     def countdown(self, timeout: int):
         # 设置倒计时
+        self.response: DialogResponse = DialogResponse.CANCEL
+
         if timeout <= 0:
             raise ValueError("倒计时时长必须是正整数")
 
