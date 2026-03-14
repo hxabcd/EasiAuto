@@ -51,19 +51,23 @@ class StreamToLogger:
         pass
 
 
-def qt_message_handler(mode, context, message):  # noqa
+def qt_message_handler(mode: QtMsgType, context, message):  # noqa
     """Qt 消息转发到 loguru"""
     msg = message.strip()
     if not msg:
         return
-    if mode == QtMsgType.QtCriticalMsg:
-        logger.error(msg)
-        logger.complete()
-    elif mode == QtMsgType.QtFatalMsg:
-        logger.critical(msg)
-        logger.complete()
-    else:
-        logger.complete()
+    match mode:
+        case QtMsgType.QtFatalMsg:
+            logger.critical(msg)
+        case QtMsgType.QtCriticalMsg:
+            logger.error(msg)
+        case QtMsgType.QtWarningMsg:
+            logger.warning(msg)
+        case QtMsgType.QtInfoMsg | QtMsgType.QtSystemMsg:
+            logger.info(msg)
+        case QtMsgType.QtDebugMsg:
+            logger.debug(msg)
+    logger.complete()
 
 
 class ErrorDialog(Dialog):  # 重大错误提示框
