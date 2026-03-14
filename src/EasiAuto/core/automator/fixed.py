@@ -1,14 +1,11 @@
 import time
 
-import pyautogui
 from loguru import logger
 
 from EasiAuto.common.config import config
 from EasiAuto.common.utils import Point, calc_relative_login_window_position, get_scale, get_screen_size
-from EasiAuto.core.automation.base import BaseAutomator, safe_input
 
-screen_size = get_screen_size()
-scale = get_scale()
+from .base import BaseAutomator
 
 
 class FixedAutomator(BaseAutomator):
@@ -29,9 +26,13 @@ class FixedAutomator(BaseAutomator):
         return point.x, point.y
 
     def login(self):
+        import pyautogui
 
         logger.info("尝试自动登录")
         self.task_update.emit("正在自动登录")
+
+        screen_size = get_screen_size()
+        scale = get_scale()
 
         # 进入登录界面
         self.check()
@@ -63,7 +64,7 @@ class FixedAutomator(BaseAutomator):
         self.progress_update.emit("输入账号")
         logger.debug(f"账号：{self.account}")
         pyautogui.click(*self.resolve_position(config.Login.Position.AccountInput))
-        safe_input(self.account)
+        self.input(self.account)
 
         # 输入密码
         self.check()
@@ -71,7 +72,7 @@ class FixedAutomator(BaseAutomator):
         self.progress_update.emit("输入密码")
         logger.debug(f"密码：{self.safe_for_log_password}")
         pyautogui.click(*self.resolve_position(config.Login.Position.PasswordInput))
-        safe_input(self.password)
+        self.input(self.password)
 
         # 勾选同意用户协议
         self.check()

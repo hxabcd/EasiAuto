@@ -8,7 +8,8 @@ from loguru import logger
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import VENDOR_PATH
-from EasiAuto.core.automation.base import BaseAutomator
+
+from .base import BaseAutomator
 
 INJECTOR_LAUNCHER = VENDOR_PATH / "Snoop" / "Snoop.InjectorLauncher.x86.exe"
 INJECTOR = VENDOR_PATH / "ENLoginInjector.dll"
