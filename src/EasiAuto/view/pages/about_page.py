@@ -192,7 +192,7 @@ class AboutPage(SmoothScrollArea):
         )
         author_link3 = HyperlinkCard(
             icon=FluentIcon.GITHUB,
-            title="Github 主页",
+            title="GitHub 主页",
             url="https://github.com/hxabcd",
             text="访问",
         )
