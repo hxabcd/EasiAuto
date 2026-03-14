@@ -826,7 +826,7 @@ class PathSelectSubpage(QWidget):
             self,
             "选择 ClassIsland 程序路径",
             "D:/" if Path("D:/").exists() else "C:/",
-            "ClassIsland 可执行文件 (*.exe)",
+            "ClassIsland 可执行文件 (ClassIsland.exe)",
         )
 
         if not exe_path:  # 取消选择

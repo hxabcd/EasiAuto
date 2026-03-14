@@ -293,10 +293,11 @@ class UpdateChecker(QObject):
 
         if available:
             self.auto_selected_source = min(available, key=lambda x: x[1])[0]
+            logger.success(f"成功检测下载源延迟，已选中 {self.auto_selected_source.display_name}")
         else:
             self.auto_selected_source = DownloadSource.GITHUB
+            logger.warning(f"无法检测下载源延迟，回退至 {self.auto_selected_source.display_name}")
 
-        logger.success(f"成功检测下载源延迟，已选中 {self.auto_selected_source.display_name}")
         return result
 
     def init_latency(self) -> None:
