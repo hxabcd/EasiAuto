@@ -9,8 +9,7 @@ EA_BASEDIR = EA_EXECUTABLE.parent
 
 VENDOR_PATH = EA_BASEDIR / "vendors"
 
-# 为什么放 consts 里面？别管
-if IS_DEV and str(VENDOR_PATH) not in sys.path:
+if str(VENDOR_PATH) not in sys.path:
     sys.path.insert(0, str(VENDOR_PATH))
 
 try:
