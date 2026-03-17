@@ -95,11 +95,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
 
     print(f"Creating archive: {zip_path}.zip ...")
 
-    # Nuitka 的输出在 target_dir/main.dist (Standalone 默认后缀)
-    dist_path = target_dir / "main.dist"
-
-    # 如果 Nuitka 没生成 .dist 后缀，就直接用 target_dir
-    src_dir = dist_path if dist_path.exists() else target_dir
+    src_dir = target_dir / "main.dist"
 
     shutil.make_archive(str(zip_path), "zip", src_dir)
     print(f"Archive completed: {zip_path}.zip")
