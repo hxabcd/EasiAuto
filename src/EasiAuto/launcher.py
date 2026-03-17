@@ -84,7 +84,7 @@ class Launcher:
         subparsers.add_parser("skip", help="跳过下一次登录")
         return parser
 
-    def _on_login_finished(self, error_message: str | None = None) -> None:
+    def _on_login_finished(self, success: bool = True, error_message: str | None = None) -> None:
         """登录结束后的回调"""
         from_ipc = self._active_login_from_ipc
 
@@ -93,6 +93,7 @@ class Launcher:
         self.login_running = False
         logger.info("登录任务已停止运行")
 
+        # 关闭警示横幅
         if self.banner is not None:
             self.banner.close()
             self.banner.deleteLater()
@@ -100,6 +101,7 @@ class Launcher:
 
         self._active_login_from_ipc = False
 
+        # 发送失败通知
         if error_message:
             logger.error(f"自动登录失败: {error_message}")
             windows11toast.notify(
@@ -109,21 +111,16 @@ class Launcher:
                 icon_hint_crop=windows11toast.IconCrop.NONE,
                 icon_src=utils.get_resource("EasiAuto.ico"),
             )
-            if not from_ipc:
-                utils.stop(1)
-            return
 
-        if from_ipc:
-            if self.status_overlay is not None:
-                QTimer.singleShot(3000, self._close_status_overlay)
-            return  # 通过 IPC 触发不退出，保持主实例运行
-
-        self._begin_post_login_shutdown(from_ipc=from_ipc)
-
-    def _begin_post_login_shutdown(self, *, from_ipc: bool) -> None:
         self._post_login_waiting = True
         self._post_login_overlay_done = self.status_overlay is None
-        self._post_login_update_done = not (config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER)
+        self._post_login_update_done = any(  # 以下情况不触发更新检查
+            (
+                not success,  # 登录失败
+                from_ipc,  # 通过 IPC 触发
+                not (config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER),
+            )
+        )
 
         if not self._post_login_overlay_done:
             QTimer.singleShot(3000, self._close_status_overlay)
@@ -148,10 +145,12 @@ class Launcher:
 
     def _run_post_login_update_check(self) -> None:
         try:
+            if config.Update.TargetDownloadSource == DownloadSource.AUTO:
+                update_checker.init_latency()
             decision = update_checker.check()
             if decision.available and decision.downloads:
                 if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                    file = update_checker.download_update(decision.downloads[0])
+                    file = update_checker.download_update(decision.downloads[0], allow_latency_check=True)
                     QTimer.singleShot(
                         0, lambda: app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
                     )
@@ -237,7 +236,7 @@ class Launcher:
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._active_login_from_ipc = from_ipc
         automation_manager.finished.connect(self._on_login_finished)
-        automation_manager.failed.connect(self._on_login_finished)
+        automation_manager.failed.connect(lambda msg: self._on_login_finished(success=False, error_message=msg))
 
         if config.StatusOverlay.Enabled:
             screen_height = utils.get_screen_size()[1]
@@ -274,6 +273,9 @@ class Launcher:
 
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
+        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
+            update_checker.init_latency()
+
         self._show_settings_window()
         if not self._ipc_context:
             sys.exit(app.exec())
@@ -362,9 +364,6 @@ class Launcher:
         if not check_singleton(focus_existing=(command == "settings")):
             self._forward_or_exit(command)
             return
-
-        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
-            update_checker.init_latency()
 
         if command in UI_COMMANDS:
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)

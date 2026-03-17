@@ -221,6 +221,7 @@ class UpdateChecker(QObject):
         on_progress: Callable[[int, int], None] | None = None,
         cancel_checker: Callable[[], bool] | None = None,
         resolved_url: str | None = None,
+        allow_latency_check: bool = False,
     ) -> Path:
         """下载更新"""
         dest_dir = Path(EA_BASEDIR / "cache")
@@ -237,7 +238,7 @@ class UpdateChecker(QObject):
             return out_path
 
         # 2. 准备下载
-        url = resolved_url or self.resolve_download_url(item.url, allow_latency_check=False)
+        url = resolved_url or self.resolve_download_url(item.url, allow_latency_check=allow_latency_check)
         total = -1
         done = 0
         logger.info(f"开始下载更新包: {url}")
