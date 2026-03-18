@@ -1,12 +1,7 @@
 name: Build and Release
 
 on:
-  push:
-    # 未完成，暂时禁用自动触发
-    # tags:
-    #   - "v*"
-    branches:
-      - main
+  push: {}
   # 允许手动触发 Release，并接收外部输入
   workflow_dispatch:
     inputs:
@@ -81,7 +76,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: EasiAuto_-${{ github.ref_name }}*
+          pattern: EasiAuto_${{ github.ref_name }}*
           path: release-dist
           merge-multiple: true
 
@@ -102,7 +97,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.RELEASE_PAT }}
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.version }}
           name: Release ${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_desc }}
           files: release-dist/*.zip
@@ -116,7 +111,7 @@ jobs:
           uv run tools/release.py \
             --version "${{ github.event.inputs.version }}" \
             --is-dev ${{ steps.check_version.outputs.IS_PRERELEASE }} \
-            --confirm-required ${{ github.event.inputs.confirm_required }}
-            --desc "${{ github.event.inputs.release_desc }}"
+            --confirm-required ${{ github.event.inputs.confirm-required }} \
+            --desc "${{ github.event.inputs.release_desc }}" \
             --highlights '${{ github.event.inputs.highlights_json }}' \
             --others '${{ github.event.inputs.others_json }}' \
