@@ -26,6 +26,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account = account
         self.password = password
         self.easinote_path = self.get_easinote_path()
+        self.easiauto_hwnd: int | None = None
 
         self.compatibility_mode: bool = False
         screen_size = get_screen_size()
@@ -143,7 +144,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         elapsed = 0
         hwnd = None
         while elapsed < timeout and self.check():
-            self.progress_update.emit(f"等待窗口 {window_title} 出现 ({int(elapsed)}/{int(timeout)}s)")
+            self.progress_update.emit(f"等待{window_title}窗口打开 ({int(elapsed)}/{int(timeout)}s)")
             if config.Debug.AlternateFindWindowMethod:
                 windows = self.enum_all_windows()
                 for w in windows:
@@ -174,17 +175,18 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         timeout = config.Login.Timeout.LaunchPollingTimeout
         interval = config.Login.Timeout.LaunchPollingInterval
 
-        logger.info(f"等待窗口 {window_title} 打开...")
-        if hwnd := self.wait_for_window(window_title, timeout, interval):
-            logger.success(f"窗口 {window_title} 已打开")
+        logger.info(f"等待{window_title}窗口打开...")
+        self.easinote_hwnd = self.wait_for_window(window_title, timeout, interval)
+        if self.easinote_hwnd:
+            logger.success(f"{window_title}窗口已打开")
             self.task_update.emit("等待登录")
             self.progress_update.emit("希沃白板已启动")
             time.sleep(config.Login.Timeout.AfterLaunch)
             with suppress(Exception):
-                switch_window(hwnd, press_key=config.Debug.AlternateSwitchWindowMethod)
+                switch_window(self.easinote_hwnd, press_key=config.Debug.AlternateSwitchWindowMethod)
         else:
-            logger.error(f"窗口 {window_title} 在 {timeout} 秒内未打开")
-            raise TimeoutError(f"窗口 {window_title} 在 {timeout} 秒内未打开")
+            logger.error(f"{window_title}窗口在{timeout}秒内未打开")
+            raise TimeoutError(f"{window_title}窗口在{timeout}秒内未打开")
 
     @abstractmethod
     def login(self):

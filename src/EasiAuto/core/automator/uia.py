@@ -21,7 +21,7 @@ class UIAAutomator(BaseAutomator):
         logger.info("连接 UI Automation 后端至希沃白板")
         self.progress_update.emit("连接后端至希沃白板")
 
-        app = Application(backend="uia").connect(handle=self.hwnd)
+        app = Application(backend="uia").connect(handle=self.easinote_hwnd)
         dlg = app.window(title="希沃白板")
         dlg.set_focus()  # 设置焦点为希沃白板窗口
 
