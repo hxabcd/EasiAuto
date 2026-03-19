@@ -14,6 +14,9 @@ from EasiAuto.common.config import config
 from EasiAuto.common.utils import QABCMeta, get_scale, get_screen_size, switch_window
 
 
+class LoginCancelled(Exception):
+    pass
+
 class BaseAutomator(QThread, metaclass=QABCMeta):
     failed = Signal(str)
     task_update = Signal(str)
@@ -25,7 +28,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         self.account = account
         self.password = password
-        self.easinote_path = self.get_easinote_path()
+        self.easinote_path: Path | None = self.get_easinote_path()
         self.easiauto_hwnd: int | None = None
 
         self.compatibility_mode: bool = False
@@ -53,7 +56,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def check(self):
         if self.isInterruptionRequested():
-            raise InterruptedError()
+            raise LoginCancelled("收到中断请求")
         return True
 
     @property
@@ -62,21 +65,24 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         return self.password[0] + "*" * (len(self.password) - 2) + self.password[-1]
 
     @staticmethod
-    def get_easinote_path() -> Path:
+    def get_easinote_path() -> Path | None:
         if config.Login.EasiNote.AutoPath:
             try:
                 with winreg.OpenKey(
                     winreg.HKEY_LOCAL_MACHINE,
                     r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
                 ) as key:
-                    path = winreg.QueryValueEx(key, "ExePath")[0]
-                    logger.debug(f"自动获取到路径: {path}")
+                    path_str = winreg.QueryValueEx(key, "ExePath")[0]
+                    logger.debug(f"自动获取到路径: {path_str}")
             except Exception:
+                path_str = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
                 logger.warning("自动获取路径失败，使用默认路径")
-                path = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
         else:
-            path = config.Login.EasiNote.Path
-        return Path(path)
+            path_str = config.Login.EasiNote.Path
+            logger.debug(f"使用设置的路径: {path_str}")
+
+        path = Path(path_str).resolve()
+        return path if path.exists() else None
 
     def kill_easinote_processes(self):
         logger.info("终止进程")
@@ -91,20 +97,14 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             subprocess.run(command, shell=True, check=False)
         time.sleep(config.Login.Timeout.Terminate)  # 等待终止
 
-    def start_easinote(self):
+    def start_easinote(self, path: Path, args: str):
         logger.info("启动程序")
-        self.progress_update.emit("等待希沃白板启动")
-        logger.debug(f"路径：{self.easinote_path}，参数：{config.Login.EasiNote.Args}")
+        self.progress_update.emit("启动希沃白板")
+        logger.debug(f"路径：{path}，参数：{args}")
 
-        args = config.Login.EasiNote.Args
+        subprocess.Popen([path] + args.split(" "))
 
-        if not Path(self.easinote_path).exists():
-            logger.error(f"希沃白板可执行文件不存在: {self.easinote_path}")
-            raise FileNotFoundError(f"希沃白板可执行文件不存在: {self.easinote_path}")
-
-        subprocess.Popen([self.easinote_path, *args.split(" ")] if args != "" else self.easinote_path)
-
-    def enum_all_windows(self) -> list[tuple[int, str, str]]:
+    def _enum_all_windows(self) -> list[tuple[int, str, str]]:
         """枚举所有顶层窗口"""
 
         def callback(hwnd, windows):
@@ -120,8 +120,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         return windows
 
-    def log_all_windows(self):
-        windows = self.enum_all_windows()
+    def _log_all_windows(self):
+        windows = self._enum_all_windows()
 
         # 按窗口标题排序
         windows.sort(key=lambda x: x[1])
@@ -146,7 +146,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         while elapsed < timeout and self.check():
             self.progress_update.emit(f"等待{window_title}窗口打开 ({int(elapsed)}/{int(timeout)}s)")
             if config.Debug.AlternateFindWindowMethod:
-                windows = self.enum_all_windows()
+                windows = self._enum_all_windows()
                 for w in windows:
                     if window_title in w[1]:
                         hwnd = w[0]
@@ -154,7 +154,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             else:
                 hwnd = win32gui.FindWindow(None, window_title)
             if config.Debug.VerboseLog:
-                self.enum_all_windows()
+                self._enum_all_windows()
             if hwnd:
                 return hwnd
             time.sleep(interval)
@@ -167,9 +167,13 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         logger.info("尝试重启希沃进程")
         self.task_update.emit("重启希沃进程")
 
+        if self.easinote_path is None:
+            logger.error("希沃白板目录不存在")
+            raise LoginCancelled("希沃白板目录不存在")
+
         self.kill_easinote_processes()
         self.check()
-        self.start_easinote()
+        self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)
 
         window_title = config.Login.EasiNote.WindowTitle
         timeout = config.Login.Timeout.LaunchPollingTimeout
@@ -202,9 +206,9 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.login()
 
                 return
-            except InterruptedError:
+            except LoginCancelled:
                 return
-            except BaseException as e:
+            except Exception as e:
                 retries += 1
 
                 if retries <= config.App.MaxRetries:
