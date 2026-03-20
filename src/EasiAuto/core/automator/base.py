@@ -2,8 +2,10 @@ import subprocess
 import time
 import winreg
 from abc import abstractmethod
+from collections.abc import Iterable
 from contextlib import suppress
 from pathlib import Path
+from typing import SupportsIndex, SupportsInt
 
 import win32gui
 from loguru import logger
@@ -11,7 +13,7 @@ from loguru import logger
 from PySide6.QtCore import QThread, Signal
 
 from EasiAuto.common.config import config
-from EasiAuto.common.utils import QABCMeta, get_scale, get_screen_size, switch_window
+from EasiAuto.common.utils import Point, QABCMeta, get_scale, get_screen_size, switch_window
 
 
 class LoginCancelled(Exception):
@@ -41,20 +43,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             logger.info("检测到屏幕高度较低，启用兼容模式输入")
             self.compatibility_mode = True
 
-    def input(self, text: str):
-        import pyautogui
-        import pyperclip
-
-        pyautogui.hotkey("ctrl", "a")
-        pyautogui.press("backspace")
-        if self.compatibility_mode:
-            # 使用剪贴板输入，避免输入法遮挡等问题
-            pyperclip.copy(text)
-            pyautogui.hotkey("ctrl", "v")
-        else:
-            pyautogui.typewrite(text, interval=0.01)
-
-    def check(self):
+    def check_interruption(self):
+        """中断检查点"""
         if self.isInterruptionRequested():
             raise LoginCancelled("收到中断请求")
         return True
@@ -143,7 +133,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         """
         elapsed = 0
         hwnd = None
-        while elapsed < timeout and self.check():
+        while elapsed < timeout and self.check_interruption():
             self.progress_update.emit(f"等待{window_title}窗口打开 ({int(elapsed)}/{int(timeout)}s)")
             if config.Debug.AlternateFindWindowMethod:
                 windows = self._enum_all_windows()
@@ -172,7 +162,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             raise LoginCancelled("希沃白板目录不存在")
 
         self.kill_easinote_processes()
-        self.check()
+        self.check_interruption()
         self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)
 
         window_title = config.Login.EasiNote.WindowTitle
@@ -200,7 +190,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     def run(self):
         """完整登录流程"""
         retries = 0
-        while self.check():
+        while self.check_interruption():
             try:
                 self.restart_easinote()
                 self.login()
@@ -219,3 +209,47 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     logger.critical(f"{retries}次尝试均登录失败: {e}")
                     self.failed.emit(str(e))
                     return
+
+class PyAutoGuiBaseAutomator(BaseAutomator):
+    def input(self, text: str):
+        import pyautogui
+        import pyperclip
+
+        pyautogui.hotkey("ctrl", "a")
+        pyautogui.press("backspace")
+        if self.compatibility_mode:
+            # 使用剪贴板输入，避免输入法遮挡等问题
+            pyperclip.copy(text)
+            pyautogui.hotkey("ctrl", "v")
+        else:
+            pyautogui.typewrite(text, interval=0.01)
+
+    def click(
+        self,
+        x_or_pos: SupportsInt | tuple[int, int] | Point,
+        _y: SupportsInt | None = None,
+        clicks: SupportsIndex = 1,
+        interval: float = 0,
+        button: str = "primary",
+        duration: float = 0,
+    ):
+        import pyautogui
+
+        if isinstance(x_or_pos, SupportsInt):
+            if _y is None:
+                raise ValueError("y坐标为空")
+            x, y = int(x_or_pos), int(_y)
+        elif isinstance(x_or_pos, tuple):
+            x, y = x_or_pos
+        elif isinstance(x_or_pos, Point):
+            x, y = x_or_pos.x, x_or_pos.y
+        else:
+            raise TypeError
+
+        logger.debug(f"点击 ({x}, {y})")
+        pyautogui.click(x, y, clicks, interval, button, duration)
+
+    def press(self, keys: str | Iterable[str], presses: SupportsIndex = 1, interval: float = 0):
+        import pyautogui
+
+        pyautogui.press(keys, presses, interval)
