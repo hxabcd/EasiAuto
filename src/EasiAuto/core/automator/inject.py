@@ -98,7 +98,7 @@ class InjectAutomator(BaseAutomator):
         self.task_update.emit("正在自动登录")
 
         # --- 第一阶段：注入 Launcher ---
-        self.check()
+        self.check_interruption()
         logger.info("注入登录启动器")
         self.progress_update.emit("注入登录启动器")
 
@@ -116,7 +116,7 @@ class InjectAutomator(BaseAutomator):
             self.progress_update.emit("等待登录窗口")
 
             # --- 第二阶段：等待并注入 Performer ---
-            self.check()
+            self.check_interruption()
             new_pid = self.wait_for_new_process(old_pid=first_proc.pid)
             if new_pid:
                 logger.info("执行登录")
