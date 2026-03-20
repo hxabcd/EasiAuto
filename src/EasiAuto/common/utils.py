@@ -34,7 +34,7 @@ def get_scale() -> float:
     screen = app.primaryScreen()
     if screen is None:
         raise RuntimeError("无法获取主屏幕信息")
-    return screen.logicalDotsPerInch() / 96.0
+    return screen.devicePixelRatio()
 
 
 def get_screen_size() -> tuple[int, int]:
@@ -45,8 +45,10 @@ def get_screen_size() -> tuple[int, int]:
     screen = app.primaryScreen()
     if screen is None:
         raise RuntimeError("无法获取主屏幕信息")
+
     geo = screen.geometry()
-    return (geo.width(), geo.height())
+    scale = get_scale()
+    return (int(geo.width() * scale)), int(geo.height() * scale)
 
 
 class Point:
