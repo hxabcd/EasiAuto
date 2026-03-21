@@ -16,7 +16,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.common.consts import EA_BASEDIR, IS_DEV, IS_FULL
+from EasiAuto.common.consts import CONFIG_PATH, IS_DEV, IS_FULL
 from EasiAuto.common.utils import stop
 
 
@@ -814,4 +814,4 @@ def iter_config_items(
     return result
 
 
-config = Config.load(EA_BASEDIR / "config.json")
+config = Config.load(CONFIG_PATH)

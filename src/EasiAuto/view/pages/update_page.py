@@ -42,7 +42,7 @@ from qfluentwidgets import (
 
 from EasiAuto.common import utils
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
-from EasiAuto.common.consts import EA_BASEDIR
+from EasiAuto.common.consts import CACHE_DIR
 from EasiAuto.common.update import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.utils import get_app, get_main_container
@@ -487,7 +487,7 @@ class UpdatePage(QWidget):
                 logger.success("更新已就绪")
                 if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
                     get_app().aboutToQuit.connect(
-                        lambda: update_checker.apply_script(zip_path=EA_BASEDIR / "cache" / self._update_file),
+                        lambda: update_checker.apply_script(zip_path=CACHE_DIR / self._update_file),
                     )
                     self._signal_connected = True
 
@@ -533,7 +533,7 @@ class UpdatePage(QWidget):
                 if not self._signal_connected:
                     get_app().aboutToQuit.connect(
                         lambda: update_checker.apply_script(
-                            zip_path=EA_BASEDIR / "cache" / self._update_file, reopen=True
+                            zip_path=CACHE_DIR / self._update_file, reopen=True
                         ),
                     )
                 utils.stop()

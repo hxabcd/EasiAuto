@@ -19,12 +19,16 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE
+from EasiAuto.common.consts import (
+    EA_BASEDIR,
+    EA_EXECUTABLE,
+    EA_RESDIR,
+)
 
 
 def get_resource(filename: str):
     """获取资源路径"""
-    return str(EA_EXECUTABLE.parent / "resources" / filename)
+    return str(EA_RESDIR / filename)
 
 
 def get_scale() -> float:
