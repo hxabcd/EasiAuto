@@ -481,7 +481,6 @@ class DebugConfig(ConfigModel):
         json_schema_extra={"icon": "DeveloperTools"},
     )
     AlternateFindWindowMethod: bool = Field(default=False)
-    AlternateSwitchWindowMethod: bool = Field(default=False)
 
 
 class ClassIslandConfig(ConfigModel):
