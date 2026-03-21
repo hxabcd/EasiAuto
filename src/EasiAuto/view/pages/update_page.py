@@ -567,8 +567,6 @@ class UpdatePage(QWidget):
 
     def download_finished(self):
         self.action = UpdateStatus.INSTALL
-        if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-            utils.stop()
 
     def download_failed(self, error):
         if "取消" in error:
