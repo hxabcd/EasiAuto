@@ -26,8 +26,8 @@ class LoginError(Exception):
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
     failed = Signal(str)
-    task_update = Signal(str)
-    progress_update = Signal(str)
+    task_updated = Signal(str)
+    progress_updated = Signal(str)
 
     def __init__(self, account: str, password: str) -> None:
         super().__init__()
@@ -53,7 +53,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         logger.info(f"[任务] {text}")
 
-        self.task_update.emit(text)
+        self.task_updated.emit(text)
 
     def update_progress(self, text: str):
         if text == self._prev_progress:
@@ -62,7 +62,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         logger.info(f"[进度] {text}")
 
-        self.progress_update.emit(text)
+        self.progress_updated.emit(text)
 
     @staticmethod
     def get_easinote_path() -> Path | None:
