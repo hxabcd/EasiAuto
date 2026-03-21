@@ -20,6 +20,7 @@ opencv_minimal_build
 TODO
 
 # EasiAuto-generated files
+data
 logs
 cache
 config.json

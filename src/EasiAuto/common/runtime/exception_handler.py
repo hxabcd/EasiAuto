@@ -29,7 +29,7 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.common.config import config
-from EasiAuto.common.consts import EA_BASEDIR, IS_DEV
+from EasiAuto.common.consts import IS_DEV, LOG_DIR
 from EasiAuto.common.utils import get_resource, restart, stop
 
 SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
@@ -273,7 +273,7 @@ def init_exception_handler():
     logger.debug(f"日志存储已{'禁用' if not config.App.LogEnabled else '启用'}")
     if config.App.LogEnabled:
         logger.add(
-            EA_BASEDIR / "logs" / "EasiAuto_{time}.log",
+            LOG_DIR / "EasiAuto_{time}.log",
             format=log_format,
             rotation="1 MB",
             retention="1 minute",

@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
 from EasiAuto.common.config import DownloadSource, PackageChannel, UpdateChannal, config
-from EasiAuto.common.consts import EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+from EasiAuto.common.consts import CACHE_DIR, EA_BASEDIR, EA_EXECUTABLE, IS_DEV
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
@@ -224,7 +224,7 @@ class UpdateChecker(QObject):
         allow_latency_check: bool = False,
     ) -> Path:
         """下载更新"""
-        dest_dir = Path(EA_BASEDIR / "cache")
+        dest_dir = CACHE_DIR
         dest_dir.mkdir(parents=True, exist_ok=True)
         out_path = dest_dir / (filename or Path(item.url).name)
 
@@ -340,7 +340,7 @@ class UpdateChecker(QObject):
         script = staging / "apply_update.bat"
 
         # 构建更新脚本：删除旧文件 -> 复制新文件 -> 重启
-        # 注意：这里保留了 config.json, logs
+        # 保留 data 目录
         script_content = [
             "@echo off",
             "chcp 65001",
@@ -353,7 +353,7 @@ class UpdateChecker(QObject):
             (
                 r'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "'
                 r"$t = '%TARGET_DIR%'; "
-                r"$keep = @('config.json','logs'); "
+                r"$keep = @('data'); "
                 r"Get-ChildItem -LiteralPath $t -Force | Where-Object { $keep -notcontains $_.Name } | "
                 r'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"'
             ),
