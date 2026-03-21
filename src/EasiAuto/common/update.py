@@ -267,11 +267,9 @@ class UpdateChecker(QObject):
         selected_source = config.Update.TargetDownloadSource
         if selected_source == DownloadSource.AUTO:
             if not allow_latency_check:
-                # 优先使用最近一次测速结果
-                if self.auto_selected_source is not None:
-                    selected_source = self.auto_selected_source
-                else:
+                if self.auto_selected_source is None:
                     return raw_url
+                selected_source = self.auto_selected_source
             else:
                 selected_source = self._auto_select_source()
         mirror = DOWNLOAD_SOURCES.get(selected_source, "https://github.com")

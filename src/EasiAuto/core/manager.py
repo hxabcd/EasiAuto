@@ -10,8 +10,8 @@ class AutomationManager(QObject):
     started = Signal()
     finished = Signal()
     failed = Signal(str)
-    task_update = Signal(str)
-    progress_update = Signal(str)
+    task_updated = Signal(str)
+    progress_updated = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -37,8 +37,8 @@ class AutomationManager(QObject):
         self._automator.started.connect(self.started)
         self._automator.finished.connect(self.finished)
         self._automator.failed.connect(self.failed)
-        self._automator.task_update.connect(self.task_update)
-        self._automator.progress_update.connect(self.progress_update)
+        self._automator.task_updated.connect(self.task_updated)
+        self._automator.progress_updated.connect(self.progress_updated)
 
         self._automator.start()
 

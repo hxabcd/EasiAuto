@@ -24,7 +24,7 @@ class MainWindow(MSFluentWindow):
         self.initWindow()
 
         # 启动页面
-        self.splashScreen = SplashScreen(self.windowIcon(), self)  # TODO: 无法显示，貌似出现于重构结构后
+        self.splashScreen = SplashScreen(self.windowIcon(), self)
         self.splashScreen.setIconSize(QSize(102, 102))
         logger.debug("显示启动页面")
         self.show()

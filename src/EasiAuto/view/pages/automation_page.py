@@ -633,8 +633,8 @@ class AutomationManageSubpage(QWidget):
                 automation_manager.started.connect(self.status_overlay.show)
                 automation_manager.finished.connect(self.status_overlay.on_finished)
                 automation_manager.failed.connect(self.status_overlay.on_failed)
-                automation_manager.task_update.connect(self.status_overlay.set_task_text)
-                automation_manager.progress_update.connect(self.status_overlay.set_progress_text)
+                automation_manager.task_updated.connect(self.status_overlay.set_task_text)
+                automation_manager.progress_updated.connect(self.status_overlay.set_progress_text)
             except Exception as e:
                 logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
 

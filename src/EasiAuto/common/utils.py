@@ -304,7 +304,7 @@ def restart() -> None:
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 
-def clean_up(status) -> NoReturn:
+def exit(status) -> NoReturn:
     logger.info(f"程序退出({status})")
     sys.exit(status)
 
@@ -316,7 +316,7 @@ def stop(status: int = 0) -> NoReturn:
     if app:
         app.quit()
         app.processEvents()
-    clean_up(status)
+    exit(status)
 
 
 def crash() -> NoReturn:
