@@ -1,5 +1,4 @@
 import sys
-import threading
 import time
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
@@ -9,7 +8,7 @@ import windows11toast
 from loguru import logger
 from packaging.version import Version
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentTranslator,
@@ -50,6 +49,28 @@ setThemeColor("#00C884")
 app.aboutToQuit.connect(update_checker.shutdown)
 
 
+class PostLoginUpdateThread(QThread):
+    def run(self) -> None:
+        try:
+            decision = update_checker.check()
+            if decision.available and decision.downloads:
+                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
+                    file = update_checker.download_update(decision.downloads[0], allow_latency_check=True)
+                    update_checker.apply_script(file, reopen=False)
+                else:
+                    windows11toast.notify(
+                        title="更新可用",
+                        body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
+                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                        icon_hint_crop=windows11toast.IconCrop.NONE,
+                        icon_src=utils.get_resource("EasiAuto.ico"),
+                    )
+        except UpdateError as e:
+            logger.warning(f"检查更新时发生异常，已跳过：{e}")
+        except Exception as e:
+            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
+
+
 class Launcher:
     def __init__(self) -> None:
         self.ipc_server: ArgvIpcServer | None = None
@@ -62,7 +83,7 @@ class Launcher:
         self._post_login_overlay_done = False
         self._post_login_update_done = False
         self._post_login_waiting = False
-        self._post_login_update_thread_idx = 0
+        self._post_login_update_thread: PostLoginUpdateThread | None = None
 
     def _show_settings_window(self) -> None:
         if self.main_window is None:
@@ -126,12 +147,9 @@ class Launcher:
             QTimer.singleShot(3000, self._close_status_overlay)
 
         if not self._post_login_update_done:
-            self._post_login_update_thread_idx += 1
-            threading.Thread(
-                target=self._run_post_login_update_check,
-                daemon=True,
-                name=f"PostLoginUpdateCheck-{self._post_login_update_thread_idx}",
-            ).start()
+            self._post_login_update_thread = PostLoginUpdateThread()
+            self._post_login_update_thread.finished.connect(self._on_post_login_update_check_finished)
+            self._post_login_update_thread.start()
 
         self._maybe_exit_after_login(from_ipc)
 
@@ -143,28 +161,12 @@ class Launcher:
         self._post_login_overlay_done = True
         self._maybe_exit_after_login(from_ipc=False)
 
-    def _run_post_login_update_check(self) -> None:
-        try:
-            decision = update_checker.check()
-            if decision.available and decision.downloads:
-                if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                    file = update_checker.download_update(decision.downloads[0], allow_latency_check=True)
-                    update_checker.apply_script(file, reopen=False)
-                else:
-                    windows11toast.notify(
-                        title="更新可用",
-                        body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
-                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                        icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("EasiAuto.ico"),
-                    )
-        except UpdateError as e:
-            logger.warning(f"检查更新时发生异常，已跳过：{e}")
-        except Exception as e:
-            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
-        finally:
-            self._post_login_update_done = True
-            self._maybe_exit_after_login(False)
+    def _on_post_login_update_check_finished(self) -> None:
+        if self._post_login_update_thread is not None:
+            self._post_login_update_thread.deleteLater()
+            self._post_login_update_thread = None
+        self._post_login_update_done = True
+        self._maybe_exit_after_login(False)
 
     def _maybe_exit_after_login(self, from_ipc: bool) -> None:
         if not self._post_login_waiting:
