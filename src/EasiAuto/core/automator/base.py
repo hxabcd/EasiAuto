@@ -180,7 +180,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             self.progress_update.emit("希沃白板已启动")
             time.sleep(config.Login.Timeout.AfterLaunch)
             with suppress(Exception):
-                switch_window(self.easinote_hwnd, press_key=config.Debug.AlternateSwitchWindowMethod)
+                switch_window(self.easinote_hwnd)
         else:
             logger.error(f"{window_title}窗口在{timeout}秒内未打开")
             raise TimeoutError(f"{window_title}窗口在{timeout}秒内未打开")

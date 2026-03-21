@@ -168,7 +168,7 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             )
 
 
-def switch_window(hwnd: int, press_key: bool = False):
+def switch_window(hwnd: int, press_key: bool = True):
     """通过句柄切换焦点"""
     try:
         if win32gui.GetForegroundWindow() == hwnd:
