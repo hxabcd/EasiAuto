@@ -1,6 +1,6 @@
 import json
-import os
 import re
+import subprocess
 import uuid
 from pathlib import Path
 from typing import cast
@@ -16,6 +16,7 @@ from PySide6.QtCore import QObject, Signal
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.common.utils import kill_process
 
 
 class CiSubject(BaseModel):
@@ -107,10 +108,10 @@ class ClassIslandManager(QObject):
         return False
 
     def start_ci(self):
-        os.startfile(self.ci_executable_path, cwd=self.ci_executable_path.parent)
+        subprocess.Popen(self.ci_executable_path, cwd=self.ci_executable_path.parent)
 
     def stop_ci(self):
-        os.system(f"taskkill /f /im {'ClassIsland.Desktop.exe' if self.is_v2 else 'ClassIsland.exe'}")
+        kill_process("ClassIsland.Desktop" if self.is_v2 else "ClassIsland")
 
     def init_ci(self, exe_path: Path | str):
         """获取 ClassIsland 版本，定位数据目录并初始化"""

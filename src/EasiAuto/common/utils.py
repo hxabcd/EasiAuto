@@ -7,6 +7,7 @@ from abc import ABCMeta
 from pathlib import Path
 from typing import NoReturn, cast
 
+import psutil
 import pywintypes
 import win32api
 import win32com
@@ -224,6 +225,27 @@ def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int |
     win32gui.EnumWindows(callback, None)
     return hwnd_found
 
+def kill_process(name: str, force: bool = False, wait: bool = False, timeout: float = 1.0) -> None:
+    """终止进程
+
+    Args:
+        name (str): 进程名
+        force (bool, optional): 强制终止进程
+        wait (bool, optional): 等待进程结束（阻塞）
+    """
+    for process in psutil.process_iter(["name"]):
+        if process.info["name"] == f"{name}.exe":
+            if force:
+                process.kill()
+            else:
+                process.terminate()
+            logger.info(f"已向进程 {name} 发送{'强行' if force else ''}终止信号{'，等待中……' if wait else ''}")
+
+            try:
+                process.wait(timeout)
+                logger.info(f"成功关闭进程 {name}")
+            except psutil.TimeoutExpired:
+                logger.warning(f"进程 {name} 关闭超时")
 
 def get_ci_executable() -> Path | None:
     """获取 ClassIsland 可执行文件位置"""

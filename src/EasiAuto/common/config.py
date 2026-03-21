@@ -151,7 +151,7 @@ class EasiNoteConfig(ConfigModel):
         title="自定义路径",
     )
     ProcessName: str = Field(
-        default="EasiNote.exe",
+        default="EasiNote",
         title="进程名",
     )
     WindowTitle: str = Field(
@@ -164,8 +164,8 @@ class EasiNoteConfig(ConfigModel):
     )
     ExtraKills: str = Field(
         default="",
-        title="查杀列表",
-        description="在启动希沃白板时结束这些进程，使用英文逗号分隔",
+        title="查杀进程列表",
+        description="启动希沃白板时一并结束这些进程，用英文逗号分隔",
     )
 
 
@@ -177,15 +177,15 @@ class TimeoutConfig(ConfigModel):
         default=1,
         ge=0,
         le=5,
-        title="终止进程等待时间",
-        description="终止希沃白板进程后，重新启动前的等待时间",
+        title="终止进程超时时间",
+        description="终止希沃进程后，等待其彻底结束的最大等待时间",
     )
     LaunchPollingTimeout: float = Field(
         default=15,
         ge=0,
         le=20,
         title="等待启动超时时间",
-        description="希沃白板启动后，等待其启动完成的最大等待时间",
+        description="启动希沃白板后，等待其启动完成的最大等待时间",
     )
     LaunchPollingInterval: float = Field(
         default=0.5,
@@ -201,7 +201,7 @@ class TimeoutConfig(ConfigModel):
         title="启动后等待时间",
         description="启动后等待希沃白板界面加载的等待时间",
     )
-    # OpenCV 模式独有
+    # 模拟点击
     EnterLoginUI: float = Field(
         default=3,
         ge=0,
@@ -281,15 +281,15 @@ class LoginConfig(ConfigModel):
         json_schema_extra={"icon": "Send"},
     )
     KillAgent: bool = Field(
-        default=True,
+        default=False,
         title="终止 EasiAgent 服务",
-        description="可避免某些情况下自动登录被希沃的快捷登录打断",
+        description="可避免某些情况下自动登录被希沃白板的快捷登录打断",
         json_schema_extra={"icon": "PowerButton"},
     )
-    Directly: bool = Field(
-        default=False,
-        title="跳过点击进入登录界面",
-        description="适用于打开希沃时不进入黑板界面（iwb）的情况",
+    IsIwb: bool = Field(
+        default=True,
+        title="需要进入登录界面",
+        description="适用于打开希沃白板后直接进入黑板界面（iwb）的情况，在非希沃机器上需要关闭",
         json_schema_extra={"icon": "People"},
     )
     Is4K: bool = Field(
@@ -561,12 +561,28 @@ class Config(ConfigModel):
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
 
     @classmethod
+    def transfer_config(cls, obj: Any):
+        """对旧配置进行额外的迁移"""
+
+        if not isinstance(obj, dict):
+            logger.warning("配置异常，未能迁移")
+            return obj
+
+        if obj.get("Login", {}).get("EasiNote", {}).get("ProcessName", None) == "EasiNote.exe":
+            obj["Login"]["EasiNote"]["ProcessName"] = "EasiNote"
+            logger.info("已将 Login.EasiNote.ProcessName = EasiNote.exe 迁移为 Login.EasiNote.ProcessName = EasiNote")
+
+        return obj
+
+    @classmethod
     def load(cls, file: str | Path) -> Config:
         path = Path(file)
 
         if path.exists():
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
+                with path.open(encoding="utf-8") as f:
+                    data = json.load(f, object_hook=cls.transfer_config)
+
                 cfg = cls(**data)
             except Exception as e:
                 logger.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
