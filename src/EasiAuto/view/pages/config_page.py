@@ -146,8 +146,9 @@ class ConfigPage(QWidget):
                     | "Login.EasiNote.ProcessName"
                     | "Login.EasiNote.WindowTitle"
                     | "Login.EasiNote.Args"
+                    | "Login.EasiNote.ExtraKills"
                 ):
-                    card.widget.setFixedWidth(400)
+                    card.widget.setFixedWidth(300)
                 case "Login.Timeout":
                     self.add_resetter(card, "Login.Timeout", "超时时长")  # type: ignore
                 case n if n.startswith("Login.Timeout."):

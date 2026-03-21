@@ -74,19 +74,21 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         path = Path(path_str).resolve()
         return path if path.exists() else None
 
-    def kill_processes(self):
+    def kill_seewo_processes(self):
         self.progress_update.emit("终止希沃进程")
 
         target_list = [config.Login.EasiNote.ProcessName]
         if config.Login.KillAgent:
-            target_list.append("EasiAgent.exe")
-        target_list.extend(config.Login.EasiNote.ExtraKills)
+            target_list.append("EasiAgent")
+        target_list += config.Login.EasiNote.ExtraKills.split(",")
 
         for target in target_list:
-            command = ["taskkill", "/f", "/im", target]
-            logger.debug(f"执行命令：{' '.join(command)}")
-            subprocess.run(command, shell=True, check=False)
-        time.sleep(config.Login.Timeout.Terminate)  # 等待终止
+            kill_process(
+                target.strip().removesuffix(".exe"),
+                force=True,
+                wait=True,
+                timeout=config.Login.Timeout.Terminate,
+            )
 
     def start_easinote(self, path: Path, args: str):
         logger.info("启动程序")
@@ -162,7 +164,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             logger.error("希沃白板目录不存在")
             raise LoginCancelled("希沃白板目录不存在")
 
-        self.kill_processes()
+        self.kill_seewo_processes()
         self.check_interruption()
         self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)
 
