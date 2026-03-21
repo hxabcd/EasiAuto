@@ -567,6 +567,11 @@ class Config(ConfigModel):
             logger.warning("配置异常，未能迁移")
             return obj
 
+        if obj.get("Login", {}).get("Directly", None) is True:
+            del obj["Login"]["Directly"]
+            obj["Login"]["IsIwb"] = False
+            logger.info("已将 Login.Directly = True 迁移为 Login.IsIwb = False")
+
         if obj.get("Login", {}).get("EasiNote", {}).get("ProcessName", None) == "EasiNote.exe":
             obj["Login"]["EasiNote"]["ProcessName"] = "EasiNote"
             logger.info("已将 Login.EasiNote.ProcessName = EasiNote.exe 迁移为 Login.EasiNote.ProcessName = EasiNote")
