@@ -145,15 +145,11 @@ class Launcher:
 
     def _run_post_login_update_check(self) -> None:
         try:
-            if config.Update.TargetDownloadSource == DownloadSource.AUTO:
-                update_checker.init_latency()
             decision = update_checker.check()
             if decision.available and decision.downloads:
                 if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
                     file = update_checker.download_update(decision.downloads[0], allow_latency_check=True)
-                    QTimer.singleShot(
-                        0, lambda: app.aboutToQuit.connect(lambda: update_checker.apply_script(file, reopen=False))
-                    )
+                    update_checker.apply_script(file, reopen=False)
                 else:
                     windows11toast.notify(
                         title="更新可用",
@@ -168,7 +164,7 @@ class Launcher:
             logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
         finally:
             self._post_login_update_done = True
-            QTimer.singleShot(0, lambda: self._maybe_exit_after_login(False))
+            self._maybe_exit_after_login(False)
 
     def _maybe_exit_after_login(self, from_ipc: bool) -> None:
         if not self._post_login_waiting:
