@@ -73,16 +73,18 @@ class PostLoginUpdateThread(QThread):
 
 class Launcher:
     def __init__(self) -> None:
-        self.ipc_server: ArgvIpcServer | None = None
         self.main_window: MainWindow | None = None
         self.banner: WarningBanner | None = None
         self.status_overlay: StatusOverlayBase | None = None
-        self.login_running = False
-        self._ipc_context = False
-        self._active_login_from_ipc = False
-        self._post_login_overlay_done = False
-        self._post_login_update_done = False
-        self._post_login_waiting = False
+
+        self.login_running: bool = False
+        self.stop_requested: bool = False
+
+        self.ipc_server: ArgvIpcServer | None = None
+        self._ipc_context: bool = False
+        self._current_login_triggered_via_ipc: bool = False
+        self._post_login_overlay_done: bool = False
+        self._post_login_update_done: bool = False
         self._post_login_update_thread: PostLoginUpdateThread | None = None
 
     def _show_settings_window(self) -> None:
@@ -107,7 +109,7 @@ class Launcher:
 
     def _on_login_finished(self, success: bool = True, error_message: str | None = None) -> None:
         """登录结束后的回调"""
-        from_ipc = self._active_login_from_ipc
+        from_ipc = self._current_login_triggered_via_ipc
 
         if not self.login_running:
             return
@@ -120,7 +122,7 @@ class Launcher:
             self.banner.deleteLater()
             self.banner = None
 
-        self._active_login_from_ipc = False
+        self._current_login_triggered_via_ipc = False
 
         # 发送失败通知
         if error_message:
@@ -133,11 +135,11 @@ class Launcher:
                 icon_src=utils.get_resource("EasiAuto.ico"),
             )
 
-        self._post_login_waiting = True
         self._post_login_overlay_done = self.status_overlay is None
         self._post_login_update_done = any(  # 以下情况不触发更新检查
             (
                 not success,  # 登录失败
+                self.stop_requested,  # 登录中止
                 from_ipc,  # 通过 IPC 触发
                 not (config.Update.CheckAfterLogin and config.Update.Mode > UpdateMode.NEVER),
             )
@@ -169,12 +171,14 @@ class Launcher:
         self._maybe_exit_after_login(False)
 
     def _maybe_exit_after_login(self, from_ipc: bool) -> None:
-        if not self._post_login_waiting:
-            return
         if from_ipc:
             return
         if self._post_login_overlay_done and self._post_login_update_done:
             utils.stop()
+
+    def _on_stop_automation(self) -> None:
+        automation_manager.stop()
+        self.stop_requested = True
 
     def _start_login(self, args: Namespace) -> bool:
         """启动登录任务；若已有任务在运行则拒绝"""
@@ -232,7 +236,7 @@ class Launcher:
                 logger.error(f"显示横幅时出错，跳过横幅：{e}")
 
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        self._active_login_from_ipc = from_ipc
+        self._current_login_triggered_via_ipc = from_ipc
         automation_manager.finished.connect(self._on_login_finished)
         automation_manager.failed.connect(lambda msg: self._on_login_finished(success=False, error_message=msg))
 
@@ -246,7 +250,7 @@ class Launcher:
             available_space = screen_height - (login_window_buttom + 8)
             try:
                 self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
-                self.status_overlay.stop_clicked.connect(automation_manager.stop)
+                self.status_overlay.stop_clicked.connect(self._on_stop_automation)
                 automation_manager.started.connect(self.status_overlay.show)
                 automation_manager.finished.connect(self.status_overlay.on_finished)
                 automation_manager.failed.connect(self.status_overlay.on_failed)
