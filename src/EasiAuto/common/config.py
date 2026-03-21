@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
@@ -9,6 +10,7 @@ from typing import Any
 
 import qt_pydantic as qtp
 from loguru import logger
+from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from pydantic.fields import FieldInfo
 
@@ -561,23 +563,39 @@ class Config(ConfigModel):
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
 
     @classmethod
-    def transfer_config(cls, obj: Any):
+    def migrate_config(cls, obj: Any):
         """对旧配置进行额外的迁移"""
 
         if not isinstance(obj, dict):
-            logger.warning("配置异常，未能迁移")
             return obj
 
-        if obj.get("Login", {}).get("Directly", None) is True:
-            del obj["Login"]["Directly"]
-            obj["Login"]["IsIwb"] = False
-            logger.info("已将 Login.Directly = True 迁移为 Login.IsIwb = False")
+        version_text = obj.get("Update", {}).get("LastVersion", "Unknown")
+        if version_text == "Unknown":
+            return obj
 
-        if obj.get("Login", {}).get("EasiNote", {}).get("ProcessName", None) == "EasiNote.exe":
-            obj["Login"]["EasiNote"]["ProcessName"] = "EasiNote"
-            logger.info("已将 Login.EasiNote.ProcessName = EasiNote.exe 迁移为 Login.EasiNote.ProcessName = EasiNote")
+        try:
+            last_version = Version(version_text)
+            assert last_version
+        except Exception:
+            return obj
 
-        return obj
+        backup_obj = deepcopy(obj)
+
+        try:
+            if last_version <= Version("1.1.3"):
+                if obj["Login"]["Directly"]:
+                    del obj["Login"]["Directly"]
+                    obj["Login"]["IsIwb"] = False
+                if obj["Login"]["EasiNote"]["ProcessName"] == "EasiNote.exe":
+                    obj["Login"]["EasiNote"]["ProcessName"] = "EasiNote"
+                logger.success("成功从 v1.1.3 前迁移配置")
+            # elif last_version <= Version("1.1.4"):
+            #     ...
+
+            return obj
+        except Exception as e:
+            logger.warning(f"迁移失败，跳过迁移：{e}")
+            return backup_obj
 
     @classmethod
     def load(cls, file: str | Path) -> Config:
@@ -586,8 +604,8 @@ class Config(ConfigModel):
         if path.exists():
             try:
                 with path.open(encoding="utf-8") as f:
-                    data = json.load(f, object_hook=cls.transfer_config)
-
+                    raw = json.load(f)
+                data = cls.migrate_config(raw)
                 cfg = cls(**data)
             except Exception as e:
                 logger.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
