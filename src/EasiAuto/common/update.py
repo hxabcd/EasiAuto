@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -845,3 +846,26 @@ class UpdateChecker(QObject):
 
 
 update_checker = UpdateChecker()
+
+
+def cleanup_update_cache() -> None:
+    """清理更新缓存目录中的残留文件。"""
+    if not CACHE_DIR.exists():
+        return
+
+    removed_files = 0
+    removed_dirs = 0
+
+    for item in CACHE_DIR.iterdir():
+        try:
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+                removed_dirs += 1
+            else:
+                item.unlink(missing_ok=True)
+                removed_files += 1
+        except Exception as e:
+            logger.warning(f"清理更新缓存失败: {item} -> {e}")
+
+    if removed_files or removed_dirs:
+        logger.info(f"已清理更新缓存: 文件 {removed_files} 个，目录 {removed_dirs} 个")

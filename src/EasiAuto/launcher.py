@@ -21,7 +21,7 @@ from EasiAuto import __version__
 from EasiAuto.common import utils
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
-from EasiAuto.common.update import UpdateError, update_checker
+from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
 from EasiAuto.core.manager import automation_manager
 from EasiAuto.view.components import (
     DialogResponse,
@@ -349,6 +349,7 @@ class Launcher:
                 logger.warning(f"解析上个版本时发生异常：{e}")
             else:
                 if last_version < Version(__version__):
+                    cleanup_update_cache()
                     windows11toast.notify(
                         title=f"已更新至 {__version__}",
                         body=f"{config.Update.LastVersion} -> {__version__}",
