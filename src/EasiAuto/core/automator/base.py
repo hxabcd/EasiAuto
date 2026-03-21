@@ -74,16 +74,17 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         path = Path(path_str).resolve()
         return path if path.exists() else None
 
-    def kill_easinote_processes(self):
-        logger.info("终止进程")
-        self.progress_update.emit("终止希沃白板进程")
+    def kill_processes(self):
+        self.progress_update.emit("终止希沃进程")
 
-        cmd_list = [["taskkill", "/f", "/im", config.Login.EasiNote.ProcessName]]
+        target_list = [config.Login.EasiNote.ProcessName]
         if config.Login.KillAgent:
-            cmd_list.append(["taskkill", "/f", "/im", "EasiAgent.exe"])
+            target_list.append("EasiAgent.exe")
+        target_list.extend(config.Login.EasiNote.ExtraKills)
 
-        for command in cmd_list:
-            logger.debug(f"命令：{' '.join(command)}")
+        for target in target_list:
+            command = ["taskkill", "/f", "/im", target]
+            logger.debug(f"执行命令：{' '.join(command)}")
             subprocess.run(command, shell=True, check=False)
         time.sleep(config.Login.Timeout.Terminate)  # 等待终止
 
@@ -161,7 +162,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             logger.error("希沃白板目录不存在")
             raise LoginCancelled("希沃白板目录不存在")
 
-        self.kill_easinote_processes()
+        self.kill_processes()
         self.check_interruption()
         self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)
 

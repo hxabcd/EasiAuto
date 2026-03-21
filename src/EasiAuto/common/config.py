@@ -141,12 +141,19 @@ class ConfigModel(BaseModel):
 class EasiNoteConfig(ConfigModel):
     """希沃白板相关配置"""
 
-    AutoPath: bool = Field(default=True, title="自动检测路径", description="启用后，将忽略自定义路径")
+    AutoPath: bool = Field(
+        default=True,
+        title="自动检测路径",
+        description="启用后，将忽略自定义路径",
+    )
     Path: str = Field(
         default=r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe",
         title="自定义路径",
     )
-    ProcessName: str = Field(default="EasiNote.exe", title="进程名")
+    ProcessName: str = Field(
+        default="EasiNote.exe",
+        title="进程名",
+    )
     WindowTitle: str = Field(
         default="希沃白板",
         title="窗口标题",
@@ -154,6 +161,11 @@ class EasiNoteConfig(ConfigModel):
     Args: str = Field(
         default="",
         title="启动参数",
+    )
+    ExtraKills: str = Field(
+        default="",
+        title="查杀列表",
+        description="在启动希沃白板时结束这些进程，使用英文逗号分隔",
     )
 
 
