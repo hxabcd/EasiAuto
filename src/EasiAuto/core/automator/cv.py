@@ -4,112 +4,85 @@ from loguru import logger
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import IS_FULL
-from EasiAuto.common.utils import get_resource
+from EasiAuto.common.utils import Point, get_resource, get_scale
 
-from .base import PyAutoGuiBaseAutomator
+from .base import LoginError, PyAutoGuiBaseAutomator
 
 
 class CVAutomator(PyAutoGuiBaseAutomator):
     """通过识别图像登录"""
 
-    def login(self):
+    def __init__(self, account: str, password: str) -> None:
+        super().__init__(account, password)
+
+        self.path_suffix: str = ""
+        if not config.Login.IsIwb:
+            self.path_suffix += "_direct"
+        if config.Login.Is4K:
+            self.path_suffix += "_4k"
+
+    def find_control(self, img_name: str, ext_name: str = "png", _assert: bool = False) -> Point:
         import pyautogui
 
-        logger.info("尝试自动登录")
-        self.task_update.emit("正在自动登录")
-
-        # 直接登录与4K适配
-        path_suffix = ""
-        if config.Login.Directly:
-            path_suffix += "_direct"
-        if config.Login.Is4K:
-            path_suffix += "_4k"
-        path_suffix += ".png"
-        scale = 2 if config.Login.Is4K else 1
-
-        # 获取资源图片
-        button_img = get_resource("EasiNoteUI/button" + path_suffix)
-        button_img_selected = get_resource("EasiNoteUI/button_selected" + path_suffix)
-        checkbox_img = get_resource("EasiNoteUI/checkbox" + path_suffix)
-
-        # 进入登录界面
-        self.check_interruption()
-        if not config.Login.Directly:
-            logger.info("点击进入登录界面")
-            self.progress_update.emit("进入登录界面")
-
-            self.click(172 * scale, 1044 * scale)
-            time.sleep(config.Login.Timeout.EnterLoginUI)
-        else:
-            logger.info("直接进入登录界面")
-
-        # 识别并点击账号登录按钮
-        self.check_interruption()
-        logger.info("尝试识别账号登录按钮")
-        self.progress_update.emit("切换至账号登录页")
+        img = get_resource(f"EasiNoteUI/{img_name}{self.path_suffix}.{ext_name}")
 
         try:
             if IS_FULL:
-                button_button = pyautogui.locateCenterOnScreen(button_img, confidence=0.8)
+                control = pyautogui.locateCenterOnScreen(img, confidence=0.8)
             else:
-                button_button = pyautogui.locateCenterOnScreen(button_img)
-            assert button_button
-            logger.info("识别到账号登录按钮，正在点击")
-            self.click(button_button)
+                control = pyautogui.locateCenterOnScreen(img)
+            assert control is not None
+        except (pyautogui.ImageNotFoundException, AssertionError) as e:
+            raise LoginError(f"未识别到控件: {img_name}") from e
+
+        return Point(control.x, control.y)
+
+    def login(self):
+        scale = get_scale()
+
+        # 进入登录界面
+        self.check_interruption()
+        if config.Login.IsIwb:
+            self.update_progress("进入登录界面")
+
+            self.click(172 * scale, 1044 * scale)
+            time.sleep(config.Login.Timeout.EnterLoginUI)
+
+        # 切换至账号登录页
+        self.check_interruption()
+        self.update_progress("切换至账号登录页")
+
+        try:
+            account_login_button = self.find_control("account_login_button")
+            self.click(account_login_button)
             time.sleep(config.Login.Timeout.SwitchTab)
-        except (pyautogui.ImageNotFoundException, AssertionError):
+        except LoginError:
             logger.warning("未能识别到账号登录按钮，尝试识别已选中样式")
-            try:
-                if IS_FULL:
-                    button_button = pyautogui.locateCenterOnScreen(button_img_selected, confidence=0.8)
-                else:
-                    button_button = pyautogui.locateCenterOnScreen(button_img_selected)
-                assert button_button
-            except (pyautogui.ImageNotFoundException, AssertionError) as e:
-                logger.error("未能识别到账号登录按钮")
-                raise e
+            account_login_button = self.find_control("account_login_button")
 
         # 输入账号
         self.check_interruption()
-        logger.info("尝试输入账号")
-        self.progress_update.emit("输入账号")
-        logger.debug(f"账号：{self.account}")
+        self.update_progress("输入账号")
 
-        self.click(button_button.x, button_button.y + 70 * scale)
+        self.click(account_login_button.x, account_login_button.y + 70 * scale)
         self.input(self.account)
 
         # 输入密码
         self.check_interruption()
-        logger.info("尝试输入密码")
-        self.progress_update.emit("输入密码")
-        logger.debug(f"密码：{self.safe_for_log_password}")
+        self.update_progress("输入密码")
 
-        self.click(button_button.x, button_button.y + 134 * scale)
-        self.input(self.password)
+        self.click(account_login_button.x, account_login_button.y + 134 * scale)
+        self.input(self.password, is_secret=True)
 
-        # 识别并勾选用户协议复选框
+        # 勾选同意用户协议
         self.check_interruption()
-        logger.info("尝试识别用户协议复选框")
-        self.progress_update.emit("勾选同意用户协议")
+        self.update_progress("勾选同意用户协议")
 
-        try:
-            if IS_FULL:
-                agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img, confidence=0.8)
-            else:
-                agree_checkbox = pyautogui.locateCenterOnScreen(checkbox_img)
-            assert agree_checkbox
-        except (pyautogui.ImageNotFoundException, AssertionError) as e:
-            logger.error("未能识别到用户协议复选框")
-            raise e
-
-        logger.info("识别到用户协议复选框，正在点击")
+        agree_checkbox = self.find_control("agreement_checkbox")
         self.click(agree_checkbox)
 
         # 点击登录按钮
         self.check_interruption()
-        logger.info("点击登录按钮")
-        self.progress_update.emit("点击登录")
-        self.press("enter")
+        self.update_progress("点击登录按钮")
 
-        self.progress_update.emit("登录完成")
-        self.task_update.emit("完成")
+        self.press("enter")

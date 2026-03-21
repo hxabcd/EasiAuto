@@ -1,7 +1,5 @@
 import time
 
-from loguru import logger
-
 from EasiAuto.common.config import config
 from EasiAuto.common.utils import (
     Point,
@@ -31,18 +29,13 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         return point.x, point.y
 
     def login(self):
-
-        logger.info("尝试自动登录")
-        self.task_update.emit("正在自动登录")
-
         screen_size = get_screen_size()
         scale = get_scale()
 
         # 进入登录界面
-        self.check_interruption()
-        if not config.Login.Directly:
-            logger.info("点击进入登录界面")
-            self.progress_update.emit("进入登录界面")
+        if config.Login.IsIwb:
+            self.check_interruption()
+            self.update_progress("进入登录界面")
 
             # 相对左下角，单独缩放
             x, y = config.Login.Position.EnterLogin
@@ -52,43 +45,36 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
 
             self.click(x, y)
             time.sleep(config.Login.Timeout.EnterLoginUI)
-        else:
-            logger.info("直接进入登录界面")
 
         # 切换至账号登录页
         self.check_interruption()
-        logger.info("切换至账号登录页")
-        self.progress_update.emit("切换至账号登录页")
+        self.update_progress("切换至账号登录页")
+
         self.click(self.resolve_position(config.Login.Position.AccountLoginTab))
         time.sleep(config.Login.Timeout.SwitchTab)
 
         # 输入账号
         self.check_interruption()
-        logger.info("输入账号")
-        self.progress_update.emit("输入账号")
-        logger.debug(f"账号：{self.account}")
+        self.update_progress("输入账号")
+
         self.click(self.resolve_position(config.Login.Position.AccountInput))
         self.input(self.account)
 
         # 输入密码
         self.check_interruption()
-        logger.info("输入密码")
-        self.progress_update.emit("输入密码")
-        logger.debug(f"密码：{self.safe_for_log_password}")
+        self.update_progress("输入密码")
+
         self.click(self.resolve_position(config.Login.Position.PasswordInput))
         self.input(self.password)
 
         # 勾选同意用户协议
         self.check_interruption()
-        logger.info("勾选同意用户协议")
-        self.progress_update.emit("勾选同意用户协议")
+        self.update_progress("勾选同意用户协议")
+
         self.click(self.resolve_position(config.Login.Position.AgreementCheckbox))
 
         # 点击登录按钮
         self.check_interruption()
-        logger.info("点击登录按钮")
-        self.progress_update.emit("点击登录")
-        self.press("enter")
+        self.update_progress("点击登录按钮")
 
-        self.progress_update.emit("登录完成")
-        self.task_update.emit("完成")
+        self.press("enter")
