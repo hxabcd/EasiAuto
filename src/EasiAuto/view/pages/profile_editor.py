@@ -28,10 +28,13 @@ from qfluentwidgets import (
 
 from EasiAuto.common.consts import PROFILE_PATH
 from EasiAuto.common.profile import EasiAutomation, profile
+from EasiAuto.common.utils import create_shortcut
+from EasiAuto.core.binding_sync import ClassIslandBindingBackend
+from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
 from EasiAuto.view.components.setting_card import CardType
-from EasiAuto.view.utils import get_main_container
+from EasiAuto.view.utils import get_main_container, get_main_window
 
 
 class AdvancedOptionsDialog(MessageBoxBase):
@@ -106,7 +109,6 @@ class ProfileCard(CardWidget):
     actionRun = Signal(str)  # automation_id
     actionExport = Signal(str)  # automation_id
     actionRemove = Signal(QListWidgetItem)
-    actionBindSubject = Signal(str)  # automation_id
 
     def __init__(self, item: QListWidgetItem, automation_id: str | None = None):
         super().__init__()
@@ -128,15 +130,15 @@ class ProfileCard(CardWidget):
         if self.automation and (img := self.automation.avatar):
             self.avatar_label.setImage(img)
         else:
-            self.avatar_label.setText(self.display_name)
+            self.avatar_label.setText(self.automation.display_name)
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(0)
 
-        self.name_label = SubtitleLabel(self.display_name)
+        self.name_label = SubtitleLabel(self.automation.display_name)
 
-        self.detail_label = BodyLabel(self.detail_name)
+        self.detail_label = BodyLabel(self.automation.detail_name)
         self.detail_label.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
 
         self.subject_bar = PillOverflowBar()
@@ -189,6 +191,7 @@ class ProfileCard(CardWidget):
 
         action_layout.addWidget(self.command_bar, 1)
         action_layout.addWidget(self.enabled_switch, alignment=Qt.AlignmentFlag.AlignRight)
+        action_layout.addSpacing(6)
 
         layout.addWidget(self.info_container)
         layout.addWidget(HorizontalSeparator())
@@ -211,8 +214,8 @@ class ProfileCard(CardWidget):
         self.subject_bar.setTags(tags)
 
     def _on_add_subject(self):
-        if self._automation_id:
-            self.actionBindSubject.emit(self._automation_id)
+        window = get_main_window()
+        window.switchTo(window.binding_page)
 
     @property
     def display_name(self) -> str:
@@ -221,10 +224,6 @@ class ProfileCard(CardWidget):
             return "未命名自动化"
         return automation.name or automation.account_name or "未命名自动化"
 
-    @property
-    def detail_name(self) -> str:
-        automation = self.automation
-        return automation.account if automation else ""
 
     def _on_run(self):
         if self._automation_id:
@@ -236,9 +235,10 @@ class ProfileCard(CardWidget):
 
     def update_display(self, automation: EasiAutomation):
         self._automation_id = automation.id
-        self.name_label.setText(self.display_name)
-        self.detail_label.setText(self.detail_name)
-        tags = ["数学", "生物", "物理", "化学"]  # TODO: 动态读取
+        self.name_label.setText(self.automation.display_name)
+        self.detail_label.setText(self.automation.detail_name or "")
+        subjects = profile.get_subjects_by_profile(automation.id, provider="classisland")
+        tags = [subject.name for subject in subjects]
         self._update_subjects(tags)
 
     def mousePressEvent(self, e):
@@ -250,11 +250,15 @@ class ProfileCard(CardWidget):
 class ProfileManagePage(QWidget):
     """档案编辑页"""
 
+    profileChanged = Signal()
+    runAutomation = Signal(str, str)
+
     def __init__(self):
         super().__init__()
         self.current_automation: EasiAutomation | None = None
         self.current_list_item: QListWidgetItem | None = None
         self.is_new_automation = False
+        self.binding_backend = ClassIslandBindingBackend()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -266,7 +270,7 @@ class ProfileManagePage(QWidget):
 
         self.selector_widget = QWidget()
         self.selector_layout = QVBoxLayout(self.selector_widget)
-        self.selector_layout.setContentsMargins(8, 0, 8, 8)
+        self.selector_layout.setContentsMargins(4, 0, 0, 8)
 
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -291,7 +295,6 @@ class ProfileManagePage(QWidget):
         hint_icon.setFixedSize(24, 24)
         hint_icon.setIconSize(QSize(12, 12))
         hint_text = BodyLabel("正在编辑新档案")
-        hint_text.setStyleSheet("font-size: 14px;")
         hint_layout.addWidget(hint_icon)
         hint_layout.addWidget(hint_text)
         self.new_auto_hint.hide()
@@ -334,6 +337,27 @@ class ProfileManagePage(QWidget):
     def _persist_profile(self):
         profile.save(PROFILE_PATH)
 
+    def _sync_bindings(self):
+        if not ci_manager:
+            return
+
+        result = self.binding_backend.sync(profile)
+        profile.save(PROFILE_PATH)
+
+        if result.errors:
+            content = "；".join(result.errors[:3])
+            if len(result.errors) > 3:
+                content += "；..."
+            InfoBar.error(
+                title="关联同步存在失败项",
+                content=content,
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=5000,
+                parent=get_main_container(),
+            )
+
     def _init_selector(self):
         self.current_list_item = None
         self.auto_list.clear()
@@ -350,7 +374,6 @@ class ProfileManagePage(QWidget):
         item_widget.actionRun.connect(self._handle_action_run)
         item_widget.actionExport.connect(self._handle_action_export)
         item_widget.actionRemove.connect(self._handle_action_remove)
-        item_widget.actionBindSubject.connect(self._handle_action_bing_subject)
 
         self.auto_list.setItemWidget(item, item_widget)
         item.setSizeHint(item_widget.sizeHint())
@@ -416,6 +439,7 @@ class ProfileManagePage(QWidget):
     def _handle_save_automation(self):
         try:
             self._save_form()
+            self._sync_bindings()
         except ValueError as e:
             InfoBar.error(
                 title="保存失败",
@@ -452,6 +476,8 @@ class ProfileManagePage(QWidget):
                 self._update_editor(automation)
                 break
 
+        self.profileChanged.emit()
+
         InfoBar.success(
             title="成功",
             content="档案已保存",
@@ -468,39 +494,34 @@ class ProfileManagePage(QWidget):
         self.is_new_automation = False
         self._update_editor(automation.model_copy(deep=True))
 
-    def _handle_action_run(self, automation_id: str):
-        _ = automation_id
-        InfoBar.info(
-            title="提示",
-            content="RUN 操作暂未实现",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=get_main_container(),
-        )
+    def _handle_action_run(self, automation_id: str) -> None:
+        if not (automation := profile.get_by_id(automation_id)):
+            logger.error(f"无法找到自动化: {automation_id}")
 
-    def _handle_action_export(self, automation_id: str):
-        _ = automation_id
-        InfoBar.info(
-            title="提示",
-            content="EXPORT 操作暂未实现",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=get_main_container(),
+        self.runAutomation.emit(automation.account, automation.password)
+        logger.info(f"信号已发送：运行自动化 {automation.id}")
+
+    def _handle_action_export(self, automation_id: str) -> None:
+        if not (automation := profile.get_by_id(automation_id)):
+            logger.error(f"无法找到自动化: {automation_id}")
+
+        create_shortcut(
+            args=f'login --id "{automation.id}" --manual',
+            name=automation.export_name,
+            show_result_to=get_main_container(),
         )
 
     def _handle_action_remove(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
         if profile.delete_by_id(automation.id):
             self._persist_profile()
+            self._sync_bindings()
             if self.current_list_item == item:
                 self.current_list_item = None
                 self.current_automation = None
                 self._clear_editor()
             self.auto_list.takeItem(self.auto_list.row(item))
+            self.profileChanged.emit()
             InfoBar.success(
                 title="成功",
                 content="档案已删除",
@@ -511,21 +532,21 @@ class ProfileManagePage(QWidget):
                 parent=get_main_container(),
             )
 
-    def _handle_action_bing_subject(self, automation_id: str):
-        _ = automation_id
-        InfoBar.info(
-            title="提示",
-            content="科目绑定暂未实现",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=get_main_container(),
-        )
+    def refresh_binding_display(self):
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            automation: EasiAutomation | None = item.data(Qt.ItemDataRole.UserRole)
+            item_widget = self.auto_list.itemWidget(item)
+            if not isinstance(item_widget, ProfileCard) or automation is None:
+                continue
+            item_widget.update_display(automation)
 
 
 class ProfilePage(QWidget):
     """设置 - 档案页"""
+
+    profileChanged = Signal()
+    runAutomation = Signal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -538,6 +559,8 @@ class ProfilePage(QWidget):
         layout.setSpacing(0)
         self.status_bar = ProfileStatusBar()
         self.manager_page = ProfileManagePage()
+        self.manager_page.profileChanged.connect(self.profileChanged.emit)
+        self.manager_page.runAutomation.connect(self.runAutomation.emit)
 
         layout.addWidget(self.status_bar)
         layout.addWidget(HorizontalSeparator())

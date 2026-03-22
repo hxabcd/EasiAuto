@@ -20,6 +20,7 @@ from qfluentwidgets import (
 from EasiAuto import __version__
 from EasiAuto.common import utils
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
+from EasiAuto.common.consts import IPC_SERVER_NAME
 from EasiAuto.common.profile import profile
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
@@ -34,7 +35,6 @@ from EasiAuto.view.components import (
 )
 from EasiAuto.view.main_window import MainWindow
 
-IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
 UI_COMMANDS = {None, "settings"}
 FORWARDABLE_COMMANDS = {"login", "skip"}
 
@@ -91,9 +91,25 @@ class Launcher:
     def _show_settings_window(self) -> None:
         if self.main_window is None:
             self.main_window = MainWindow()
+            self.main_window.runAutomation.connect(self._handle_login_request_from_ui)
         self.main_window.show()
         self.main_window.raise_()
         self.main_window.activateWindow()
+
+    def _handle_login_request_from_ui(self, account: str, password: str) -> None:
+        """响应从 UI 发送的自动登录执行请求"""
+        if self.main_window:
+            self.main_window.showMinimized()
+
+        with self.from_ipc():
+            self._start_login(
+                Namespace(
+                    account=account,
+                    password=password,
+                    manual=True,
+                    id=None,
+                )
+            )
 
     def _build_parser(self) -> ArgumentParser:
         parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
@@ -253,8 +269,6 @@ class Launcher:
             except Exception:
                 logger.error("显示警告弹窗时出错，跳过警告")
 
-        # NOTE: 下方运行逻辑在 view\pages\automation_page.py 的
-        #       _handle_action_run() 中存在相同实现，如更改需同步替换
         if config.Banner.Enabled:
             try:
                 width = utils.get_screen_size()[0]

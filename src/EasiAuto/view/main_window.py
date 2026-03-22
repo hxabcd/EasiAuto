@@ -1,6 +1,6 @@
 from loguru import logger
 
-from PySide6.QtCore import QSize, QTimer
+from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QIcon
 from qfluentwidgets import (
     FluentIcon,
@@ -14,10 +14,12 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.common.utils import get_resource
-from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
+from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, SubjectBindingPage, UpdatePage
 
 
 class MainWindow(MSFluentWindow):
+    runAutomation = Signal(str, str)
+
     def __init__(self):
         logger.debug("初始化界面")
         super().__init__()
@@ -32,8 +34,11 @@ class MainWindow(MSFluentWindow):
         self.config_page = ConfigPage()
         self.automation_page = AutomationPage()
         self.profile_page = ProfilePage()
+        self.binding_page = SubjectBindingPage()
         self.update_page = UpdatePage()
         self.about_page = AboutPage()
+
+        self._resolve_signals()
         self.initNavigation()
 
         self.themeListener.start()
@@ -45,6 +50,7 @@ class MainWindow(MSFluentWindow):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
         self.addSubInterface(self.automation_page, FluentIcon.AIRPLANE, "自动化")
         self.addSubInterface(self.profile_page, FluentIcon.DOCUMENT, "档案")
+        self.addSubInterface(self.binding_page, FluentIcon.SYNC, "关联")
         self.addSubInterface(self.update_page, FluentIcon.UPDATE, "更新")
         self.addSubInterface(self.about_page, FluentIcon.INFO, "关于", position=NavigationItemPosition.BOTTOM)
 
@@ -58,6 +64,18 @@ class MainWindow(MSFluentWindow):
         self.themeListener = SystemThemeListener(self)
         self.themeListener.setObjectName("SystemThemeListener")
         qconfig.themeChanged.connect(setTheme)
+
+    def _resolve_signals(self):
+        # 登录请求
+        self.automation_page.runAutomation.connect(self.runAutomation)
+        self.profile_page.runAutomation.connect(self.runAutomation)
+
+        # 数据同步
+        self.binding_page.bindingsChanged.connect(self.profile_page.manager_page.refresh_binding_display)
+        self.profile_page.profileChanged.connect(self._on_profile_changed)
+
+    def _on_profile_changed(self):
+        self.binding_page.reload()
 
     def closeEvent(self, e):
         self.themeListener.terminate()  # 停止监听器线程

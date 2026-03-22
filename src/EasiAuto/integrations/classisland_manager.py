@@ -16,6 +16,7 @@ from PySide6.QtCore import QObject, Signal
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.common.profile import profile
 from EasiAuto.common.utils import kill_process
 
 
@@ -223,6 +224,15 @@ class ClassIslandManager(QObject):
             password_match = re.search(r"(?:-p|--password)\s+(\S+)", args)
             password = password_match.group(1) if password_match else None
 
+            if not account or not password:
+                profile_id_match = re.search(r'(?:-i|--id)\s+(".*?"|\S+)', args)
+                profile_id = profile_id_match.group(1).strip('"') if profile_id_match else None
+                if profile_id:
+                    profile_automation = profile.get_by_id(profile_id)
+                    if profile_automation:
+                        account = profile_automation.account
+                        password = profile_automation.password
+
             if not all([account, password, subject_id]):
                 return None
 
@@ -395,7 +405,7 @@ class ClassIslandManager(QObject):
 
 class _ClassIslandManagerProxy:
     def __init__(self):
-        self._impl: ClassIslandManager | None = None
+        self.__dict__["_impl"] = None
 
     def initialize(self, path: Path):
         self._impl = ClassIslandManager(path)
@@ -404,6 +414,11 @@ class _ClassIslandManagerProxy:
         if self._impl:
             return getattr(self._impl, item)
         raise AttributeError(f"Manager not initialized, cannot access {item}")
+
+    def __setattr__(self, key, value):
+        if key == "_impl":
+            self.__dict__[key] = value
+        setattr(self._impl, key, value)
 
     def __bool__(self):
         return self._impl is not None

@@ -46,12 +46,11 @@ from qfluentwidgets import (
 
 from EasiAuto.common import utils
 from EasiAuto.common.config import config
-from EasiAuto.core.manager import automation_manager
 from EasiAuto.integrations.classisland_manager import EasiAutomation
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
-from EasiAuto.view.components import SettingCard, SmallStatusOverlay, StatusOverlay, WarningBanner
+from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import ListWidget
-from EasiAuto.view.utils import get_main_container, get_main_window, set_enable_by
+from EasiAuto.view.utils import get_main_container, set_enable_by
 
 
 class AdvancedOptionsDialog(MessageBoxBase):
@@ -274,6 +273,8 @@ class AutomationCard(CardWidget):
 class AutomationManageSubpage(QWidget):
     """自动化页 - 自动化管理 子页面"""
 
+    runAutomation = Signal(str, str)
+
     def __init__(self):
         super().__init__()
         self.current_automation: EasiAutomation | None = None
@@ -326,7 +327,6 @@ class AutomationManageSubpage(QWidget):
         hint_icon.setFixedSize(24, 24)
         hint_icon.setIconSize(QSize(12, 12))
         hint_text = BodyLabel("正在编辑新自动化")
-        hint_text.setStyleSheet("font-size: 14px;")
         hint_layout.addWidget(hint_icon)
         hint_layout.addWidget(hint_text)
         self.new_auto_hint.setVisible(False)
@@ -593,85 +593,12 @@ class AutomationManageSubpage(QWidget):
             logger.warning("无法运行自动化: 管理器未初始化")
             return
 
-        automation = ci_manager.automations.get(guid)
-        if not automation:
+        if not (automation := ci_manager.automations.get(guid)):
             logger.error(f"无法找到自动化: {guid}")
             return
 
-        logger.info(f"开始运行自动化: {automation.item_display_name}")
-
-        # 最小化设置界面
-        if instance := get_main_window():
-            instance.showMinimized()
-
-        # NOTE: 下方运行逻辑在 launcher.py _start_login() 中存在相同实现，如更改需同步替换
-
-        if config.Banner.Enabled:
-            try:
-                width = utils.get_screen_size()[0]
-                self.banner = WarningBanner(config.Banner.Style)
-                self.banner.setGeometry(0, 80, width, 140)
-                self.banner.show()
-            except Exception as e:
-                logger.error(f"显示横幅时出错，跳过横幅：{e}")
-
-        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        automation_manager.finished.connect(self._handle_finish)
-        automation_manager.failed.connect(self._handle_finish)
-
-        if config.StatusOverlay.Enabled:
-            screen_height = utils.get_screen_size()[1]
-            login_window_buttom = utils.calc_relative_login_window_position(
-                utils.Point(config.Login.Position.AgreementCheckbox),
-                window_size=config.Login.Position.LoginWindowSize,
-                base_size=config.Login.Position.BaseSize,
-            ).y
-            available_space = screen_height - (login_window_buttom + 8)
-            try:
-                self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
-                self.status_overlay.stop_clicked.connect(automation_manager.stop)
-                automation_manager.started.connect(self.status_overlay.show)
-                automation_manager.finished.connect(self.status_overlay.on_finished)
-                automation_manager.failed.connect(self.status_overlay.on_failed)
-                automation_manager.task_updated.connect(self.status_overlay.set_task_text)
-                automation_manager.progress_updated.connect(self.status_overlay.set_progress_text)
-            except Exception as e:
-                logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
-
-        automation_manager.run(automation.account, automation.password)
-
-    def _handle_finish(self, error_message: str | None = None):
-        if hasattr(self, "banner"):
-            self.banner.close()
-            self.banner.deleteLater()
-            self.banner = None
-        if hasattr(self, "status_overlay"):
-            QTimer.singleShot(3000, self.status_overlay.close)
-            QTimer.singleShot(3000, self.status_overlay.deleteLater)
-            QTimer.singleShot(3000, lambda: setattr(self, "status_overlay", None))
-
-        if error_message:
-            InfoBar.error(
-                title="自动登录失败",
-                content=error_message,
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=5000,
-                parent=get_main_container(),
-            )
-        else:
-            InfoBar.success(
-                title="成功",
-                content="自动登录已完成",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=get_main_container(),
-            )
-
-        logger.success("自动化运行结束")
+        self.runAutomation.emit(automation.account, automation.password)
+        logger.info(f"信号已发送：运行自动化 {automation.guid}")
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
@@ -942,6 +869,8 @@ class CiRunningWarnOverlay(QWidget):
 class AutomationPage(QWidget):
     """设置 - 自动化页"""
 
+    runAutomation = Signal(str, str)
+
     def __init__(self):
         super().__init__()
         logger.debug("初始化自动化页")
@@ -985,6 +914,7 @@ class AutomationPage(QWidget):
 
         self.path_select_page = PathSelectSubpage()
         self.manager_page = AutomationManageSubpage()
+        self.manager_page.runAutomation.connect(self.runAutomation)
 
         self.main_widget.addWidget(self.path_select_page)
         self.main_widget.addWidget(self.manager_page)

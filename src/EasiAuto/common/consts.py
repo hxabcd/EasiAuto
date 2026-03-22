@@ -3,23 +3,30 @@ from contextlib import suppress
 from importlib.util import find_spec
 from pathlib import Path
 
+# 基本
 IS_DEV = "__compiled__" not in globals()
-EA_PREFIX = "[EasiAuto]"
 EA_EXECUTABLE = (Path(sys.executable) if not IS_DEV else Path(sys.argv[0]).parent / "EasiAuto.exe").resolve()
 EA_BASEDIR = EA_EXECUTABLE.parent
-EA_DATADIR = EA_BASEDIR / "data"
-EA_RESDIR = EA_BASEDIR / "resources"
 
+# 标识
+EA_PREFIX = "[EasiAuto]"
+IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
+
+# 数据目录
+EA_DATADIR = EA_BASEDIR / "data"
 CONFIG_PATH = EA_DATADIR / "config.json"
 PROFILE_PATH = EA_DATADIR / "profile.json"
 LOG_DIR = EA_DATADIR / "logs"
 CACHE_DIR = EA_DATADIR / "cache"
 
+# 资源目录
+EA_RESDIR = EA_BASEDIR / "resources"
 VENDOR_PATH = EA_BASEDIR / "vendors"
 
 if str(VENDOR_PATH) not in sys.path:
     sys.path.insert(0, str(VENDOR_PATH))
 
+# 环境判断
 try:
     IS_FULL = bool(find_spec("cv2"))
 except (ModuleNotFoundError, ValueError):
