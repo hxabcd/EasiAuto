@@ -35,7 +35,6 @@ from qfluentwidgets import (
     SmoothScrollArea,
     SubtitleLabel,
     TitleLabel,
-    ToolTipFilter,
     TransparentPushButton,
     setFont,
 )
@@ -45,7 +44,7 @@ from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.consts import CACHE_DIR
 from EasiAuto.common.update import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.view.components import SettingCard
-from EasiAuto.view.utils import get_app, get_main_container
+from EasiAuto.view.utils import get_app, get_main_container, set_tooltip
 
 
 class HighlightedChangeLogCard(CardWidget):
@@ -134,8 +133,7 @@ class UpdateContentView(QWidget):
         download_source_card = SettingCard.index["Update.TargetDownloadSource"]
         download_source_card.widget.setMinimumWidth(180)
         self.check_latency_button = TransparentPushButton(icon=FluentIcon.WIFI, text="检测延迟")
-        self.check_latency_button.setToolTip("重新检测各下载源的连接延迟，并显示结果")
-        self.check_latency_button.installEventFilter(ToolTipFilter(self.check_latency_button))
+        set_tooltip(self.check_latency_button, "重新检测各下载源的连接延迟，并显示结果")
         self.check_latency_button.clicked.connect(update_checker.test_source_latency_async)
 
         download_source_card.valueChanged.connect(self._handle_source_change)

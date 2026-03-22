@@ -14,7 +14,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.common.utils import get_resource
-from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, UpdatePage
+from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
 
 
 class MainWindow(MSFluentWindow):
@@ -31,6 +31,7 @@ class MainWindow(MSFluentWindow):
 
         self.config_page = ConfigPage()
         self.automation_page = AutomationPage()
+        self.profile_page = ProfilePage()
         self.update_page = UpdatePage()
         self.about_page = AboutPage()
         self.initNavigation()
@@ -43,6 +44,7 @@ class MainWindow(MSFluentWindow):
     def initNavigation(self):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")
         self.addSubInterface(self.automation_page, FluentIcon.AIRPLANE, "自动化")
+        self.addSubInterface(self.profile_page, FluentIcon.DOCUMENT, "档案")
         self.addSubInterface(self.update_page, FluentIcon.UPDATE, "更新")
         self.addSubInterface(self.about_page, FluentIcon.INFO, "关于", position=NavigationItemPosition.BOTTOM)
 

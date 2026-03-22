@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtWidgets import QApplication, QWidget
-from qfluentwidgets import ExpandGroupSettingCard, SwitchButton
+from qfluentwidgets import ExpandGroupSettingCard, SwitchButton, ToolTipFilter
 
 if TYPE_CHECKING:
     from EasiAuto.view.main_window import MainWindow
@@ -20,6 +20,11 @@ def set_enable_by(widgets: list[QWidget] | QWidget, switch: SwitchButton, revers
 
     handle_check_change(switch.isChecked())
     switch.checkedChanged.connect(handle_check_change)
+
+def set_tooltip(widget: QWidget, tooltip: str):
+    """使用更 Fluent 的方式设置 ToolTip"""
+    widget.setToolTip(tooltip)
+    widget.installEventFilter(ToolTipFilter(widget))
 
 
 def get_main_window() -> "MainWindow":
