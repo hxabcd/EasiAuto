@@ -101,8 +101,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             )
 
     def start_easinote(self, path: Path, args: str):
-        logger.debug(f"启动参数: {path=}, {args=}")
-        subprocess.Popen([path] + args.split(" "))
+        logger.debug(f"路径: {path}, 参数: {args}")
+        command = [str(path.resolve())]
+        if args != "":
+            command += args.strip().split(" ")
+        subprocess.Popen(command)
 
     def _enum_all_windows(self) -> list[tuple[int, str, str]]:
         """枚举所有顶层窗口"""
