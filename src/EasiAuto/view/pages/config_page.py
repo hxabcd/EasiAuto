@@ -56,7 +56,7 @@ class ConfigPage(QWidget):
         self.scroll_area = SmoothScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        QScroller.grabGesture(self.scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         layout.addWidget(self.scroll_area)
 
         # 创建内容容器

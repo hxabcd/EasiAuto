@@ -119,11 +119,10 @@ class UpdateContentView(QWidget):
         scroll_layout.addLayout(self.others_layout)
         scroll_layout.addStretch(1)
 
-        # Make it scrollable!
         scroll_area = SmoothScrollArea(self)
         scroll_area.setWidgetResizable(True)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        QScroller.grabGesture(scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        QScroller.grabGesture(scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         scroll_area.setWidget(container)
 
         return scroll_area
@@ -173,7 +172,7 @@ class UpdateContentView(QWidget):
         scroll_area = SmoothScrollArea(self)
         scroll_area.setWidgetResizable(True)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        QScroller.grabGesture(scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        QScroller.grabGesture(scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         scroll_area.setWidget(container)
 
         return scroll_area
