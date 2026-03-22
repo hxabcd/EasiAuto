@@ -161,6 +161,7 @@ class EasiNoteConfig(ConfigModel):
     Args: str = Field(
         default="",
         title="启动参数",
+        description="使用固定位置且非 iwb 模式时无效",
     )
     ExtraKills: str = Field(
         default="",

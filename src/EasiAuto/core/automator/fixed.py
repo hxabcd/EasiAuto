@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 from EasiAuto.common.config import config
 from EasiAuto.common.utils import (
@@ -13,6 +14,10 @@ from .base import PyAutoGuiBaseAutomator
 
 class FixedAutomator(PyAutoGuiBaseAutomator):
     """通过固定位置来登录"""
+
+    def start_easinote(self, path: Path, args: str):
+        # 仅支持 Iwb 模式
+        return super().start_easinote(path, args if config.Login.IsIwb else "-m Display iwb")
 
     def resolve_position(self, position: tuple[int, int]) -> tuple[int, int]:
         """计算登录窗口内坐标的缩放，若设置未启用则返回原坐标"""
