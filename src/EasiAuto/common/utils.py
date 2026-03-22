@@ -10,7 +10,7 @@ from typing import NoReturn, cast
 import psutil
 import pywintypes
 import win32api
-import win32com
+import win32com.client
 import win32con
 import win32gui
 from loguru import logger
