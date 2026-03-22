@@ -20,6 +20,7 @@ from qfluentwidgets import (
 from EasiAuto import __version__
 from EasiAuto.common import utils
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
+from EasiAuto.common.profile import profile
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
 from EasiAuto.core.manager import automation_manager
@@ -99,8 +100,10 @@ class Launcher:
         subparsers = parser.add_subparsers(title="子命令", dest="command")
 
         login_parser = subparsers.add_parser("login", help="登录账号")
-        login_parser.add_argument("-a", "--account", required=True, help="账号")
-        login_parser.add_argument("-p", "--password", required=True, help="密码")
+        login_target_group = login_parser.add_mutually_exclusive_group(required=True)
+        login_target_group.add_argument("-i", "--id", help="档案 ID")
+        login_target_group.add_argument("-a", "--account", help="账号")
+        login_parser.add_argument("-p", "--password", help="密码（当使用 --account 时必填）")
         login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
 
         subparsers.add_parser("settings", help="打开设置界面")
@@ -180,6 +183,26 @@ class Launcher:
         automation_manager.stop()
         self.stop_requested = True
 
+    def _resolve_login_credentials(self, args: Namespace) -> tuple[str, str] | None:
+        if args.id:
+            auto = profile.get_by_id(args.id)
+            if auto is None:
+                logger.error(f"未找到档案 ID: {args.id}")
+                return None
+            if not auto.enabled:
+                logger.warning(f"档案 {args.id} 已被禁用")
+                return None
+            if auto.account == "" or auto.password == "":
+                logger.error(f"档案 {args.id} 的账号或密码为空")
+                return None
+            return auto.account, auto.password
+
+        if args.account and args.password:
+            return args.account, args.password
+
+        logger.error("参数错误：使用 --account 时必须同时提供 --password")
+        return None
+
     def _start_login(self, args: Namespace) -> bool:
         """启动登录任务；若已有任务在运行则拒绝"""
         from_ipc = self._ipc_context
@@ -192,6 +215,12 @@ class Launcher:
             config.Login.SkipOnce = False
             if not from_ipc:
                 utils.stop()
+            return False
+
+        credentials = self._resolve_login_credentials(args)
+        if credentials is None:
+            if not from_ipc:
+                utils.stop(1)
             return False
 
         if config.Warning.Enabled and not args.manual:
@@ -259,7 +288,7 @@ class Launcher:
             except Exception as e:
                 logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
 
-        automation_manager.run(args.account, args.password)
+        automation_manager.run(*credentials)
 
         self.login_running = True
         return True
