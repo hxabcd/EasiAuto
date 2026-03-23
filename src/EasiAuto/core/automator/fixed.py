@@ -16,7 +16,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
     """通过固定位置来登录"""
 
     def start_easinote(self, path: Path, args: str):
-        # 仅支持 Iwb 模式
+        # 强制 Iwb
         return super().start_easinote(path, args if config.Login.IsIwb else "-m Display iwb")
 
     def resolve_position(self, position: tuple[int, int]) -> tuple[int, int]:
@@ -38,7 +38,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         scale = get_scale()
 
         # 进入登录界面
-        if config.Login.IsIwb:
+        if config.Login.IsIwb or True: # 强制 Iwb
             self.check_interruption()
             self.update_progress("进入登录界面")
 
