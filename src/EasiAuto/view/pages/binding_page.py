@@ -5,17 +5,18 @@ from dataclasses import dataclass
 from loguru import logger
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QButtonGroup, QGridLayout, QHBoxLayout, QScroller, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QScroller, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
+    AvatarWidget,
     BodyLabel,
     CardWidget,
     CommandBar,
     FluentIcon,
     HorizontalSeparator,
+    IconWidget,
     InfoBar,
     InfoBarPosition,
-    RadioButton,
     SmoothScrollArea,
     SubtitleLabel,
     VerticalSeparator,
@@ -72,16 +73,96 @@ class SubjectCard(CardWidget):
         else:
             self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
             self.subjectClicked.emit(self.key)
-        super().mousePressEvent(event)
+        super().mousePressEvent(e)
 
     # def resizeEvent(self, event):
     #     target = max(100, int(self.width() * 2 / 3))
     #     if abs(self.height() - target) > 1:
     #         self.setFixedHeight(target)
     #     super().resizeEvent(event)
+
+
+class UnboundCard(CardWidget):
+    """未绑定卡片"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+
+        # 左侧图标（比头像略小）
+        self.icon_label = IconWidget(FluentIcon.UNPIN)
+        self.icon_label.setFixedSize(24, 24)
+
+        # 中间文字
+        self.name_label = SubtitleLabel("未绑定")
+
+        layout.addWidget(self.icon_label)
+        layout.addWidget(self.name_label)
+        layout.addStretch(1)
+
+    def set_checked(self, checked: bool):
+        if checked:
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
+        else:
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
+
+
+class ProfileCard(CardWidget):
+    """档案卡片"""
+
+    editClicked = Signal(str)  # profile_id
+
+    def __init__(self, profile_id: str | None, display_name: str, account_name: str, parent=None):
+        super().__init__(parent)
+        self.profile_id = profile_id
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+
+        # 左侧头像
+        self.avatar_label = AvatarWidget()
+        self.avatar_label.setRadius(32)
+        if profile_id:
+            self.avatar_label.setText(display_name[:1])
+
+        # 中间信息
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(0)
+
+        self.name_label = SubtitleLabel(display_name)
+        self.account_label = BodyLabel(account_name)
+
+        text_layout.addWidget(self.name_label)
+        text_layout.addWidget(self.account_label)
+
+        # 右侧编辑按钮
+        self.command_bar = CommandBar()
+        self.command_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+
+        self.action_edit = Action(
+            FluentIcon.EDIT,
+            "编辑",
+            triggered=lambda: self.editClicked.emit(profile_id) if profile_id else None,
+        )
+        self.command_bar.addAction(self.action_edit)
+
+        layout.addWidget(self.avatar_label)
+        layout.addLayout(text_layout, 1)
+        layout.addWidget(self.command_bar, alignment=Qt.AlignmentFlag.AlignRight)
+
+    def set_checked(self, checked: bool):
+        if checked:
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
+        else:
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
 
 
 class BindingStatusBar(QWidget):
@@ -91,7 +172,7 @@ class BindingStatusBar(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setContentsMargins(16, 0, 0, 0)
 
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -115,13 +196,10 @@ class SubjectBindingPage(QWidget):
         self.backend = ClassIslandBindingBackend()
         self.subject_rows: dict[str, _SubjectRow] = {}
         self.subject_cards: dict[str, SubjectCard] = {}
+        self.profile_cards: dict[str | None, ProfileCard] = {}
         self.current_subject_key: str | None = None
         self.preferred_profile_id: str | None = None
-        self._updating_radios = False
-
-        self.profile_button_group = QButtonGroup(self)
-        self.profile_button_group.setExclusive(True)
-        self.profile_button_group.buttonClicked.connect(self._on_profile_radio_clicked)
+        self._updating_cards = False
 
         self._setup_ui()
         self.reload()
@@ -221,12 +299,11 @@ class SubjectBindingPage(QWidget):
             if widget:
                 widget.deleteLater()
 
-    def _clear_profile_radios(self):
+    def _clear_profile_cards(self):
         while self.profile_layout.count():
             item = self.profile_layout.takeAt(0)
             widget = item.widget()
             if widget:
-                self.profile_button_group.removeButton(widget)
                 widget.deleteLater()
 
     def _build_subject_cards(self):
@@ -242,37 +319,40 @@ class SubjectBindingPage(QWidget):
 
         self.subject_grid.setRowStretch((len(self.subject_rows) + 1) // 2, 1)
 
-    def _build_profile_radios(self):
-        self._clear_profile_radios()
+    def _build_profile_cards(self):
+        self._clear_profile_cards()
+        self.profile_cards.clear()
 
-        radio_unbound = RadioButton("未绑定")
-        radio_unbound.setProperty("profile_id", None)
-        self.profile_button_group.addButton(radio_unbound)
-        self.profile_layout.addWidget(radio_unbound)
+        # 添加未绑定卡片
+        card_unbound = UnboundCard()
+        card_unbound.clicked.connect(lambda: self._on_profile_card_clicked(None))
+        self.profile_cards[None] = card_unbound
+        self.profile_layout.addWidget(card_unbound)
 
+        # 添加档案卡片
         for automation in profile.list_automations():
-            radio = RadioButton(self._profile_display_name(automation))
-            radio.setProperty("profile_id", automation.id)
-            self.profile_button_group.addButton(radio)
-            self.profile_layout.addWidget(radio)
+            display_name = self._profile_display_name(automation)
+            account_name = automation.account_name or automation.account or ""
+            card = ProfileCard(automation.id, display_name, account_name)
+            card.clicked.connect(lambda pid=automation.id: self._on_profile_card_clicked(pid))
+            card.editClicked.connect(lambda pid=automation.id: self._on_profile_edit_clicked(pid))
+            self.profile_cards[automation.id] = card
+            self.profile_layout.addWidget(card)
 
         self.profile_layout.addStretch(1)
 
-    def _set_radio_selection(self, profile_id: str | None):
-        self._updating_radios = True
+    def _set_card_selection(self, profile_id: str | None):
+        self._updating_cards = True
         target_found = False
-        for button in self.profile_button_group.buttons():
-            pid = button.property("profile_id")
+        for pid, card in self.profile_cards.items():
             matched = pid == profile_id
-            button.setChecked(matched)
+            card.set_checked(matched)
             if matched:
                 target_found = True
         if not target_found:
-            for button in self.profile_button_group.buttons():
-                if button.property("profile_id") is None:
-                    button.setChecked(True)
-                    break
-        self._updating_radios = False
+            if None in self.profile_cards:
+                self.profile_cards[None].set_checked(True)
+        self._updating_cards = False
 
     def _on_subject_selected(self, subject_key: str):
         self.current_subject_key = subject_key
@@ -281,28 +361,22 @@ class SubjectBindingPage(QWidget):
 
         row = self.subject_rows.get(subject_key)
         if row is None:
-            self._set_radio_selection(None)
+            self._set_card_selection(None)
             return
 
         current_profile_id = row.profile_id
         if current_profile_id is None and self.preferred_profile_id is not None:
             current_profile_id = self.preferred_profile_id
-        self._set_radio_selection(current_profile_id)
+        self._set_card_selection(current_profile_id)
 
-    def _on_profile_radio_clicked(self, _button=None):
-        if self._updating_radios or not self.current_subject_key:
+    def _on_profile_card_clicked(self, profile_id: str | None):
+        if self._updating_cards or not self.current_subject_key:
             return
 
         row = self.subject_rows.get(self.current_subject_key)
         if row is None:
             return
 
-        checked = self.profile_button_group.checkedButton()
-        if checked is None:
-            return
-
-        profile_id = checked.property("profile_id")
-        profile_id = profile_id if isinstance(profile_id, str) else None
         if row.profile_id == profile_id:
             return
 
@@ -311,7 +385,12 @@ class SubjectBindingPage(QWidget):
         if card:
             card.set_content(row.subject.name, self._subject_status_text(row))
 
+        self._set_card_selection(profile_id)
         self._persist_and_sync()
+
+    def _on_profile_edit_clicked(self, profile_id: str):
+        # 发送编辑信号，由外部处理跳转逻辑
+        pass
 
     def reload(self, force_ci_reload: bool = False):
         previous_subject_key = self.current_subject_key
@@ -337,7 +416,7 @@ class SubjectBindingPage(QWidget):
             self.subject_rows[key] = _SubjectRow(subject=subject, profile_id=profile_id)
 
         self._build_subject_cards()
-        self._build_profile_radios()
+        self._build_profile_cards()
 
         if self.subject_rows:
             target_key = (
