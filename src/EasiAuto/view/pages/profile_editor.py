@@ -188,6 +188,8 @@ class ProfileCard(CardWidget):
         self.enabled_switch = SwitchButton()
         self.enabled_switch.setOnText("启用")
         self.enabled_switch.setOffText("禁用")
+        self.enabled_switch.setChecked(self.automation.enabled if self.automation else False)
+        self.enabled_switch.checkedChanged.connect(self._on_enabled_changed)
 
         action_layout.addWidget(self.command_bar, 1)
         action_layout.addWidget(self.enabled_switch, alignment=Qt.AlignmentFlag.AlignRight)
@@ -240,6 +242,12 @@ class ProfileCard(CardWidget):
         subjects = profile.get_subjects_by_profile(automation.id, provider="classisland")
         tags = [subject.name for subject in subjects]
         self._update_subjects(tags)
+        self.enabled_switch.setChecked(automation.enabled)
+
+    def _on_enabled_changed(self, enabled: bool):
+        if self.automation:
+            self.automation.enabled = enabled
+            profile.save(PROFILE_PATH)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
