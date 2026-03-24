@@ -5,7 +5,7 @@ from pathlib import Path
 
 # 基本
 IS_DEV = "__compiled__" not in globals()
-EA_EXECUTABLE = (Path(sys.executable) if not IS_DEV else Path(sys.argv[0]).parent / "EasiAuto.exe").resolve()
+EA_EXECUTABLE = ((Path(sys.executable) if not IS_DEV else Path(sys.argv[0])).parent / "EasiAuto.exe").resolve()
 EA_BASEDIR = EA_EXECUTABLE.parent
 
 # 标识
