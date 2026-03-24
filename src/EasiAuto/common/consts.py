@@ -4,7 +4,7 @@ from pathlib import Path
 
 IS_DEV = "__compiled__" not in globals()
 EA_PREFIX = "[EasiAuto]"
-EA_EXECUTABLE = (Path(sys.executable) if not IS_DEV else Path(sys.argv[0]).parent / "EasiAuto.exe").resolve()
+EA_EXECUTABLE = ((Path(sys.executable) if not IS_DEV else Path(sys.argv[0])).parent / "EasiAuto.exe").resolve()
 EA_BASEDIR = EA_EXECUTABLE.parent
 
 VENDOR_PATH = EA_BASEDIR / "vendors"
