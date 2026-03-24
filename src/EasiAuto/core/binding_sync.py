@@ -194,7 +194,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
         result.deleted = len(deleted_guids)
 
         ci_manager.ci_automations = retained
-        if not ci_manager._save_automations():  # noqa: SLF001
+        if not ci_manager._save_automations():
             result.errors.append("保存 ClassIsland 自动化配置失败")
             return result
 
@@ -367,7 +367,6 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
         """构建受管理的自动化配置"""
         pretime = self._get_pretime(source) if source else config.ClassIsland.DefaultPreTime
         enabled = self._get_enabled(source, fallback=True) if source else True
-        display_name = profile_auto.name or profile_auto.account_name or profile_auto.account
 
         return {
             "Ruleset": {
@@ -395,7 +394,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
             },
             "ActionSet": {
                 "IsEnabled": enabled,
-                "Name": f"{EA_PREFIX} 自动登录希沃白板 - {subject.name} ({display_name})",
+                "Name": profile_auto.get_automation_name(subject.name),
                 "Guid": guid,
                 "IsOn": False,
                 "Actions": [

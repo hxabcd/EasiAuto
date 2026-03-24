@@ -52,8 +52,8 @@ class EasiAutomation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     @property
-    def display_name(self) -> str:
-        return self.name or self.account_name or "未命名自动化"
+    def display_name(self) -> str | None:
+        return self.name or self.account_name
 
     @property
     def detail_name(self) -> str | None:
@@ -64,6 +64,13 @@ class EasiAutomation(BaseModel):
     @property
     def automation_name(self) -> str:
         return f"{EA_PREFIX} {config.ClassIsland.DefaultDisplayName}" + (f" - {self.name}" if self.name else "")
+
+    def get_automation_name(self, subject_name: str | None):
+        text = f"{EA_PREFIX} {config.ClassIsland.DefaultDisplayName}"
+        if subject_name and self.name:
+            text += f" - {subject_name} ({self.name})"
+        elif t := (subject_name or self.display_name):
+            text += f" - {t}"
 
     @property
     def export_name(self) -> str:

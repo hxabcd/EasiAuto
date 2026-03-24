@@ -130,13 +130,13 @@ class ProfileCard(CardWidget):
         if self.automation and (img := self.automation.avatar):
             self.avatar_label.setImage(img)
         else:
-            self.avatar_label.setText(self.automation.display_name)
+            self.avatar_label.setText(self.automation.display_name or "?")
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(0)
 
-        self.name_label = SubtitleLabel(self.automation.display_name)
+        self.name_label = SubtitleLabel(self.automation.display_name or "未命名自动化")
 
         self.detail_label = BodyLabel(self.automation.detail_name)
         self.detail_label.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
@@ -237,7 +237,7 @@ class ProfileCard(CardWidget):
 
     def update_display(self, automation: EasiAutomation):
         self._automation_id = automation.id
-        self.name_label.setText(self.automation.display_name)
+        self.name_label.setText(self.automation.display_name or "未命名自动化")
         self.detail_label.setText(self.automation.detail_name or "")
         subjects = profile.get_subjects_by_profile(automation.id, provider="classisland")
         tags = [subject.name for subject in subjects]
