@@ -13,7 +13,6 @@ from qfluentwidgets import (
     CardWidget,
     CommandBar,
     FluentIcon,
-    HorizontalSeparator,
     IconWidget,
     InfoBar,
     InfoBarPosition,
@@ -23,7 +22,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.common.consts import PROFILE_PATH
-from EasiAuto.common.profile import SubjectRef, profile
+from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend, SyncSubject
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.utils import get_main_container
@@ -71,7 +70,7 @@ class SubjectCard(CardWidget):
         if self._selected:
             self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -110,7 +109,7 @@ class UnboundCard(CardWidget):
         if checked:
             self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
 
 
 class ProfileCard(CardWidget):
@@ -162,30 +161,13 @@ class ProfileCard(CardWidget):
         if checked:
             self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 8px; }")
+            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
 
 
-class BindingStatusBar(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(54)
-
-        layout = QHBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        layout.setContentsMargins(16, 0, 0, 0)
-
-        self.action_bar = CommandBar()
-        self.action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.action_refresh = Action(FluentIcon.SYNC, "刷新")
-        self.action_bar.addAction(self.action_refresh)
-
-        layout.addWidget(SubtitleLabel("科目关联"))
-        layout.addStretch(1)
-        layout.addWidget(self.action_bar)
-
-
-class SubjectBindingPage(QWidget):
+class BindingPage(QWidget):
+    # TODO: 优化后端事件绑定
     bindingsChanged = Signal()
+    editClicked = Signal(str)  # automation_id
     provider = "classisland"
 
     def __init__(self):
@@ -196,21 +178,18 @@ class SubjectBindingPage(QWidget):
         self.backend = ClassIslandBindingBackend()
         self.subject_rows: dict[str, _SubjectRow] = {}
         self.subject_cards: dict[str, SubjectCard] = {}
-        self.profile_cards: dict[str | None, ProfileCard] = {}
+        self.profile_cards: dict[str | None, ProfileCard | UnboundCard] = {}
         self.current_subject_key: str | None = None
         self.preferred_profile_id: str | None = None
         self._updating_cards = False
 
-        self._setup_ui()
+        self._init_ui()
         self.reload()
 
-    def _setup_ui(self):
+    def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
-        self.status_bar = BindingStatusBar()
-        self.status_bar.action_refresh.triggered.connect(lambda: self.reload(force_ci_reload=True))
 
         main = QWidget()
         main_layout = QHBoxLayout(main)
@@ -260,9 +239,7 @@ class SubjectBindingPage(QWidget):
         main_layout.addWidget(VerticalSeparator())
         main_layout.addWidget(self.right_panel, 1)
 
-        layout.addWidget(self.status_bar)
-        layout.addWidget(HorizontalSeparator())
-        layout.addWidget(main, 1)
+        layout.addWidget(main)
 
     @staticmethod
     def _subject_key(subject: SyncSubject) -> str:
@@ -278,8 +255,8 @@ class SubjectBindingPage(QWidget):
         return keys
 
     @staticmethod
-    def _profile_display_name(automation) -> str:
-        label = automation.name or automation.account_name or automation.account or "未命名档案"
+    def _profile_display_name(automation: EasiAutomation) -> str:
+        label = automation.display_name or "未命名档案"
         if not automation.enabled:
             label = f"{label} (禁用)"
         return label
@@ -323,19 +300,19 @@ class SubjectBindingPage(QWidget):
         self._clear_profile_cards()
         self.profile_cards.clear()
 
-        # 添加未绑定卡片
+        # 未绑定卡片
         card_unbound = UnboundCard()
         card_unbound.clicked.connect(lambda: self._on_profile_card_clicked(None))
         self.profile_cards[None] = card_unbound
         self.profile_layout.addWidget(card_unbound)
 
-        # 添加档案卡片
+        # 档案卡片
         for automation in profile.list_automations():
             display_name = self._profile_display_name(automation)
             account_name = automation.account_name or automation.account or ""
             card = ProfileCard(automation.id, display_name, account_name)
             card.clicked.connect(lambda pid=automation.id: self._on_profile_card_clicked(pid))
-            card.editClicked.connect(lambda pid=automation.id: self._on_profile_edit_clicked(pid))
+            card.editClicked.connect(self.editClicked)
             self.profile_cards[automation.id] = card
             self.profile_layout.addWidget(card)
 
@@ -349,9 +326,8 @@ class SubjectBindingPage(QWidget):
             card.set_checked(matched)
             if matched:
                 target_found = True
-        if not target_found:
-            if None in self.profile_cards:
-                self.profile_cards[None].set_checked(True)
+        if not target_found and None in self.profile_cards:
+            self.profile_cards[None].set_checked(True)
         self._updating_cards = False
 
     def _on_subject_selected(self, subject_key: str):
@@ -387,10 +363,6 @@ class SubjectBindingPage(QWidget):
 
         self._set_card_selection(profile_id)
         self._persist_and_sync()
-
-    def _on_profile_edit_clicked(self, profile_id: str):
-        # 发送编辑信号，由外部处理跳转逻辑
-        pass
 
     def reload(self, force_ci_reload: bool = False):
         previous_subject_key = self.current_subject_key

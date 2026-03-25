@@ -216,8 +216,9 @@ class ProfileCard(CardWidget):
         self.subject_bar.setTags(tags)
 
     def _on_add_subject(self):
+        # TODO: 跳转至对应科目
         window = get_main_window()
-        window.switchTo(window.binding_page)
+        window.switchTo(window.automation_page)
 
     @property
     def display_name(self) -> str:
@@ -539,6 +540,28 @@ class ProfileManagePage(QWidget):
                 duration=1500,
                 parent=get_main_container(),
             )
+
+    def scroll_to_automation(self, automation_id: str):
+        """跳转并选中指定的自动化档案"""
+        target_item = None
+
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
+            if automation and automation.id == automation_id:
+                target_item = item
+                break
+
+        if target_item:
+            self.auto_list.setCurrentItem(target_item)
+            self.auto_list.scrollToItem(target_item)
+
+            self._on_item_clicked(target_item)
+
+            logger.info(f"已跳转到档案编辑: {automation_id}")
+            return True
+        logger.warning(f"跳转失败：找不到 ID 为 {automation_id} 的档案")
+        return False
 
     def refresh_binding_display(self):
         for i in range(self.auto_list.count()):
