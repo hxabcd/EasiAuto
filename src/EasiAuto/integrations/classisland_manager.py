@@ -203,6 +203,9 @@ class ClassIslandManager(QObject):
         self.automations.clear()
         for automation in self.ci_automations:
             name: str = automation["ActionSet"]["Name"]
+            if not name:
+                logger.warning(f"无法读取自动化：\n{automation}")
+                continue
             if name.startswith(EA_PREFIX):
                 easi_auto = self._parse_automation(automation)
                 if easi_auto:
