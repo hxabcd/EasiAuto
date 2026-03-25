@@ -4,7 +4,6 @@ from typing import Any
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QApplication,
     QHBoxLayout,
 )
 from qfluentwidgets import (
@@ -31,53 +30,67 @@ class PreRunPopup(Dialog):
     recievedResponse = Signal(DialogResponse)
 
     def __init__(self):
-        super().__init__(
-            title="EasiAuto",
-            content="将在 N/A 秒后继续执行",
-        )
+        super().__init__(title="EasiAuto", content="将在 N/A 秒后继续执行")
         self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
+
+        self.response: DialogResponse | None = None
 
         self.is_dragging = False
         self.drag_position = QPoint()
         self.title_bar_height = 30
 
-        self.title_layout = QHBoxLayout()
-
+        # 文本
         self.iconLabel = ImageLabel()
         self.iconLabel.setImage(get_resource("EasiAuto.ico"))
-        self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, "取消")
-        self.delay_btn = PushButton(FluentIcon.PAUSE, "推迟")
-        self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, "立即执行")
-
         self.iconLabel.setScaledContents(True)
         self.iconLabel.setFixedSize(50, 50)
+
+        self.title_layout = QHBoxLayout()
         self.titleLabel.setText("即将运行希沃白板自动登录")
         self.titleLabel.setStyleSheet("font-size: 25px; font-weight: bold;")
+
         self.contentLabel.setStyleSheet("font-size: 16px;")
-        self.cancel_btn.setFixedWidth(100)
-        self.delay_btn.setFixedWidth(100)
-        self.execute_btn.setFixedWidth(150)
+
+        self.title_layout.setSpacing(12)
+        self.title_layout.addWidget(self.iconLabel)
+        self.title_layout.addWidget(self.titleLabel)
+
+        self.textLayout.insertLayout(0, self.title_layout)
+
+        # 按钮
         self.yesButton.hide()
         self.cancelButton.hide()
-        self.title_layout.setSpacing(12)
-        QApplication.processEvents()
 
+        self.cancel_btn = PushButton(FluentIcon.CANCEL_MEDIUM, "取消")
+        self.cancel_btn.setFixedWidth(100)
         self.cancel_btn.clicked.connect(lambda: self.respond(DialogResponse.CANCEL))
+
+        self.delay_btn = PushButton(FluentIcon.PAUSE, "推迟")
+        self.delay_btn.setFixedWidth(100)
         self.delay_btn.clicked.connect(lambda: self.respond(DialogResponse.DELAY))
+
+        self.execute_btn = PrimaryPushButton(FluentIcon.ACCEPT_MEDIUM, "立即执行")
+        self.execute_btn.setFixedWidth(150)
         self.execute_btn.clicked.connect(lambda: self.respond(DialogResponse.CONTINUE))
 
-        self.title_layout.addWidget(self.iconLabel)  # 标题布局
-        self.title_layout.addWidget(self.titleLabel)
-        self.textLayout.insertLayout(0, self.title_layout)  # 页面
-        self.buttonLayout.insertStretch(0, 1)  # 按钮布局
-        self.buttonLayout.insertWidget(1, self.cancel_btn)
-        self.buttonLayout.insertWidget(2, self.delay_btn)
+        self.buttonLayout.insertWidget(0, self.cancel_btn)
+        self.buttonLayout.insertWidget(1, self.delay_btn)
+        self.buttonLayout.insertStretch(2, 1)
         self.buttonLayout.insertWidget(3, self.execute_btn)
 
-        self.response: DialogResponse
+        # 快捷键绑定
+        self.execute_btn.setDefault(True)
+        self.execute_btn.setFocus()
+        self.cancel_btn.setAutoDefault(False)
+        self.delay_btn.setAutoDefault(False)
+
+        self.execute_btn.setShortcut("Return")
+        self.execute_btn.setShortcut("Enter")
+        self.cancel_btn.setShortcut("Esc")
+        self.delay_btn.setShortcut("Ctrl+P")
 
     def exec(self) -> int:
-        self.setStayOnTop(True)  # 必须在显示时才能设置置顶，否则窗口显示位置不会居中
+        self.setStayOnTop(True)  # NOTE:  必须在显示时才能设置置顶，否则窗口显示位置不会居中
         return super().exec()
 
     def respond(self, result: DialogResponse) -> None:
@@ -86,7 +99,7 @@ class PreRunPopup(Dialog):
         self.recievedResponse.emit(result)
 
     def countdown(self, timeout: int) -> DialogResponse:
-        self.response: DialogResponse = DialogResponse.CANCEL
+        self.response = DialogResponse.CANCEL
 
         if timeout <= 0:
             raise ValueError("倒计时时长必须是正整数")
