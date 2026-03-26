@@ -65,12 +65,13 @@ class EasiAutomation(BaseModel):
     def automation_name(self) -> str:
         return f"{EA_PREFIX} {config.ClassIsland.DefaultDisplayName}" + (f" - {self.name}" if self.name else "")
 
-    def get_automation_name(self, subject_name: str | None):
+    def get_automation_name(self, subject_name: str | None) -> str:
         text = f"{EA_PREFIX} {config.ClassIsland.DefaultDisplayName}"
         if subject_name and self.name:
             text += f" - {subject_name} ({self.name})"
         elif t := (subject_name or self.display_name):
             text += f" - {t}"
+        return text
 
     @property
     def export_name(self) -> str:

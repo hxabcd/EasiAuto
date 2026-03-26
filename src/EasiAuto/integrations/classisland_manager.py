@@ -202,14 +202,14 @@ class ClassIslandManager(QObject):
         # 构建自动化索引
         self.automations.clear()
         for automation in self.ci_automations:
-            name: str = automation["ActionSet"]["Name"]
-            if not name:
-                logger.warning(f"无法读取自动化：\n{automation}")
-                continue
-            if name.startswith(EA_PREFIX):
-                easi_auto = self._parse_automation(automation)
-                if easi_auto:
-                    self.automations[easi_auto.guid] = easi_auto
+            try:
+                name: str | None = automation["ActionSet"]["Name"]
+                if name is not None and name.startswith(EA_PREFIX):
+                    easi_auto = self._parse_automation(automation)
+                    if easi_auto:
+                        self.automations[easi_auto.guid] = easi_auto
+            except Exception as e:
+                logger.warning(f"无法读取自动化: {automation}\n错误信息: {e}")
 
     def _parse_automation(self, automation: dict) -> EasiAutomation | None:
         """解析 EasiAuto 生成的自动化配置"""
