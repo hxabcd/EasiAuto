@@ -61,14 +61,14 @@ def qt_message_handler(mode: QtMsgType, context, message):  # noqa
             logger.critical(msg)
         case QtMsgType.QtCriticalMsg:
             logger.error(msg)
-    if IS_DEV:
-        match mode:
-            case QtMsgType.QtWarningMsg:
-                logger.warning(msg)
-            case QtMsgType.QtInfoMsg | QtMsgType.QtSystemMsg:
-                logger.info(msg)
-            case QtMsgType.QtDebugMsg:
-                logger.debug(msg)
+    # if IS_DEV:
+    #     match mode:
+    #         case QtMsgType.QtWarningMsg:
+    #             logger.warning(msg)
+    #         case QtMsgType.QtInfoMsg | QtMsgType.QtSystemMsg:
+    #             logger.info(msg)
+    #         case QtMsgType.QtDebugMsg:
+    #             logger.debug(msg)
     logger.complete()
 
 
