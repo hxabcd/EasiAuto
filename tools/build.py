@@ -5,6 +5,10 @@ import sys
 from pathlib import Path
 from typing import Literal
 
+from packaging.version import Version
+
+from EasiAuto import __version__
+
 # ------ 配置区 ------
 APP_NAME = "EasiAuto"
 COMPANY_NAME = "HxAbCd"
@@ -12,13 +16,10 @@ MAIN = "main.py"
 OUTPUT_DIR = Path("build")
 
 
-def get_version():
-    from EasiAuto import __version__
-
-    return __version__
+VERSION = Version(__version__)
 
 
-def run_nuitka(base_version, build_type: Literal["full", "lite"]):
+def run_nuitka(build_type: Literal["full", "lite"]):
     """执行 Nuitka 打包"""
     target_dir = OUTPUT_DIR / build_type
 
@@ -53,7 +54,7 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
         "--windows-icon-from-ico=resources/EasiAuto.ico",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={APP_NAME}",
-        f"--product-version={base_version}",
+        f"--product-version={VERSION.base_version}",
     ]
 
     if build_type == "lite":
@@ -90,13 +91,14 @@ def run_nuitka(base_version, build_type: Literal["full", "lite"]):
                 item.unlink()
 
     # 压缩打包结果
-    zip_name = f"{APP_NAME}_v{base_version}" + ("_lite" if build_type == "lite" else "")
-    zip_path = OUTPUT_DIR / zip_name
+    name = [APP_NAME, f"v{VERSION}"]
+    name += "_lite" if build_type == "lite" else ""
+    name = "_".join(name)
 
+    zip_path = OUTPUT_DIR / name
     print(f"Creating archive: {zip_path}.zip ...")
 
     src_dir = target_dir / "main.dist"
-
     shutil.make_archive(str(zip_path), "zip", src_dir)
     print(f"Archive completed: {zip_path}.zip")
 
@@ -106,6 +108,4 @@ if __name__ == "__main__":
     parser.add_argument("--type", choices=["full", "lite"], default="full")
     args = parser.parse_args()
 
-    raw_v = get_version()
-
-    run_nuitka(raw_v, args.type)
+    run_nuitka(args.type)
