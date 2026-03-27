@@ -91,9 +91,10 @@ def run_nuitka(build_type: Literal["full", "lite"]):
                 item.unlink()
 
     # 压缩打包结果
-    name = [APP_NAME, f"v{VERSION}"]
-    name += "_lite" if build_type == "lite" else ""
-    name = "_".join(name)
+    names = [APP_NAME, f"v{VERSION}"]
+    if build_type == "lite":
+        names.append("_lite")
+    name = "_".join(names)
 
     zip_path = OUTPUT_DIR / name
     print(f"Creating archive: {zip_path}.zip ...")

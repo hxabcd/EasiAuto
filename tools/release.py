@@ -30,6 +30,7 @@ from qfluentwidgets import (
     FluentWindow,
     InfoBar,
     LineEdit,
+    PlainTextEdit,
     PrimaryPushButton,
     PushButton,
     StrongBodyLabel,
@@ -109,8 +110,6 @@ def create_github_release(version: str, body: str, is_dev: bool, is_draft: bool 
         update_url = f"https://api.github.com/repos/{OWNER_REPO}/releases/{release_id}"
 
         data = {
-            "tag_name": f"v{version}",
-            "target_commitish": "main",  # 或者其他分支
             "name": f"EasiAuto v{version}",
             "body": body,
             "draft": is_draft,
@@ -144,7 +143,7 @@ def upload_asset(upload_url_template: str, file_path: Path):
     upload_url = f"{base_upload_url}?name={filename}"
 
     headers = {
-        "Authorization": f"token {token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/zip",
     }
 
@@ -426,7 +425,7 @@ class ReleaseFormWidget(QWidget):
 
         # Description
         self.main_layout.addWidget(StrongBodyLabel("说明:", self))
-        self.desc_edit = TextEdit(self)
+        self.desc_edit = PlainTextEdit(self)
         self.desc_edit.setFixedHeight(60)
         self.main_layout.addWidget(self.desc_edit)
 
@@ -452,7 +451,7 @@ class ReleaseFormWidget(QWidget):
 
         # Others
         self.main_layout.addWidget(StrongBodyLabel("其他更新 (每行一个):", self))
-        self.others_edit = TextEdit(self)
+        self.others_edit = PlainTextEdit(self)
         self.others_edit.setFixedHeight(88)
         self.main_layout.addWidget(self.others_edit)
 
