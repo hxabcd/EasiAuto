@@ -210,7 +210,7 @@ class ProfileCard(CardWidget):
         automation: EasiAutomation | None = self.list_item.data(Qt.ItemDataRole.UserRole)
         if automation and automation.id == self._automation_id:
             return automation
-        return profile.get_by_id(self._automation_id)
+        return profile.get_automation(self._automation_id)
 
     def _update_subjects(self, tags: list[str]):
         self.subject_bar.setTags(tags)
@@ -240,7 +240,7 @@ class ProfileCard(CardWidget):
         self._automation_id = automation.id
         self.name_label.setText(self.automation.display_name or "未命名自动化")
         self.detail_label.setText(self.automation.detail_name or "")
-        subjects = profile.get_subjects_by_profile(automation.id, provider="classisland")
+        subjects = profile.get_subjects_by_automation(automation.id)
         tags = [subject.name for subject in subjects]
         self._update_subjects(tags)
         self.enabled_switch.setChecked(automation.enabled)
@@ -433,7 +433,7 @@ class ProfileManagePage(QWidget):
         if password == "":
             raise ValueError("密码不能为空")
 
-        existing = profile.get_by_account(account)
+        existing = next((item for item in profile.list_automations() if item.account == account), None)
         if existing and existing.id != self.current_automation.id:
             raise ValueError("账号已存在")
 
@@ -442,7 +442,7 @@ class ProfileManagePage(QWidget):
         self.current_automation.password = password
         self.current_automation.account_name = self.account_name_edit.text().strip() or None
 
-        profile.upsert(self.current_automation)
+        profile.upsert_automation(self.current_automation)
         self._persist_profile()
 
     def _handle_save_automation(self):
@@ -504,14 +504,14 @@ class ProfileManagePage(QWidget):
         self._update_editor(automation.model_copy(deep=True))
 
     def _handle_action_run(self, automation_id: str) -> None:
-        if not (automation := profile.get_by_id(automation_id)):
+        if not (automation := profile.get_automation(automation_id)):
             logger.error(f"无法找到自动化: {automation_id}")
 
         self.runAutomation.emit(automation.account, automation.password)
         logger.info(f"信号已发送: 运行自动化 {automation.id}")
 
     def _handle_action_export(self, automation_id: str) -> None:
-        if not (automation := profile.get_by_id(automation_id)):
+        if not (automation := profile.get_automation(automation_id)):
             logger.error(f"无法找到自动化: {automation_id}")
 
         create_shortcut(
@@ -522,7 +522,7 @@ class ProfileManagePage(QWidget):
 
     def _handle_action_remove(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
-        if profile.delete_by_id(automation.id):
+        if profile.delete_automation(automation.id):
             self._persist_profile()
             self._sync_bindings()
             if self.current_list_item == item:

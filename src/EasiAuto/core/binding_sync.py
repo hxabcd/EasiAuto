@@ -10,8 +10,7 @@ from loguru import logger
 
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
-from EasiAuto.common.profile import EasiAutomation as ProfileAutomation
-from EasiAuto.common.profile import Profile, SubjectBinding
+from EasiAuto.common.profile import BindingItem, EasiAutomation, Profile, SubjectRef
 from EasiAuto.integrations.classisland_manager import CiSubject
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 
@@ -33,14 +32,6 @@ def _extract_arg(args: str, short_flag: str, long_flag: str) -> str | None:
     return _clean_arg(match.group(1))
 
 
-@dataclass
-class SyncSubject:
-    """同步科目数据类"""
-
-    provider: str  # 提供者标识
-    external_id: str  # 外部系统科目ID
-    name: str  # 科目名称
-
 
 @dataclass
 class SyncResult:
@@ -59,7 +50,7 @@ class BindingSyncBackendBase(ABC):
     provider: str
 
     @abstractmethod
-    def list_subjects(self) -> list[SyncSubject]:
+    def list_subjects(self) -> list[SubjectRef]:
         raise NotImplementedError
 
     @abstractmethod
@@ -72,7 +63,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
 
     provider = "classisland"
 
-    def list_subjects(self) -> list[SyncSubject]:
+    def list_subjects(self) -> list[SubjectRef]:
         """列出 ClassIsland 中的所有科目"""
         if not ci_manager:
             return []
@@ -80,13 +71,13 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
         with self._suppress_reload_error():
             ci_manager.reload_config()
 
-        subjects: list[SyncSubject] = []
+        subjects: list[SubjectRef] = []
         for subject in ci_manager.list_subjects():
             subjects.append(
-                SyncSubject(
-                    provider=self.provider,
-                    external_id=subject.id,
+                SubjectRef(
                     name=subject.name,
+                    provider=self.provider,
+                    id=subject.id,
                 )
             )
         return subjects
@@ -110,13 +101,13 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
 
         # 构建科目映射和期望的绑定关系
         subject_map: dict[str, CiSubject] = {item.id: item for item in ci_manager.list_subjects()}
-        all_bindings = profile_data.list_bindings(provider=self.provider)
+        all_bindings = profile_data.list_bindings()
         desired = self._build_desired_bindings(profile_data, all_bindings, subject_map, result)
 
         # 处理现有自动化配置
         automations = list(ci_manager.ci_automations)
         guid_to_automation = {guid: auto for auto in automations if (guid := self._get_guid(auto))}
-        tracked_guids = {item.managed_guid for item in all_bindings if item.managed_guid}
+        tracked_guids = {item.id for item in all_bindings if item.id}
 
         # 确定受管理的自动化配置
         managed_guids = {
@@ -126,7 +117,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
         }
 
         replacement_guids: set[str] = set()
-        desired_entries: list[tuple[str, dict, SubjectBinding]] = []
+        desired_entries: list[tuple[str, dict, BindingItem]] = []
         reused_guids: set[str] = set()
 
         # 处理每个绑定关系
@@ -135,8 +126,8 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
             migrated = False
 
             # 查找现有自动化配置
-            if binding.managed_guid and binding.managed_guid in guid_to_automation:
-                existing = guid_to_automation[binding.managed_guid]
+            if binding.id and binding.id in guid_to_automation:
+                existing = guid_to_automation[binding.id]
             if existing is None:
                 existing = self._find_managed_by_subject(
                     guid_to_automation=guid_to_automation,
@@ -182,7 +173,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
                 reused_guids.add(guid)
 
             # 更新绑定关系
-            binding.managed_guid = guid
+            binding.id = guid
             desired_entries.append((guid, built, binding))
 
         # 清理和保存配置
@@ -310,30 +301,30 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
     def _build_desired_bindings(
         self,
         profile_data: Profile,
-        bindings: list[SubjectBinding],
+        bindings: list[BindingItem],
         subject_map: dict[str, CiSubject],
         result: SyncResult,
-    ) -> dict[str, tuple[SubjectBinding, ProfileAutomation, CiSubject]]:
+    ) -> dict[str, tuple[BindingItem, EasiAutomation, CiSubject]]:
         """构建期望的绑定关系"""
-        desired: dict[str, tuple[SubjectBinding, ProfileAutomation, CiSubject]] = {}
+        desired: dict[str, tuple[BindingItem, EasiAutomation, CiSubject]] = {}
 
         for binding in bindings:
             subject_id = self._resolve_subject_id(binding, subject_map)
             if not subject_id:
                 result.errors.append(
-                    f"科目无效: {binding.subject.name} (provider={binding.subject.provider}, id={binding.subject.external_id})"
+                    f"科目无效: {binding.subject.name} (provider={binding.subject.provider}, id={binding.subject.id})"
                 )
                 continue
 
-            profile_auto = profile_data.get_by_id(binding.profile_id)
+            profile_auto = profile_data.get_automation(binding.automation_id)
             if profile_auto is None:
-                result.errors.append(f"档案不存在: {binding.profile_id}")
+                result.errors.append(f"档案不存在: {binding.automation_id}")
                 continue
             if not profile_auto.enabled:
-                result.errors.append(f"档案已禁用: {profile_auto.account or binding.profile_id}")
+                result.errors.append(f"档案已禁用: {profile_auto.account or binding.automation_id}")
                 continue
             if profile_auto.account.strip() == "" or profile_auto.password.strip() == "":
-                result.errors.append(f"档案缺少账号或密码: {profile_auto.account or binding.profile_id}")
+                result.errors.append(f"档案缺少账号或密码: {profile_auto.account or binding.automation_id}")
                 continue
 
             desired[subject_id] = (binding, profile_auto, subject_map[subject_id])
@@ -341,16 +332,16 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
         return desired
 
     @staticmethod
-    def _resolve_subject_id(binding: SubjectBinding, subject_map: dict[str, CiSubject]) -> str | None:
+    def _resolve_subject_id(binding: BindingItem, subject_map: dict[str, CiSubject]) -> str | None:
         """解析科目 ID"""
         subject = binding.subject
 
-        if subject.external_id and subject.external_id in subject_map:
-            return subject.external_id
+        if subject.id and subject.id in subject_map:
+            return subject.id
 
         for subject_id, candidate in subject_map.items():
             if candidate.name.strip().lower() == subject.name.strip().lower():
-                subject.external_id = subject_id
+                subject.id = subject_id
                 subject.name = candidate.name
                 return subject_id
 
@@ -358,7 +349,7 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
 
     def _build_managed_automation(
         self,
-        profile_auto: ProfileAutomation,
+        profile_auto: EasiAutomation,
         subject: CiSubject,
         subject_id: str,
         guid: str,

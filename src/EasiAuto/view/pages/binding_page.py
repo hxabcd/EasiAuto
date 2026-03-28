@@ -23,15 +23,15 @@ from qfluentwidgets import (
 
 from EasiAuto.common.consts import PROFILE_PATH
 from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
-from EasiAuto.core.binding_sync import ClassIslandBindingBackend, SyncSubject
+from EasiAuto.core.binding_sync import ClassIslandBindingBackend
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.utils import get_main_container
 
 
 @dataclass
 class _SubjectRow:
-    subject: SyncSubject
-    profile_id: str | None
+    subject: SubjectRef
+    automation_id: str | None
 
 
 class SubjectCard(CardWidget):
@@ -242,16 +242,16 @@ class BindingPage(QWidget):
         layout.addWidget(main)
 
     @staticmethod
-    def _subject_key(subject: SyncSubject) -> str:
-        if subject.external_id:
-            return f"{subject.provider}:{subject.external_id}"
+    def _subject_key(subject: SubjectRef) -> str:
+        if subject.id:
+            return f"{subject.provider}:{subject.id}"
         return f"{subject.provider}:name:{subject.name.strip().lower()}"
 
     @staticmethod
     def _binding_keys(subject_ref: SubjectRef) -> list[str]:
         keys = [f"{subject_ref.provider}:name:{subject_ref.name.strip().lower()}"]
-        if subject_ref.external_id:
-            keys.insert(0, f"{subject_ref.provider}:{subject_ref.external_id}")
+        if subject_ref.id:
+            keys.insert(0, f"{subject_ref.provider}:{subject_ref.id}")
         return keys
 
     @staticmethod
@@ -262,9 +262,9 @@ class BindingPage(QWidget):
         return label
 
     def _subject_status_text(self, row: _SubjectRow) -> str:
-        if not row.profile_id:
+        if not row.automation_id:
             return "未绑定"
-        auto = profile.get_by_id(row.profile_id)
+        auto = profile.get_automation(row.automation_id)
         if not auto:
             return "绑定已失效"
         return f"绑定: {self._profile_display_name(auto)}"
@@ -340,7 +340,7 @@ class BindingPage(QWidget):
             self._set_card_selection(None)
             return
 
-        current_profile_id = row.profile_id
+        current_profile_id = row.automation_id
         if current_profile_id is None and self.preferred_profile_id is not None:
             current_profile_id = self.preferred_profile_id
         self._set_card_selection(current_profile_id)
@@ -353,10 +353,10 @@ class BindingPage(QWidget):
         if row is None:
             return
 
-        if row.profile_id == profile_id:
+        if row.automation_id == profile_id:
             return
 
-        row.profile_id = profile_id
+        row.automation_id = profile_id
         card = self.subject_cards.get(self.current_subject_key)
         if card:
             card.set_content(row.subject.name, self._subject_status_text(row))
@@ -380,12 +380,8 @@ class BindingPage(QWidget):
         subjects = self.backend.list_subjects()
         for subject in subjects:
             key = self._subject_key(subject)
-            profile_id = profile.get_profile_id_by_subject(
-                provider=subject.provider,
-                external_id=subject.external_id,
-                name=subject.name,
-            )
-            self.subject_rows[key] = _SubjectRow(subject=subject, profile_id=profile_id)
+            automation_id = profile.get_automation_id_by_subject(subject)
+            self.subject_rows[key] = _SubjectRow(subject=subject, automation_id=automation_id)
 
         self._build_subject_cards()
         self._build_profile_cards()
@@ -402,22 +398,18 @@ class BindingPage(QWidget):
 
     def _persist_and_sync(self):
         old_guid_lookup: dict[str, str | None] = {}
-        for binding in profile.list_bindings(provider=self.provider):
+        for binding in profile.list_bindings():
             for key in self._binding_keys(binding.subject):
-                old_guid_lookup[key] = binding.managed_guid
+                old_guid_lookup[key] = binding.id
 
-        profile.clear_bindings(provider=self.provider)
+        profile.clear_bindings()
         for key, row in self.subject_rows.items():
-            if not row.profile_id:
+            if not row.automation_id:
                 continue
             profile.set_binding(
-                subject=SubjectRef(
-                    provider=row.subject.provider,
-                    external_id=row.subject.external_id,
-                    name=row.subject.name,
-                ),
-                profile_id=row.profile_id,
-                managed_guid=old_guid_lookup.get(key),
+                subject=row.subject,
+                automation_id=row.automation_id,
+                id=old_guid_lookup.get(key),
             )
 
         profile.save(PROFILE_PATH)

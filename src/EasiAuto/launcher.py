@@ -201,7 +201,7 @@ class Launcher:
 
     def _resolve_login_credentials(self, args: Namespace) -> tuple[str, str] | None:
         if args.id:
-            auto = profile.get_by_id(args.id)
+            auto = profile.get_automation(args.id)
             if auto is None:
                 logger.error(f"未找到档案 ID: {args.id}")
                 return None
