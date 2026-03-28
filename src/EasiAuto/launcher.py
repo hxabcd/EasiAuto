@@ -24,7 +24,7 @@ from EasiAuto.common.consts import IPC_SERVER_NAME
 from EasiAuto.common.profile import profile
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
-from EasiAuto.core.manager import automation_manager
+from EasiAuto.core.automator.manager import automation_manager
 from EasiAuto.view.components import (
     DialogResponse,
     PreRunPopup,
