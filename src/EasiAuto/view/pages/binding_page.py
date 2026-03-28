@@ -24,7 +24,6 @@ from qfluentwidgets import (
 from EasiAuto.common.consts import PROFILE_PATH
 from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend
-from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.utils import get_main_container
 
 
@@ -364,20 +363,14 @@ class BindingPage(QWidget):
         self._set_card_selection(profile_id)
         self._persist_and_sync()
 
-    def reload(self, force_ci_reload: bool = False):
+    def reload(self, reload: bool = False):
         previous_subject_key = self.current_subject_key
-
-        if force_ci_reload and ci_manager:
-            try:
-                ci_manager.reload_config()
-            except Exception as e:
-                logger.warning(f"刷新 ClassIsland 配置失败: {e}")
 
         logger.debug("刷新关联页数据")
         self.subject_rows.clear()
         self.current_subject_key = None
 
-        subjects = self.backend.list_subjects()
+        subjects = self.backend.list_subjects(reload=reload)
         for subject in subjects:
             key = self._subject_key(subject)
             automation_id = profile.get_automation_id_by_subject(subject)
@@ -394,7 +387,7 @@ class BindingPage(QWidget):
 
     def open_with_profile(self, profile_id: str):
         self.preferred_profile_id = profile_id
-        self.reload(force_ci_reload=True)
+        self.reload(reload=True)
 
     def _persist_and_sync(self):
         old_guid_lookup: dict[str, str | None] = {}

@@ -1,7 +1,6 @@
 import json
-import re
+import shlex
 import subprocess
-import uuid
 from pathlib import Path
 from typing import cast
 
@@ -10,366 +9,121 @@ import win32api
 import win32con
 import win32event
 from loguru import logger
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.common.config import config
 from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
-from EasiAuto.common.profile import profile
 from EasiAuto.common.utils import kill_process
 
 
 class CiSubject(BaseModel):
     id: str
     name: str
-    initial: str | None = None
-    teacher_name: str | None = None
-    is_out_door: bool | None = None
 
 
-class EasiAutomation(BaseModel):
-    account: str
-    password: str
-    subject_id: str
-    pretime: int = config.ClassIsland.DefaultPreTime
-    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    display_name: str = config.ClassIsland.DefaultDisplayName
-    teacher_name: str | None = None
-    enabled: bool = True
+class ManagedCiAutomation(BaseModel):
+    """受管理的 ClassIsland 自动化"""
 
-    @field_validator("pretime")
-    @classmethod
-    def validate_pretime(cls, v):
-        if v < 0:
-            raise ValueError("提前时间不能为负数")
-        return v
+    model_config = ConfigDict(validate_by_name=True)
 
-    @property
-    def full_display_name(self) -> str:
-        if self.teacher_name:
-            return f"{EA_PREFIX} {self.display_name} - {self.teacher_name}"
-        return f"{EA_PREFIX} {self.display_name}"
+    guid: str = Field(validation_alias=AliasPath("ActionSet", "Guid"))
+    name: str = Field(validation_alias=AliasPath("ActionSet", "Name"))
+    is_enabled: bool = Field(validation_alias=AliasPath("ActionSet", "IsEnabled"))
+    subject_id: str = Field(validation_alias=AliasPath("Ruleset", "Groups", 0, "Rules", 0, "Settings", "SubjectId"))
+    pretime: int = Field(validation_alias=AliasPath("Triggers", 0, "Settings", "TimeSeconds"))
+    args: str = Field(validation_alias=AliasPath("ActionSet", "Actions", 0, "Settings", "Args"))
 
-    @property
-    def item_display_name(self) -> str:
-        if self.teacher_name:
-            return f"{self.display_name} - {self.teacher_name}"
-        return self.display_name
+    def dump(self) -> dict:
+        return self.build_ci_raw(
+            guid=self.guid,
+            name=self.name,
+            is_enabled=self.is_enabled,
+            subject_id=self.subject_id,
+            pretime=self.pretime,
+            args=self.args,
+        )
 
-    @property
-    def shortcut_name(self) -> str:
-        if self.teacher_name:
-            label = self.teacher_name
-        elif classisland_manager is not None and (subject := classisland_manager.subjects.get(self.subject_id)):
-            label = subject.name
-        else:
-            label = self.account
-
-        return f"希沃自动登录（{label}）"
-
-
-class ClassIslandManager(QObject):
-    """ClassIsland 自动化管理器"""
-
-    # 数据变更信号，参数为 GUID
-    automationCreated = Signal(str)
-    automationUpdated = Signal(str)
-    automationDeleted = Signal(str)
-
-    def __init__(self, path: Path | str):
-        super().__init__()
-        self.subjects: dict[str, CiSubject] = {}
-        self.automations: dict[str, EasiAutomation] = {}
-        self.ci_settings: dict = {}
-        self.ci_profile: dict = {}
-        self.ci_automations: list[dict] = []
-
-        self.init_ci(path)
-
-    @property
-    def is_ci_running(self) -> bool:
-        """检查 ClassIsland 是否正在运行"""
-        # 使用 Mutex 检查
-        # Global\ClassIsland.Lock (2.x)
-        # ClassIsland.Lock (1.x)
-        # See also: https://github.com/ClassIsland/ClassIsland/commit/79bbdadace0c056b6c1bb2c5e57ecda5ccfbdecd
-        target = "Global\\ClassIsland.Lock" if self.is_v2 else "ClassIsland.Lock"
-        backup = "ClassIsland.Lock" if self.is_v2 else "Global\\ClassIsland.Lock"
-        for mutex_name in (target, backup):
-            try:
-                handle = win32event.OpenMutex(win32con.SYNCHRONIZE, False, mutex_name)
-                if handle:
-                    win32api.CloseHandle(handle)
-                    return True
-            except pywintypes.error as e:
-                # ERROR_ACCESS_DENIED (5) 也表示 Mutex 存在但权限不足
-                if e.winerror == 5:
-                    return True
-        return False
-
-    def start_ci(self):
-        subprocess.Popen(self.ci_executable_path, cwd=self.ci_executable_path.parent)
-
-    def stop_ci(self):
-        kill_process("ClassIsland.Desktop" if self.is_v2 else "ClassIsland")
-
-    def init_ci(self, exe_path: Path | str):
-        """获取 ClassIsland 版本，定位数据目录并初始化"""
-        exe_path = Path(exe_path)
-
-        info = win32api.GetFileVersionInfo(str(exe_path), "\\")
-        ms, ls = info["FileVersionMS"], info["FileVersionLS"]
-        version = (ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF)
-
-        root = exe_path.parent
-        if version > (1, 7, 100, 0):  # v2
-            self.ci_data_path = root / "data"
-            self.is_v2 = True
-        else:  # v1
-            self.ci_data_path = root
-            self.is_v2 = False
-
-        self.ci_executable_path = exe_path
-
-        self._validate_ci_structure()
-        self.reload_config()
-
-    def _validate_ci_structure(self):
-        """验证 ClassIsland 目录结构"""
-        if not self.ci_data_path.exists():
-            raise FileNotFoundError(f"ClassIsland 数据目录 {self.ci_data_path} 不存在")
-
-        required_paths = [
-            self.ci_data_path / "Settings.json",
-            self.ci_data_path / "Profiles",
-            self.ci_data_path / "Config" / "Automations",
-        ]
-
-        for path in required_paths:
-            if not path.exists():
-                raise FileNotFoundError(f"ClassIsland 数据目录结构不完整: {path} 不存在")
-
-    def reload_config(self):
-        """重新加载所有配置"""
-        self._load_settings()
-        self._load_profile()
-        self._load_automations()
-        self._build_indexes()
-
-    def _load_settings(self):
-        """加载 ClassIsland 设置"""
-        ci_setting_path = self.ci_data_path / "Settings.json"
-        with ci_setting_path.open(encoding="utf-8") as f:
-            self.ci_settings = json.load(f)
-
-    def _load_profile(self):
-        """加载当前档案"""
-        ci_profile_name: str = self.ci_settings.get("SelectedProfile", "Default.json")
-        ci_profile_path = self.ci_data_path / "Profiles" / ci_profile_name
-
-        if not ci_profile_path.exists():
-            raise FileNotFoundError(f"档案 {ci_profile_name} 不存在")
-
-        with ci_profile_path.open(encoding="utf-8") as f:
-            self.ci_profile = json.load(f)
-
-    def _load_automations(self):
-        """加载自动化配置"""
-        ci_automation_name: str = self.ci_settings.get("CurrentAutomationConfig", "Default")
-        ci_automations_path = self.ci_data_path / "Config" / "Automations" / f"{ci_automation_name}.json"
-
-        if not ci_automations_path.exists():
-            raise FileNotFoundError(f"自动化配置 {ci_automation_name} 不存在")
-
-        with ci_automations_path.open(encoding="utf-8") as f:
-            self.ci_automations = json.load(f)
-
-    def _build_indexes(self):
-        """构建科目和自动化的索引"""
-        # 构建科目索引
-        self.subjects.clear()
-        ci_subjects: dict = self.ci_profile.get("Subjects", {})
-        for subject_id, subject_data in ci_subjects.items():
-            self.subjects[subject_id] = CiSubject(
-                id=subject_id,
-                name=subject_data.get("Name", "N/A"),
-                initial=subject_data.get("Initial"),
-                teacher_name=subject_data.get("TeacherName"),
-                is_out_door=subject_data.get("IsOutDoor"),
-            )
-
-        # 构建自动化索引
-        self.automations.clear()
-        for automation in self.ci_automations:
-            try:
-                name: str | None = automation["ActionSet"]["Name"]
-                if name is not None and name.startswith(EA_PREFIX):
-                    easi_auto = self._parse_automation(automation)
-                    if easi_auto:
-                        self.automations[easi_auto.guid] = easi_auto
-            except Exception as e:
-                logger.warning(f"无法读取自动化: {automation}\n错误信息: {e}")
-
-    def _parse_automation(self, automation: dict) -> EasiAutomation | None:
-        """解析 EasiAuto 生成的自动化配置"""
+    def get_arg(self, flag: str) -> str | None:
         try:
-            name: str = automation["ActionSet"]["Name"]
-            args: str = automation["ActionSet"]["Actions"][0]["Settings"]["Args"]
-            subject_id: str = automation["Ruleset"]["Groups"][0]["Rules"][0]["Settings"]["SubjectId"]
-            pretime: int = automation["Triggers"][0]["Settings"]["TimeSeconds"]
-            guid: str = automation["ActionSet"]["Guid"]
-            enabled: bool = automation["ActionSet"]["IsEnabled"]
+            tokens = shlex.split(self.args)
+            if flag in tokens:
+                return tokens[tokens.index(flag) + 1]
+        except (ValueError, IndexError):
+            pass
+        return None
 
-            # 匹配账号密码
-            account_match = re.search(r"(?:-a|--account)\s+(\S+)", args)
-            account = account_match.group(1) if account_match else None
-            password_match = re.search(r"(?:-p|--password)\s+(\S+)", args)
-            password = password_match.group(1) if password_match else None
+    @property
+    def account(self) -> str | None:
+        return self.get_arg("account")
 
-            if not account or not password:
-                profile_id_match = re.search(r'(?:-i|--id)\s+(".*?"|\S+)', args)
-                profile_id = profile_id_match.group(1).strip('"') if profile_id_match else None
-                if profile_id:
-                    profile_automation = profile.get_by_id(profile_id)
-                    if profile_automation:
-                        account = profile_automation.account
-                        password = profile_automation.password
+    @property
+    def password(self) -> str | None:
+        return self.get_arg("password")
 
-            if not all([account, password, subject_id]):
-                return None
+    @property
+    def id(self) -> str | None:
+        return self.get_arg("id")
 
-            # 解析显示名称和教师名称
-            display_name = "自动登录希沃白板"
-            teacher_name = None
-
-            pattern = r"^\[EasiAuto\]\s*(.+?)(?:\s*-\s*(.+))?$"
-            match = re.match(pattern, name)
-            if match:
-                display_name_part, teacher_name_part = match.groups()
-                if display_name_part:
-                    display_name = display_name_part
-                teacher_name = teacher_name_part
-
-            if not account or not password:
-                logger.warning(f"解析自动化 {guid or '未知自动化'} 时缺失关键数据")
-                return None
-
-            return EasiAutomation(
-                account=account,
-                password=password,
-                subject_id=subject_id,
-                pretime=pretime,
-                guid=guid,
-                display_name=display_name,
-                teacher_name=teacher_name,
-                enabled=enabled,
+    @staticmethod
+    def build_ci_raw(
+        guid: str,
+        name: str,
+        is_enabled: bool,
+        subject_id: str | list[str],
+        pretime: int,
+        args: str,
+    ) -> dict:
+        rule_next: list[dict] = []  # 下节课是...
+        rule_pre: list[dict] = []  # 上节课不是...
+        for subject in subject_id if isinstance(subject_id, list) else [subject_id]:
+            if not subject:
+                raise ValueError("Subject ID 不能为空")
+            rule_next.append(
+                {
+                    "IsReversed": False,
+                    "Id": "classisland.lessons.nextSubject",
+                    "Settings": {"SubjectId": subject_id},
+                }
             )
-        except (KeyError, IndexError, AttributeError) as e:
-            logger.warning(f"解析自动化配置时出错: {e}")
-            return None
+            rule_pre.append(
+                {
+                    "IsReversed": True,
+                    "Id": "classisland.lessons.previousSubject",
+                    "Settings": {"SubjectId": subject_id},
+                }
+            )
 
-    def create_automation(self, automation: EasiAutomation) -> bool:
-        """创建新的自动化"""
-        if automation.guid in self.automations:
-            raise ValueError(f"自动化GUID {automation.guid} 已存在")
-        if automation.subject_id not in self.subjects:
-            raise ValueError(f"科目ID {automation.subject_id} 不存在")
-
-        # 创建 ClassIsland 自动化配置
-        ci_automation = self._build_ci_automation(automation)
-        self.ci_automations.append(ci_automation)
-
-        # 保存到文件
-        if self._save_automations():
-            self.automations[automation.guid] = automation
-            self.automationCreated.emit(automation.guid)
-            return True
-        return False
-
-    def update_automation(self, _guid: str, **updates) -> bool:
-        """更新自动化配置
-
-        Args:
-            guid: 自动化GUID
-            **updates: 待更新的字段
-
-        Returns:
-            bool: 更新是否成功
-        """
-        if _guid not in self.automations:
-            raise ValueError(f"自动化GUID {_guid} 不存在")
-        if "subject_id" in updates and updates["subject_id"] not in self.subjects:
-            raise ValueError(f"科目ID {updates['subject_id']} 不存在")
-
-        original_automation = self.automations[_guid]
-        update_data = original_automation.model_dump()
-        update_data.update(updates)
-        updated_automation = EasiAutomation(**update_data)
-
-        # 替换更新后的自动化并保存
-        self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != _guid]
-        new_ci_automation = self._build_ci_automation(updated_automation)
-        self.ci_automations.append(new_ci_automation)
-
-        if self._save_automations():
-            self.automations[_guid] = updated_automation
-            self.automationUpdated.emit(_guid)
-            return True
-        return False
-
-    def delete_automation(self, guid: str) -> bool:
-        """删除自动化"""
-        if guid not in self.automations:
-            raise ValueError(f"自动化GUID {guid} 不存在")
-
-        # 从 ClassIsland 自动化列表中移除
-        self.ci_automations = [auto for auto in self.ci_automations if auto["ActionSet"]["Guid"] != guid]
-
-        # 保存到文件
-        if self._save_automations():
-            del self.automations[guid]
-            self.automationDeleted.emit(guid)
-            return True
-        return False
-
-    def _build_ci_automation(self, automation: EasiAutomation) -> dict:
-        """构建 ClassIsland 自动化配置对象"""
         return {
             "Ruleset": {
-                "Mode": 0,
+                "Mode": 1,  # AND
                 "IsReversed": False,
                 "Groups": [
                     {
-                        "Rules": [
-                            {
-                                "IsReversed": False,
-                                "Id": "classisland.lessons.nextSubject",
-                                "Settings": {"SubjectId": automation.subject_id},
-                            },
-                            {
-                                "IsReversed": True,
-                                "Id": "classisland.lessons.previousSubject",
-                                "Settings": {"SubjectId": automation.subject_id},
-                            },
-                        ],
-                        "Mode": 1,
+                        "Rules": rule_next,
+                        "Mode": 0,  # OR
                         "IsReversed": False,
                         "IsEnabled": True,
-                    }
+                    },
+                    {
+                        "Rules": rule_pre,
+                        "Mode": 0,  # OR
+                        "IsReversed": False,
+                        "IsEnabled": True,
+                    },
                 ],
             },
             "ActionSet": {
-                "IsEnabled": automation.enabled,
-                "Name": automation.full_display_name,
-                "Guid": automation.guid,
+                "IsEnabled": is_enabled,
+                "Name": name,
+                "Guid": guid,
                 "IsOn": False,
                 "Actions": [
                     {
                         "Id": "classisland.os.run",
                         "Settings": {
                             "Value": str(EA_EXECUTABLE),
-                            "Args": f"login -a {automation.account} -p {automation.password}",
+                            "Args": args,
                         },
                     }
                 ],
@@ -378,53 +132,142 @@ class ClassIslandManager(QObject):
             "Triggers": [
                 {
                     "Id": "classisland.lessons.preTimePoint",
-                    "Settings": {"TargetState": 1, "TimeSeconds": automation.pretime},
+                    "Settings": {"TargetState": 1, "TimeSeconds": pretime},
                 }
             ],
             "IsConditionEnabled": True,
         }
 
-    def _save_automations(self) -> bool:
-        """保存自动化配置到文件"""
-        try:
-            ci_automation_name = self.ci_settings["CurrentAutomationConfig"]
-            ci_automations_path = self.ci_data_path / "Config" / "Automations" / f"{ci_automation_name}.json"
 
-            with ci_automations_path.open("w", encoding="utf-8") as f:
-                json.dump(self.ci_automations, f)
-            return True
-        except Exception as e:
-            logger.error(f"保存自动化配置时出错: {e}")
+class ClassIslandManager(QObject):
+    automationChanged = Signal()
+
+    def __init__(self, exe_path: Path | str):
+        super().__init__()
+
+        self.exe_path = Path(exe_path)
+        if not self.exe_path.exists():
+            raise FileNotFoundError(f"ClassIsland 可执行文件不存在: {self.exe_path}")
+
+        self.is_v2 = self._check_is_v2()
+        self.ci_settings: dict = {}
+        self.ci_profile: dict = {}
+        self.ci_automations_raw: list[dict] = []
+
+        self.unmanaged_automations: list[dict] = []
+        self.managed_automations: list[ManagedCiAutomation] = []
+
+        self.reload()
+
+    def _check_is_v2(self) -> bool:
+        try:
+            info = win32api.GetFileVersionInfo(str(self.exe_path), "\\")
+            ms = info["FileVersionMS"]
+            return (ms >> 16) >= 2
+        except Exception:
             return False
 
-    def list_subjects(self) -> list[CiSubject]:
-        """获取所有科目列表"""
-        return list(self.subjects.values())
+    @property
+    def data_dir(self) -> Path:
+        return self.exe_path.parent / "data" if self.is_v2 else self.exe_path.parent
 
-    def list_automations(self) -> list[EasiAutomation]:
-        """获取所有自动化列表"""
-        return list(self.automations.values())
+    @property
+    def settings_path(self) -> Path:
+        return self.data_dir / "Settings.json"
+
+    @property
+    def current_profile_path(self) -> Path:
+        name = self.ci_settings.get("SelectedProfile", "Default.json")
+        return self.data_dir / "Profiles" / name
+
+    @property
+    def current_automation_path(self) -> Path:
+        name = self.ci_settings.get("CurrentAutomationConfig", "Default")
+        return self.data_dir / "Config" / "Automations" / f"{name}.json"
+
+    def reload(self):
+        """重新加载所有配置"""
+        try:
+            self.ci_settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            self.ci_profile = json.loads(self.current_profile_path.read_text(encoding="utf-8"))
+            self.ci_automations_raw = json.loads(self.current_automation_path.read_text(encoding="utf-8"))
+
+            self._resolve_automations()
+        except Exception as e:
+            raise RuntimeError("加载 ClassIsland 配置时出错") from e
+
+    def _resolve_automations(self) -> None:
+        """将原始自动化按照受管理状态分离"""
+        self.unmanaged_automations = []
+        self.managed_automations = []
+        for raw in self.ci_automations_raw:
+            try:
+                if raw.get("ActionSet", {}).get("Name", "").startswith(EA_PREFIX):
+                    self.managed_automations.append(ManagedCiAutomation(**raw))
+                else:
+                    self.unmanaged_automations.append(raw)
+            except Exception as e:
+                logger.warning(f"解析 ClassIsland 自动化时出错: {e}")
+                self.unmanaged_automations.append(raw)
+
+    def get_automations(self) -> list[ManagedCiAutomation]:
+        return self.managed_automations
+
+    def save_automations(self, automations: list[ManagedCiAutomation]) -> bool:
+        """保存自动化至 ClassIsland"""
+
+        try:
+            output = self.unmanaged_automations
+            for auto in automations:
+                output.append(auto.dump())
+
+            content = json.dumps(output)
+            self.current_automation_path.write_text(content, encoding="utf-8")
+
+            self.reload()
+            return True
+        except Exception as e:
+            logger.error(f"保存自动化至 ClassIsland 时出错: {e}")
+            return False
+
+    def get_subjects(self) -> list[CiSubject]:
+        subjects = self.ci_profile.get("Subjects", {})
+        return [CiSubject(id=k, name=v.get("Name", "Unknown")) for k, v in subjects.items()]
+
+    @property
+    def is_running(self) -> bool:
+        """使用互斥锁检查 ClassIsland 的运行状态"""
+        mutex = "Global\\ClassIsland.Lock" if self.is_v2 else "ClassIsland.Lock"
+        try:
+            h = win32event.OpenMutex(win32con.SYNCHRONIZE, False, mutex)
+            if h:
+                win32api.CloseHandle(h)
+                return True
+        except pywintypes.error:
+            pass
+        return False
+
+    def start_ci(self):
+        subprocess.Popen(self.exe_path, cwd=self.exe_path.parent)
+
+    def stop_ci(self):
+        kill_process("ClassIsland.Desktop" if self.is_v2 else "ClassIsland")
 
 
 class _ClassIslandManagerProxy:
+    """ClassIslandManager 代理，以便动态初始化单例"""
+
     def __init__(self):
-        self.__dict__["_impl"] = None
+        self._impl = None
 
     def initialize(self, path: Path):
         self._impl = ClassIslandManager(path)
 
     def __getattr__(self, item):
-        if self._impl:
-            return getattr(self._impl, item)
-        raise AttributeError(f"Manager not initialized, cannot access {item}")
-
-    def __setattr__(self, key, value):
-        if key == "_impl":
-            self.__dict__[key] = value
-        setattr(self._impl, key, value)
+        return getattr(self._impl, item)
 
     def __bool__(self):
         return self._impl is not None
 
 
-classisland_manager = cast(ClassIslandManager | None, _ClassIslandManagerProxy())
+classisland_manager = cast(ClassIslandManager, _ClassIslandManagerProxy())

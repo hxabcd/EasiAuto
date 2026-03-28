@@ -133,7 +133,7 @@ class StatusBar(QWidget):
     def update_status(self, status: CIStatus | None = None):
         if status is None:
             if ci_manager:
-                status = CIStatus.RUNNING if ci_manager.is_ci_running else CIStatus.DIED
+                status = CIStatus.RUNNING if ci_manager.is_running else CIStatus.DIED
             else:
                 status = CIStatus.UNINITIALIZED
 
@@ -161,7 +161,7 @@ class StatusBar(QWidget):
     def handle_action_button_clicked(self):
         if not ci_manager:
             return
-        if ci_manager.is_ci_running:
+        if ci_manager.is_running:
             logger.info("终止 ClassIsland")
             ci_manager.stop_ci()
         else:
@@ -383,7 +383,7 @@ class AutomationPage(QWidget):
 
         self.binding_page.bindingsChanged.connect(self.bindingsChanged)
         self.binding_page.editClicked.connect(self.editClicked)
-        self.status_bar.reloadClicked.connect(lambda: self.binding_page.reload(force_ci_reload=True))
+        self.status_bar.reloadClicked.connect(lambda: self.binding_page.reload(reload=True))
 
         self.main_widget.addWidget(self.path_select_page)
         self.main_widget.addWidget(self.overlay_page)
@@ -404,7 +404,7 @@ class AutomationPage(QWidget):
             logger.debug("管理器未初始化, 跳过状态监听")
             return
 
-        if hasattr(ci_manager, "watcher"):
+        if hasattr(self, "watcher"):
             logger.debug("状态监听已启动")
             return
 
@@ -420,7 +420,7 @@ class AutomationPage(QWidget):
         target_page: QWidget
         if ci_manager is None:
             target_page = self.path_select_page
-        elif ci_manager.is_ci_running:
+        elif ci_manager.is_running:
             target_page = self.overlay_page
         else:
             target_page = self.binding_page
