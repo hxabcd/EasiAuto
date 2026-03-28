@@ -27,7 +27,7 @@ from EasiAuto.common.consts import IS_FULL
 from EasiAuto.common.utils import get_resource
 
 
-class AboutPage(SmoothScrollArea):
+class AboutPage(QWidget):
     """设置 - 关于页"""
 
     def __init__(self):
@@ -148,7 +148,8 @@ class AboutPage(SmoothScrollArea):
         )
         description_layout.addWidget(product_text)
         description_layout.addWidget(github_link)
-        description_layout.addWidget(additional_info)  # NOTE: 不知道为什么折叠的时候会抽搐，之后再修吧
+        description_layout.addWidget(additional_info)
+        description_layout.addStretch(1)
         banner_layout.addLayout(description_layout)
 
         banner_container_layout.addLayout(banner_layout)
