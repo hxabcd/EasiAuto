@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from loguru import logger
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QScroller, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QScroller, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
     AvatarWidget,
@@ -31,6 +31,7 @@ from EasiAuto.view.utils import get_main_container
 class _SubjectRow:
     subject: SubjectRef
     automation_id: str | None
+    original_index: int
 
 
 class SubjectCard(CardWidget):
@@ -177,6 +178,7 @@ class BindingPage(QWidget):
         self.backend = ClassIslandBindingBackend()
         self.subject_rows: dict[str, _SubjectRow] = {}
         self.subject_cards: dict[str, SubjectCard] = {}
+        self.subject_divider: QWidget | None = None
         self.profile_cards: dict[str | None, ProfileCard | UnboundCard] = {}
         self.current_subject_key: str | None = None
         self.preferred_profile_id: str | None = None
@@ -199,7 +201,23 @@ class BindingPage(QWidget):
         left_layout = QVBoxLayout(self.left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
-        left_layout.addWidget(SubtitleLabel("科目"))
+
+        subject_header = QWidget()
+        subject_header_layout = QHBoxLayout(subject_header)
+        subject_header_layout.setContentsMargins(8, 0, 8, 0)
+        subject_header_layout.setSpacing(6)
+        subject_header_layout.addWidget(SubtitleLabel("科目"))
+        subject_header_layout.addStretch(1)
+
+        self.subject_action_bar = CommandBar()
+        self.subject_action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.action_clear_bindings = Action(
+            FluentIcon.CANCEL_MEDIUM, "清空绑定", triggered=self._on_clear_bindings_clicked
+        )
+        self.subject_action_bar.addAction(self.action_clear_bindings)
+        subject_header_layout.addWidget(self.subject_action_bar, alignment=Qt.AlignmentFlag.AlignRight)
+
+        left_layout.addWidget(subject_header)
 
         self.subject_scroll = SmoothScrollArea()
         self.subject_scroll.setWidgetResizable(True)
@@ -209,15 +227,16 @@ class BindingPage(QWidget):
 
         self.subject_container = QWidget()
         self.subject_grid = QGridLayout(self.subject_container)
-        self.subject_grid.setContentsMargins(0, 0, 0, 0)
+        self.subject_grid.setContentsMargins(0, 0, 16, 0)
         self.subject_grid.setHorizontalSpacing(8)
         self.subject_grid.setVerticalSpacing(8)
+        self.subject_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.subject_scroll.setWidget(self.subject_container)
         left_layout.addWidget(self.subject_scroll, 1)
 
         self.right_panel = QWidget()
         right_layout = QVBoxLayout(self.right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(8, 0, 8, 0)
         right_layout.setSpacing(8)
         right_layout.addWidget(SubtitleLabel("档案"))
 
@@ -266,7 +285,7 @@ class BindingPage(QWidget):
         auto = profile.get_automation(row.automation_id)
         if not auto:
             return "绑定已失效"
-        return f"绑定: {self._profile_display_name(auto)}"
+        return f"绑定到：{self._profile_display_name(auto)}"
 
     def _clear_subject_grid(self):
         while self.subject_grid.count():
@@ -283,17 +302,90 @@ class BindingPage(QWidget):
                 widget.deleteLater()
 
     def _build_subject_cards(self):
-        self._clear_subject_grid()
-        self.subject_cards.clear()
+        # 复用卡片，仅重排位置，减少销毁/重建造成的抽搐
+        self.subject_container.setUpdatesEnabled(False)
+        try:
+            ordered_rows = self._ordered_subject_rows()
+            bound_rows = [(key, row) for key, row in ordered_rows if row.automation_id is not None]
+            unbound_rows = [(key, row) for key, row in ordered_rows if row.automation_id is None]
 
-        for i, (key, row) in enumerate(self.subject_rows.items()):
-            card = SubjectCard(key)
-            card.set_content(row.subject.name, self._subject_status_text(row))
-            card.subjectClicked.connect(self._on_subject_selected)
-            self.subject_cards[key] = card
-            self.subject_grid.addWidget(card, i // 2, i % 2)
+            # 删除已不存在的科目卡片
+            removed_keys = [key for key in self.subject_cards if key not in self.subject_rows]
+            for key in removed_keys:
+                card = self.subject_cards.pop(key)
+                card.deleteLater()
 
-        self.subject_grid.setRowStretch((len(self.subject_rows) + 1) // 2, 1)
+            # 创建缺失卡片并更新内容
+            for key, row in ordered_rows:
+                card = self.subject_cards.get(key)
+                if card is None:
+                    card = SubjectCard(key, self.subject_container)
+                    card.subjectClicked.connect(self._on_subject_selected)
+                    self.subject_cards[key] = card
+                card.set_content(row.subject.name, self._subject_status_text(row))
+
+            # 清空布局位置，但不销毁复用控件
+            while self.subject_grid.count():
+                item = self.subject_grid.takeAt(0)
+                widget = item.widget()
+                if widget:
+                    widget.hide()
+
+            if self.subject_divider is None:
+                self.subject_divider = self._build_subject_divider()
+
+            current_grid_row = 0
+            for i, (key, row) in enumerate(bound_rows):
+                card = self.subject_cards[key]
+                self.subject_grid.addWidget(card, current_grid_row + i // 2, i % 2)
+                card.show()
+
+            if bound_rows:
+                current_grid_row += (len(bound_rows) + 1) // 2
+
+            if bound_rows and unbound_rows:
+                self.subject_divider.show()
+                self.subject_grid.addWidget(self.subject_divider, current_grid_row, 0, 1, 2)
+            else:
+                self.subject_divider.hide()
+
+            if bound_rows and unbound_rows:
+                current_grid_row += 1
+
+            for i, (key, row) in enumerate(unbound_rows):
+                card = self.subject_cards[key]
+                self.subject_grid.addWidget(card, current_grid_row + i // 2, i % 2)
+                card.show()
+
+            if unbound_rows:
+                current_grid_row += (len(unbound_rows) + 1) // 2
+        finally:
+            self.subject_container.setUpdatesEnabled(True)
+            self.subject_container.update()
+
+    def _build_subject_divider(self) -> QWidget:
+        divider = QWidget(self.subject_container)
+        layout = QHBoxLayout(divider)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(8)
+
+        left_line = QFrame()
+        left_line.setFrameShape(QFrame.Shape.HLine)
+        left_line.setFrameShadow(QFrame.Shadow.Plain)
+        left_line.setStyleSheet("color: rgba(120, 120, 120, 80);")
+
+        right_line = QFrame()
+        right_line.setFrameShape(QFrame.Shape.HLine)
+        right_line.setFrameShadow(QFrame.Shadow.Plain)
+        right_line.setStyleSheet("color: rgba(120, 120, 120, 80);")
+
+        label = BodyLabel("未绑定")
+        label.setStyleSheet("color: rgba(120, 120, 120, 180);")
+
+        layout.addWidget(left_line, 1)
+        layout.addWidget(label)
+        layout.addWidget(right_line, 1)
+        return divider
 
     def _build_profile_cards(self):
         self._clear_profile_cards()
@@ -356,11 +448,40 @@ class BindingPage(QWidget):
             return
 
         row.automation_id = profile_id
-        card = self.subject_cards.get(self.current_subject_key)
-        if card:
-            card.set_content(row.subject.name, self._subject_status_text(row))
+
+        current_subject_key = self.current_subject_key
+        self._build_subject_cards()
+        if current_subject_key:
+            self._on_subject_selected(current_subject_key)
 
         self._set_card_selection(profile_id)
+        self._persist_and_sync()
+
+    def _ordered_subject_rows(self) -> list[tuple[str, _SubjectRow]]:
+        return sorted(
+            self.subject_rows.items(),
+            key=lambda item: (
+                item[1].automation_id is None,
+                item[1].original_index,
+            ),
+        )
+
+    def _on_clear_bindings_clicked(self):
+        changed = False
+        for row in self.subject_rows.values():
+            if row.automation_id is not None:
+                row.automation_id = None
+                changed = True
+
+        if not changed:
+            return
+
+        current_subject_key = self.current_subject_key
+        self._build_subject_cards()
+        if current_subject_key:
+            self._on_subject_selected(current_subject_key)
+
+        self._set_card_selection(None)
         self._persist_and_sync()
 
     def reload(self, reload: bool = False):
@@ -371,18 +492,21 @@ class BindingPage(QWidget):
         self.current_subject_key = None
 
         subjects = self.backend.list_subjects(reload=reload)
-        for subject in subjects:
+        for i, subject in enumerate(subjects):
             key = self._subject_key(subject)
             automation_id = profile.get_automation_id_by_subject(subject)
-            self.subject_rows[key] = _SubjectRow(subject=subject, automation_id=automation_id)
+            self.subject_rows[key] = _SubjectRow(
+                subject=subject,
+                automation_id=automation_id,
+                original_index=i,
+            )
 
         self._build_subject_cards()
         self._build_profile_cards()
 
         if self.subject_rows:
-            target_key = (
-                previous_subject_key if previous_subject_key in self.subject_rows else next(iter(self.subject_rows))
-            )
+            ordered_rows = self._ordered_subject_rows()
+            target_key = previous_subject_key if previous_subject_key in self.subject_rows else ordered_rows[0][0]
             self._on_subject_selected(target_key)
 
     def open_with_profile(self, profile_id: str):
@@ -396,7 +520,7 @@ class BindingPage(QWidget):
                 old_guid_lookup[key] = binding.id
 
         profile.clear_bindings()
-        for key, row in self.subject_rows.items():
+        for key, row in self._ordered_subject_rows():
             if not row.automation_id:
                 continue
             profile.set_binding(
