@@ -26,7 +26,7 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.profile import EasiAutomation, profile
+from EasiAuto.common.profile import EasiAutomation, ProfileChangeReason, profile
 from EasiAuto.common.utils import create_shortcut
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
@@ -75,7 +75,7 @@ class AdvancedOptionsDialog(MessageBoxBase):
 
     def _on_encryption_changed(self, checked: bool):
         profile.encryption_enabled = checked
-        profile.save()
+        profile.save(reason=ProfileChangeReason.ENCRYPTION_CHANGED)
 
 
 class ProfileStatusBar(QWidget):
@@ -108,6 +108,7 @@ class ProfileCard(CardWidget):
     actionRun = Signal(str)  # automation_id
     actionExport = Signal(str)  # automation_id
     actionRemove = Signal(QListWidgetItem)
+    enabledChanged = Signal(str, bool)  # automation_id, enabled
 
     def __init__(self, item: QListWidgetItem, automation_id: str | None = None):
         super().__init__()
@@ -126,17 +127,19 @@ class ProfileCard(CardWidget):
 
         self.avatar_label = AvatarWidget()
         self.avatar_label.setRadius(32)
-        if self.automation and (img := self.automation.avatar):
-            self.avatar_label.setImage(img)
+        if self.automation:
+            if img := self.automation.avatar:
+                self.avatar_label.setImage(img)
+            elif name := self.automation.display_name:
+                self.avatar_label.setText(name[0].upper())
         else:
-            self.avatar_label.setText(self.automation.display_name or "?")
+            self.avatar_label.setText("?")
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(0)
 
         self.name_label = SubtitleLabel(self.automation.display_name or "未命名自动化")
-
         self.detail_label = BodyLabel(self.automation.detail_name)
         self.detail_label.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
 
@@ -245,9 +248,8 @@ class ProfileCard(CardWidget):
         self.enabled_switch.setChecked(automation.enabled)
 
     def _on_enabled_changed(self, enabled: bool):
-        if self.automation:
-            self.automation.enabled = enabled
-            profile.save()
+        if self._automation_id:
+            self.enabledChanged.emit(self._automation_id, enabled)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -341,16 +343,14 @@ class ProfileManagePage(QWidget):
         layout.addLayout(main_layout, 1)
 
         self._init_selector()
-
-    def _persist_profile(self):
-        profile.save()
+        profile.notifier.changed.connect(self._on_profile_model_changed)
 
     def _sync_bindings(self):
         if not ci_manager:
             return
 
         ok = self.binding_backend.sync(profile)
-        profile.save()
+        profile.save(reason=ProfileChangeReason.BINDINGS_CHANGED)
 
         if not ok:
             errors = self.binding_backend.last_errors
@@ -383,6 +383,7 @@ class ProfileManagePage(QWidget):
         item_widget.actionRun.connect(self._handle_action_run)
         item_widget.actionExport.connect(self._handle_action_export)
         item_widget.actionRemove.connect(self._handle_action_remove)
+        item_widget.enabledChanged.connect(self._handle_action_enabled_changed)
 
         self.auto_list.setItemWidget(item, item_widget)
         item.setSizeHint(item_widget.sizeHint())
@@ -443,12 +444,11 @@ class ProfileManagePage(QWidget):
         self.current_automation.account_name = self.account_name_edit.text().strip() or None
 
         profile.upsert_automation(self.current_automation)
-        self._persist_profile()
+        profile.save(reason=ProfileChangeReason.AUTOMATION_SAVED)
 
     def _handle_save_automation(self):
         try:
             self._save_form()
-            self._sync_bindings()
         except ValueError as e:
             InfoBar.error(
                 title="保存失败",
@@ -506,6 +506,7 @@ class ProfileManagePage(QWidget):
     def _handle_action_run(self, automation_id: str) -> None:
         if not (automation := profile.get_automation(automation_id)):
             logger.error(f"无法找到自动化: {automation_id}")
+            return
 
         self.runAutomation.emit(automation.account, automation.password)
         logger.info(f"信号已发送: 运行自动化 {automation.id}")
@@ -513,6 +514,7 @@ class ProfileManagePage(QWidget):
     def _handle_action_export(self, automation_id: str) -> None:
         if not (automation := profile.get_automation(automation_id)):
             logger.error(f"无法找到自动化: {automation_id}")
+            return
 
         create_shortcut(
             args=f'login --id "{automation.id}" --manual',
@@ -520,11 +522,21 @@ class ProfileManagePage(QWidget):
             show_result_to=get_main_container(),
         )
 
+    def _handle_action_enabled_changed(self, automation_id: str, enabled: bool) -> None:
+        if not (automation := profile.get_automation(automation_id)):
+            logger.error(f"无法找到自动化: {automation_id}")
+            return
+
+        if automation.enabled == enabled:
+            return
+
+        automation.enabled = enabled
+        profile.save(reason=ProfileChangeReason.AUTOMATION_SAVED)
+
     def _handle_action_remove(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
         if profile.delete_automation(automation.id):
-            self._persist_profile()
-            self._sync_bindings()
+            profile.save(reason=ProfileChangeReason.AUTOMATION_DELETED)
             if self.current_list_item == item:
                 self.current_list_item = None
                 self.current_automation = None
@@ -571,6 +583,13 @@ class ProfileManagePage(QWidget):
             if not isinstance(item_widget, ProfileCard) or automation is None:
                 continue
             item_widget.update_display(automation)
+
+    def _on_profile_model_changed(self, reason: ProfileChangeReason):
+        if reason in {ProfileChangeReason.AUTOMATION_SAVED, ProfileChangeReason.AUTOMATION_DELETED}:
+            self._sync_bindings()
+            return
+        if reason == ProfileChangeReason.BINDINGS_CHANGED:
+            self.refresh_binding_display()
 
 
 class ProfilePage(QWidget):

@@ -139,11 +139,12 @@ class ManagedCiAutomation(BaseModel):
         }
 
 
-class ClassIslandManager(QObject):
-    automationChanged = Signal()
+class ClassIslandNotifier(QObject):
+    changed = Signal()
 
+
+class ClassIslandManager:
     def __init__(self, exe_path: Path | str):
-        super().__init__()
 
         self.exe_path = Path(exe_path)
         if not self.exe_path.exists():
@@ -156,6 +157,7 @@ class ClassIslandManager(QObject):
 
         self.unmanaged_automations: list[dict] = []
         self.managed_automations: list[ManagedCiAutomation] = []
+        self.notifier = ClassIslandNotifier()
 
         self.reload()
 
@@ -185,14 +187,23 @@ class ClassIslandManager(QObject):
         name = self.ci_settings.get("CurrentAutomationConfig", "Default")
         return self.data_dir / "Config" / "Automations" / f"{name}.json"
 
-    def reload(self):
+    @staticmethod
+    def _signature(raw: list[dict]) -> str:
+        return json.dumps(raw, ensure_ascii=False, sort_keys=True)
+
+    def reload(self, emit_if_changed: bool = True):
         """重新加载所有配置"""
         try:
+            previous_signature = self._signature(self.ci_automations_raw)
             self.ci_settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
             self.ci_profile = json.loads(self.current_profile_path.read_text(encoding="utf-8"))
             self.ci_automations_raw = json.loads(self.current_automation_path.read_text(encoding="utf-8"))
 
             self._resolve_automations()
+            if emit_if_changed:
+                current_signature = self._signature(self.ci_automations_raw)
+                if previous_signature != current_signature:
+                    self.notifier.changed.emit()
         except Exception as e:
             raise RuntimeError("加载 ClassIsland 配置时出错") from e
 
@@ -224,7 +235,8 @@ class ClassIslandManager(QObject):
             content = json.dumps(output)
             self.current_automation_path.write_text(content, encoding="utf-8")
 
-            self.reload()
+            self.reload(emit_if_changed=False)
+            self.notifier.changed.emit()
             return True
         except Exception as e:
             logger.error(f"保存自动化至 ClassIsland 时出错: {e}")

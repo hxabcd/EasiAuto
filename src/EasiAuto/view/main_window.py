@@ -68,11 +68,7 @@ class MainWindow(MSFluentWindow):
         self.profile_page.runAutomation.connect(self.runAutomation)
 
         # 数据同步
-        self.profile_page.profileChanged.connect(self._on_profile_changed)
         self.automation_page.editClicked.connect(self._on_edit_automation)
-
-    def _on_profile_changed(self):
-        self.automation_page.binding_page.reload()
 
     def _on_edit_automation(self, automation_id: str):
         self.profile_page.manager_page.scroll_to_automation(automation_id)

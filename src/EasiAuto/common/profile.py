@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -9,12 +10,27 @@ from cryptography.fernet import InvalidToken
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
+from PySide6.QtCore import QObject, Signal
+
 from EasiAuto.common.config import config
 from EasiAuto.common.consts import EA_PREFIX, PROFILE_PATH
 from EasiAuto.common.secret_store import get_profile_cipher
 
 _PROFILE_SCHEMA_VERSION = 2
 _PASSWORD_TOKEN_PREFIX = f"ea{_PROFILE_SCHEMA_VERSION}$"
+
+
+class ProfileChangeReason(str, Enum):
+    PROFILE_CHANGED = "profile_changed"
+    AUTOMATION_SAVED = "automation_saved"
+    AUTOMATION_DELETED = "automation_deleted"
+    BINDINGS_LOCAL_UPDATED = "bindings_local_updated"
+    BINDINGS_CHANGED = "bindings_changed"
+    ENCRYPTION_CHANGED = "encryption_changed"
+
+
+class ProfileNotifier(QObject):
+    changed = Signal(object)
 
 
 def encrypt_password(plaintext: str) -> str:
@@ -96,11 +112,14 @@ class BindingItem(BaseModel):
 
 
 class Profile(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     schema_version: int = Field(default=_PROFILE_SCHEMA_VERSION)
     encryption_enabled: bool = Field(default=True, description="是否启用档案密码加密")
 
     automations: list[EasiAutomation] = Field(default_factory=list)
     bindings: list[BindingItem] = Field(default_factory=list)
+    notifier: ProfileNotifier = Field(default_factory=ProfileNotifier, exclude=True)
 
     # 存储
 
@@ -136,7 +155,7 @@ class Profile(BaseModel):
             logger.warning(f"清理了 {removed} 条无效关联")
         return removed
 
-    def save(self) -> None:
+    def save(self, reason: ProfileChangeReason = ProfileChangeReason.PROFILE_CHANGED) -> None:
         path = PROFILE_PATH
 
         try:
@@ -147,6 +166,7 @@ class Profile(BaseModel):
                 json.dumps(payload, ensure_ascii=False, indent=4),
                 encoding="utf-8",
             )
+            self.notifier.changed.emit(reason)
         except Exception as e:
             logger.error(f"保存档案失败: {e}")
 

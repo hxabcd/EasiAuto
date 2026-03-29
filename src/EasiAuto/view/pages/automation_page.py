@@ -33,6 +33,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.common.config import config
+from EasiAuto.common.profile import ProfileChangeReason, profile
 from EasiAuto.common.utils import get_ci_executable
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.components import SettingCard
@@ -366,6 +367,7 @@ class AutomationPage(QWidget):
             logger.warning(f"{'未找到 ClassIsland 路径' if not exe_path else '路径无效'}, 跳过初始化")
 
         self.init_ui()
+        self._init_model_subscriptions()
         self.start_watcher()
 
     def init_ui(self):
@@ -397,7 +399,38 @@ class AutomationPage(QWidget):
         layout.addWidget(HorizontalSeparator())
         layout.addWidget(self.main_widget)
 
-    def start_watcher(self):  # TODO: 使用新版统一接口
+    def _init_model_subscriptions(self):
+        self._reload_debounce = QTimer(self)
+        self._reload_debounce.setSingleShot(True)
+        self._reload_debounce.timeout.connect(self._reload_binding_page)
+        self._ci_signal_connected = False
+
+        profile.notifier.changed.connect(self._on_profile_changed)
+        self._connect_ci_manager_signal()
+
+    def _on_profile_changed(self, reason: ProfileChangeReason):
+        if reason in {
+            ProfileChangeReason.AUTOMATION_SAVED,
+            ProfileChangeReason.AUTOMATION_DELETED,
+            ProfileChangeReason.BINDINGS_CHANGED,
+            ProfileChangeReason.PROFILE_CHANGED,
+        }:
+            self._schedule_binding_reload()
+
+    def _schedule_binding_reload(self):
+        self._reload_debounce.start(120)
+
+    def _reload_binding_page(self):
+        if hasattr(self, "binding_page"):
+            self.binding_page.reload()
+
+    def _connect_ci_manager_signal(self):
+        if self._ci_signal_connected or not ci_manager:
+            return
+        ci_manager.notifier.changed.connect(self._schedule_binding_reload)
+        self._ci_signal_connected = True
+
+    def start_watcher(self):
         """启动 ClassIsland 运行状态监听"""
         if not ci_manager:
             logger.debug("管理器未初始化, 跳过状态监听")
@@ -451,5 +484,6 @@ class AutomationPage(QWidget):
             )
             return
 
+        self._connect_ci_manager_signal()
 
         self.start_watcher()
