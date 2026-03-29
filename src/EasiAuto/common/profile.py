@@ -126,20 +126,22 @@ class Profile(BaseModel):
                 item.password = ""
 
     def cleanup_invalid_bindings(self) -> int:
-        """清理指向不存在档案的关联关系，返回清理数量。"""
+        """清理指向无效自动登录档案的关联"""
         valid_profile_ids = {item.id for item in self.automations}
         before = len(self.bindings)
         self.bindings = [item for item in self.bindings if item.automation_id in valid_profile_ids]
 
-        return before - len(self.bindings)
+        removed = before - len(self.bindings)
+        if removed > 0:
+            logger.warning(f"清理了 {removed} 条无效关联")
+        return removed
 
-    def save(self, file: str | Path) -> None:
-        path = Path(file)
+    def save(self) -> None:
+        path = PROFILE_PATH
+
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            removed = self.cleanup_invalid_bindings()
-            if removed:
-                logger.warning(f"保存前自动清理了 {removed} 条失效关联")
+            self.cleanup_invalid_bindings()
             payload = self._dump_payload()
             path.write_text(
                 json.dumps(payload, ensure_ascii=False, indent=4),
@@ -149,31 +151,29 @@ class Profile(BaseModel):
             logger.error(f"保存档案失败: {e}")
 
     @classmethod
-    def load(cls, file: str | Path) -> Profile:
-        path = Path(file)
+    def load(cls) -> Profile:
+        path = PROFILE_PATH
+
         if not path.exists():
             profile = cls()
-            profile.save(path)
-            logger.info(f"档案文件 {path} 不存在, 自动生成")
+            profile.save()
             return profile
 
         try:
             raw = cls._load_raw_payload(path)
-            if raw.get("schema_version", -1) != _PROFILE_SCHEMA_VERSION:
-                raise RuntimeError("档案版本不兼容")
+            assert raw.get("schema_version", -1) == _PROFILE_SCHEMA_VERSION
 
             loaded = cls(**raw)
             loaded._decrypt_automation_passwords()
-            removed = loaded.cleanup_invalid_bindings()
-            if removed:
-                logger.warning(f"检测到 {removed} 条失效关联, 已自动清理")
-                loaded.save(path)
+            loaded.cleanup_invalid_bindings()
             return loaded
-        except Exception as e:
-            logger.error(f"档案文件解析失败, 按新结构强制重建: {e}")
+        except AssertionError as e:
+            logger.warning(f"档案版本不兼容, 按新结构强制重建: {e}")
             rebuilt = cls()
-            rebuilt.save(path)
+            rebuilt.save()
             return rebuilt
+        except Exception as e:
+            raise RuntimeError(f"档案文件 {path} 解析失败") from e
 
     # 自动登录档案管理
 
@@ -260,4 +260,4 @@ class Profile(BaseModel):
         self.bindings = [item for item in self.bindings if item.automation_id != profile_id]
 
 
-profile = Profile.load(PROFILE_PATH)
+profile = Profile.load()

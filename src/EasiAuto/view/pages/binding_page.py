@@ -21,7 +21,6 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.consts import PROFILE_PATH
 from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend
 from EasiAuto.view.utils import get_main_container
@@ -529,10 +528,10 @@ class BindingPage(QWidget):
                 id=old_guid_lookup.get(key),
             )
 
-        profile.save(PROFILE_PATH)
+        profile.save()
 
         ok = self.backend.sync(profile)
-        profile.save(PROFILE_PATH)
+        profile.save()
 
         if not ok:
             errors = self.backend.last_errors

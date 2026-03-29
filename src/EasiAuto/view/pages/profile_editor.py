@@ -26,7 +26,6 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.consts import PROFILE_PATH
 from EasiAuto.common.profile import EasiAutomation, profile
 from EasiAuto.common.utils import create_shortcut
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend
@@ -76,7 +75,7 @@ class AdvancedOptionsDialog(MessageBoxBase):
 
     def _on_encryption_changed(self, checked: bool):
         profile.encryption_enabled = checked
-        profile.save(PROFILE_PATH)
+        profile.save()
 
 
 class ProfileStatusBar(QWidget):
@@ -248,7 +247,7 @@ class ProfileCard(CardWidget):
     def _on_enabled_changed(self, enabled: bool):
         if self.automation:
             self.automation.enabled = enabled
-            profile.save(PROFILE_PATH)
+            profile.save()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -344,14 +343,14 @@ class ProfileManagePage(QWidget):
         self._init_selector()
 
     def _persist_profile(self):
-        profile.save(PROFILE_PATH)
+        profile.save()
 
     def _sync_bindings(self):
         if not ci_manager:
             return
 
         ok = self.binding_backend.sync(profile)
-        profile.save(PROFILE_PATH)
+        profile.save()
 
         if not ok:
             errors = self.binding_backend.last_errors

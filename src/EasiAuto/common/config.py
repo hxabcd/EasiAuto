@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
-from pathlib import Path
 from typing import Any
 
 import qt_pydantic as qtp
@@ -17,7 +17,6 @@ from pydantic.fields import FieldInfo
 from PySide6.QtGui import QColor
 
 from EasiAuto.common.consts import CONFIG_PATH, IS_DEV, IS_FULL
-from EasiAuto.common.utils import stop
 
 
 @total_ordering
@@ -83,13 +82,23 @@ class DownloadSource(InformativeEnum):
 class ConfigModel(BaseModel):
     """带自动保存能力的配置模型"""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(validate_by_name=True)
 
     _parent: ConfigModel | None = PrivateAttr(default=None)
-    _file: Path | None = PrivateAttr(default=None)
     _initialized: bool = PrivateAttr(default=False)
 
+    @contextmanager
+    def initialize(self, rebind: bool = True):
+        self._initialized = False
+        yield
+        if rebind:
+            self._bind_children()
+        self._initialized = True
+
     def model_post_init(self, __context):
+        super().model_post_init(__context)
+
+        self._bind_children()
         self._initialized = True
 
     def _root(self) -> ConfigModel:
@@ -98,16 +107,17 @@ class ConfigModel(BaseModel):
             root = root._parent
         return root
 
-    def save(self):
-        root = self._root()
-        if root._file is None:
-            logger.warning("配置文件路径为空, 无法保存")
-            return
+    def save(self) -> None:
+        path = CONFIG_PATH
         try:
-            data = root.model_dump(mode="json")
-            root._file.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
+            data = self._root().model_dump(mode="json")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=4),
+                encoding="utf-8",
+            )
         except Exception as e:
-            logger.error(f"保存配置文件库失败: {e}")
+            logger.error(f"保存配置失败: {e}")
 
     def __setattr__(self, name: str, value):
         super().__setattr__(name, value)
@@ -120,11 +130,6 @@ class ConfigModel(BaseModel):
             if isinstance(value, ConfigModel):
                 value._parent = self
                 value._bind_children()
-
-    def attach(self, file: Path):
-        self._file = file
-        self._parent = None
-        self._bind_children()
 
     def set_by_path(self, parts: tuple[str, ...], value: Any):
         target: Any = self
@@ -198,7 +203,7 @@ class TimeoutConfig(ConfigModel):
         description="轮询检测是否启动完成的时间间隔",
     )
     AfterLaunch: float = Field(
-        default=1,
+        default=1.5,
         ge=0,
         le=5,
         title="启动后等待时间",
@@ -428,6 +433,7 @@ class BannerConfig(ConfigModel):
         json_schema_extra={"icon": "Brush"},
     )
 
+
 class StatusOverlayConfig(ConfigModel):
     Enabled: bool = Field(
         default=True,
@@ -562,8 +568,8 @@ class Config(ConfigModel):
     Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
 
-    @classmethod
-    def migrate_config(cls, obj: Any):
+    @staticmethod
+    def migrate_config(obj: Any):
         """对旧配置进行额外的迁移"""
 
         if not isinstance(obj, dict):
@@ -586,8 +592,6 @@ class Config(ConfigModel):
                 if obj["Login"]["Directly"]:
                     del obj["Login"]["Directly"]
                     obj["Login"]["IsIwb"] = False
-                if obj["Login"]["EasiNote"]["ProcessName"] == "EasiNote.exe":
-                    obj["Login"]["EasiNote"]["ProcessName"] = "EasiNote"
                 logger.success("成功从 v1.1.3 前迁移配置")
             # elif last_version <= Version("1.1.4"):
             #     ...
@@ -598,90 +602,74 @@ class Config(ConfigModel):
             return backup_obj
 
     @classmethod
-    def load(cls, file: str | Path) -> Config:
-        path = Path(file)
+    def load(cls) -> Config:
+        path = CONFIG_PATH
 
-        if path.exists():
-            try:
-                with path.open(encoding="utf-8") as f:
-                    raw = json.load(f)
-                data = cls.migrate_config(raw)
-                cfg = cls(**data)
-            except Exception as e:
-                logger.critical(f"配置文件 {file} 解析失败\n错误信息: {e}")
-                stop(1)
-        else:
-            cfg = cls()
-            data = cfg.model_dump(mode="json")
-            path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
-            logger.info(f"配置文件 {file} 不存在, 自动生成")
+        if not path.exists():
+            config = cls()
+            config.save()
+            return config
 
-        cfg.attach(path)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            migrated = cls.migrate_config(data)
+            cfg = cls(**migrated)
+        except Exception as e:
+            raise RuntimeError("配置文件解析失败") from e
 
         return cfg
 
     def reset_all(self):
         """重置所有配置为默认值并保存"""
         logger.info("正在重置配置为默认值")
-        self._initialized = False
 
-        default_instance = Config()
-        for name in Config.model_fields:
-            default_value = getattr(default_instance, name)
-            setattr(self, name, default_value)
-        self._bind_children()
-
-        self._initialized = True
+        with self.initialize():
+            default_instance = Config()
+            for name in Config.model_fields:
+                default_value = getattr(default_instance, name)
+                setattr(self, name, default_value)
         self.save()
-        logger.info("已重置")
+        logger.success("已重置")
 
     def reset_by_path(self, path: str) -> bool:
-        """重置指定路径下的配置为默认值并保存。
+        """重置指定路径下的配置为默认值并保存
 
         参数示例：
         - "Login.Timeout.Terminate"（重置单个字段）
         - "Login.Timeout"（将整个子配置重置为默认实例）
-        返回值：成功返回 True，失败返回 False
+
+        返回重置成功/失败
         """
         logger.info(f"正在重置配置路径: {path}")
-        self._initialized = False
 
-        parts = tuple(p for p in path.split(".") if p)
-        if not parts:
-            logger.warning("重置失败: 路径为空")
-            self._initialized = True
-            return False
+        with self.initialize():
+            parts = tuple(p for p in path.split(".") if p)
+            if not parts:
+                raise ValueError("路径不能为空")
 
-        default_instance = Config()
-        self_parent: Any = self
-        default_parent: Any = default_instance
+            default_instance = Config()
+            self_parent: Any = self
+            default_parent: Any = default_instance
 
-        try:
-            for key in parts[:-1]:
-                if not hasattr(self_parent, key) or not hasattr(default_parent, key):
-                    logger.error(f"重置失败: 无效路径 {path}")
-                    self._initialized = True
-                    return False
-                self_parent = getattr(self_parent, key)
-                default_parent = getattr(default_parent, key)
+            try:
+                for key in parts[:-1]:
+                    if not hasattr(self_parent, key) or not hasattr(default_parent, key):
+                        raise AttributeError(f"无效路径 {path}")
+                    self_parent = getattr(self_parent, key)
+                    default_parent = getattr(default_parent, key)
 
-            final = parts[-1]
-            if not hasattr(default_parent, final):
-                logger.error(f"重置失败: 无效路径 {path}")
-                self._initialized = True
+                final = parts[-1]
+                if not hasattr(default_parent, final):
+                    raise AttributeError(f"无效路径 {path}")
+
+                default_value = getattr(default_parent, final)
+                setattr(self_parent, final, default_value)
+            except Exception as e:
+                logger.error(f"重置路径 {path} 失败: {e}")
                 return False
 
-            default_value = getattr(default_parent, final)
-            setattr(self_parent, final, default_value)
-        except Exception as e:
-            logger.error(f"重置路径 {path} 失败: {e}")
-            self._initialized = True
-            return False
-
-        self._bind_children()
-        self._initialized = True
         self.save()
-        logger.info(f"已重置配置路径: {path}")
+        logger.success(f"已重置配置路径 {path}")
         return True
 
 
@@ -814,4 +802,4 @@ def iter_config_items(
     return result
 
 
-config = Config.load(CONFIG_PATH)
+config = Config.load()
