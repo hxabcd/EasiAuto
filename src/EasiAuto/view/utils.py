@@ -1,10 +1,23 @@
+from enum import Enum
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtWidgets import QApplication, QWidget
-from qfluentwidgets import ExpandGroupSettingCard, SwitchButton, ToolTipFilter
+from qfluentwidgets import ExpandGroupSettingCard, FluentIconBase, SwitchButton, ToolTipFilter
+from qfluentwidgets.common.config import Theme
+
+from EasiAuto.common.utils import get_resource
 
 if TYPE_CHECKING:
     from EasiAuto.view.main_window import MainWindow
+
+
+class Icons(FluentIconBase, Enum):
+    """一些自定义图标"""
+
+    ClassIsland = "ClassIsland.svg"
+
+    def path(self, theme=Theme.AUTO) -> str:
+        return get_resource(f"icons/{self.value}")
 
 
 def set_enable_by(widgets: list[QWidget] | QWidget, switch: SwitchButton, reverse: bool = False):

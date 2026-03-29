@@ -36,7 +36,7 @@ from EasiAuto.common.config import config
 from EasiAuto.common.utils import get_ci_executable
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.components import SettingCard
-from EasiAuto.view.utils import get_main_container, set_enable_by
+from EasiAuto.view.utils import Icons, get_main_container, set_enable_by
 
 from .binding_page import BindingPage
 
@@ -272,8 +272,6 @@ class CiRunningWarnOverlay(QWidget):
     labelE_failed_text = "诶诶，情况好像不太对？！"
     lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
-    # NOTE: 改成浮层挪到右边后，给出的空间显示不下了……有机会再优化
-
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -292,13 +290,14 @@ class CiRunningWarnOverlay(QWidget):
         self.hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.action_button = PrimaryPushButton(icon=FluentIcon.POWER_BUTTON, text="终止 ClassIsland")
         self.action_button.clicked.connect(self.terminate_ci)
+        self.action_button.setMinimumWidth(240)
 
         layout.addLayout(self.icon_container)
         layout.addSpacing(12)
         layout.addWidget(self.hint_label)
         layout.addWidget(self.hint_desc)
         layout.addSpacing(18)
-        layout.addWidget(self.action_button)
+        layout.addWidget(self.action_button, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.set_text()
         with contextlib.suppress(KeyError):
@@ -306,7 +305,7 @@ class CiRunningWarnOverlay(QWidget):
 
     def set_text(self, failed: bool = False):
         if not failed:
-            self.hint_icon.setIcon(FluentIcon.BROOM)
+            self.hint_icon.setIcon(Icons.ClassIsland)
             if config.Debug.EasterEggEnabled:
                 self.hint_label.setText(self.labelE_running_text)
                 self.hint_desc.setText(self.labelE_running_desc)
