@@ -164,7 +164,7 @@ class UpdateContentView(QWidget):
         scroll_layout = QVBoxLayout(container)
         scroll_layout.setSpacing(2)
 
-        for item in config.iter_items(only=["Update"])[0].children:
+        for item in config.load_page("UpdatePage")[0].children:
             scroll_layout.addWidget(SettingCard.from_config(item))
 
         self._attach_settings(scroll_layout)

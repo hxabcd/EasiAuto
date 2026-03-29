@@ -558,6 +558,12 @@ class UpdateConfig(ConfigModel):
 
 
 class Config(ConfigModel):
+    PAGE_INDEX: dict[str, list[str]] = {
+        "SettingsPage": ["Login", "Warning", "Banner", "StatusOverlay", "App"],
+        "AutomationPage": ["ClassIsland"],
+        "UpdatePage": ["Update"],
+    }
+
     Login: LoginConfig = Field(default_factory=LoginConfig, title="登录选项")
     Warning: WarningConfig = Field(default_factory=WarningConfig, title="警告弹窗")
     Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
@@ -671,6 +677,9 @@ class Config(ConfigModel):
         self.save()
         logger.success(f"已重置配置路径 {path}")
         return True
+
+    def load_page(self, page: str) -> list[ConfigItem | ConfigGroup]:
+        return self.iter_items(only=self.PAGE_INDEX[page])
 
 
 @dataclass

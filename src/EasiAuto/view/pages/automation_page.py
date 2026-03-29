@@ -69,9 +69,7 @@ class AdvancedOptionsDialog(MessageBoxBase):
 
     def _init_settings(self):
         """初始化设置项"""
-        config_group = config.iter_items(only=["ClassIsland"])[0]
-
-        for item in config_group.children:
+        for item in config.load_page("AutomationPage")[0].children:
             card = SettingCard.from_config(item, is_item=True, item_margin=False)
             self.vBoxLayout.addWidget(card)
             if isinstance(card.widget, LineEdit):

@@ -69,7 +69,7 @@ class ConfigPage(QWidget):
         self.content_layout.setSpacing(28)
 
         # 添加设置组
-        for group in config.iter_items(exclude=["ClassIsland", "Update"]):
+        for group in config.load_page("SettingsPage"):
             self._add_config_menu(group)  # type: ignore
         self.apply_attachment()
 
