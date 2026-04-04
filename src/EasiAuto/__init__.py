@@ -1,6 +1,6 @@
 """EasiAuto - 一款自动登录希沃白板的小工具"""
 
-__version__ = "1.1.4"
+__version__ = "1.1.4r1"
 __author__ = "hxabcd"
 
 from .common.consts import IS_DEV, IS_FULL
