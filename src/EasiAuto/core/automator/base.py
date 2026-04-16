@@ -84,7 +84,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         path = Path(path_str).resolve()
         return path if path.exists() else None
 
-    def kill_seewo_processes(self):
+    def kill_processes(self):
         target_list = [config.Login.EasiNote.ProcessName]
         if config.Login.KillAgent:
             target_list.append("EasiAgent")
@@ -172,7 +172,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             raise LoginCancelled("希沃白板目录不存在")
 
         self.update_progress("终止希沃进程")
-        self.kill_seewo_processes()
+        self.kill_processes()
         self.check_interruption()
 
         self.update_progress("启动希沃白板")
@@ -200,6 +200,14 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def run(self):
         """完整登录流程"""
+
+        # 统计数据
+        time_start = time.monotonic()
+        config.Internal.Statistics.LoginCounts += 1
+        if config.Internal.Statistics.LoginCountsPerAccount.get(self.account) is None:
+            config.Internal.Statistics.LoginCountsPerAccount[self.account] = 0
+        config.Internal.Statistics.LoginCountsPerAccount[self.account] += 1
+
         retries = 0
         while True:
             try:
@@ -215,9 +223,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.update_progress("登录完成")
                 self.update_task("完成")
 
-                return
+                config.Internal.Statistics.LoginSuccessCounts += 1
+                break
             except LoginCancelled:
-                return
+                config.Internal.Statistics.LoginInterruptCounts += 1
+                break
             except Exception as e:
                 retries += 1
 
@@ -228,7 +238,13 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 else:
                     logger.critical(f"{retries}次尝试均登录失败\n{type(e).__name__}: {e}")
                     self.failed.emit(str(e))
-                    return
+                    break
+
+        elapsed = time.monotonic() - time_start
+        logger.info(f"登录流程耗时: {elapsed:.2f}秒")
+        config.Internal.Statistics.TotalLoginTime += elapsed
+        config.Internal.Statistics.MaxLoginTime = max(config.Internal.Statistics.MaxLoginTime, elapsed)
+
 
 class PyAutoGuiBaseAutomator(BaseAutomator):
     def __init__(self, account: str, password: str) -> None:

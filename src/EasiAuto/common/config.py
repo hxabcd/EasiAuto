@@ -4,6 +4,7 @@ import json
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
 from functools import total_ordering
 from typing import Any
@@ -11,12 +12,12 @@ from typing import Any
 import qt_pydantic as qtp
 from loguru import logger
 from packaging.version import Version
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field
 from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
-from EasiAuto.common.consts import CONFIG_PATH, IS_DEV, IS_FULL
+from EasiAuto.common.consts import CONFIG_PATH, IS_FULL
 
 
 @total_ordering
@@ -472,26 +473,6 @@ class AppConfig(ConfigModel):
     )
 
 
-class DebugConfig(ConfigModel):
-    EasterEggEnabled: bool = Field(
-        default=False,
-        title="启用彩蛋",
-        description="唔……似乎某些地方有点不对劲的说喵？",
-        json_schema_extra={"icon": "Question"},
-    )
-    DebugMode: bool = Field(
-        default=False,
-        title="启用开发选项",
-        json_schema_extra={"icon": "DeveloperTools"},
-    )
-    VerboseLog: bool = Field(
-        default=False,
-        title="启用诊断日志",
-        json_schema_extra={"icon": "DeveloperTools"},
-    )
-    AlternateFindWindowMethod: bool = Field(default=False)
-
-
 class ClassIslandConfig(ConfigModel):
     AutoPath: bool = Field(
         default=True,
@@ -562,16 +543,65 @@ PAGE_INDEX: dict[str, list[str]] = {
     "UpdatePage": ["Update"],
 }
 
+class DebugConfig(ConfigModel):
+    EasterEggEnabled: bool = Field(
+        default=False,
+        title="启用彩蛋",
+        description="唔……似乎某些地方有点不对劲的说喵？",
+        json_schema_extra={"icon": "Question"},
+    )
+    DebugMode: bool = Field(
+        default=False,
+        title="启用开发选项",
+        json_schema_extra={"icon": "DeveloperTools"},
+    )
+    VerboseLog: bool = Field(
+        default=False,
+        title="启用诊断日志",
+        json_schema_extra={"icon": "DeveloperTools"},
+    )
+    AlternateFindWindowMethod: bool = Field(default=False)
+
+
+class StatisticsConfig(ConfigModel):
+    # Enabled: bool = Field(default=True)  TODO: 全局开关
+
+    FirstRunDate: datetime = Field(default=datetime.now(UTC))
+
+    LoginCounts: int = Field(default=0)
+    LoginSuccessCounts: int = Field(default=0)
+    LoginInterruptCounts: int = Field(default=0)
+
+    @computed_field
+    @property
+    def LoginFailureCounts(self) -> int:
+        return self.LoginCounts - self.LoginSuccessCounts - self.LoginInterruptCounts
+
+    ThisInstanceLaunchTime: datetime = Field(default=datetime.now(UTC), exclude=True)
+    TotalRunTime: float = Field(default=0)
+    TotalLoginTime: float = Field(default=0)
+    MaxLoginTime: float = Field(default=0)
+
+    LoginCountsPerAccount: dict[str, int] = Field(default_factory=dict)
+
+
+class InternalConfig(ConfigModel):
+    Statistics: StatisticsConfig = Field(default_factory=StatisticsConfig, title="统计数据")
+    AutomationPageNoticeShown: bool = Field(default=False)
+
+
 class Config(ConfigModel):
     Login: LoginConfig = Field(default_factory=LoginConfig, title="登录选项")
     Warning: WarningConfig = Field(default_factory=WarningConfig, title="警告弹窗")
     Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
     StatusOverlay: StatusOverlayConfig = Field(default_factory=StatusOverlayConfig, title="状态浮窗")
     App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
-    Debug: DebugConfig = Field(default_factory=DebugConfig, title="调试选项", json_schema_extra={"hidden": not IS_DEV})
 
     Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
+
+    Debug: DebugConfig = Field(default_factory=DebugConfig, title="调试选项")
+    Internal: InternalConfig = Field(default_factory=InternalConfig, title="内部数据")
 
     @staticmethod
     def migrate_config(obj: Any):

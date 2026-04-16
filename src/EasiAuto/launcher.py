@@ -2,6 +2,7 @@ import sys
 import time
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import assert_never
 
 import windows11toast
@@ -420,6 +421,10 @@ class Launcher:
 
         self._notify_updated(command)
         self._dispatch_command(args)
+
+        config.Internal.Statistics.TotalRunTime += (
+            datetime.now(UTC) - config.Internal.Statistics.ThisInstanceLaunchTime
+        ).total_seconds()
 
 
 def main() -> None:
