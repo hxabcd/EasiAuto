@@ -1,4 +1,5 @@
 import weakref
+from typing import cast
 
 from loguru import logger
 
@@ -29,6 +30,16 @@ from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.utils import get_main_container, set_enable_by
 
+# 从属关系映射: [!]Condition -> Targets
+ENABLE_MAPPING: dict[str, str | list[str]] = {
+    "Login.EasiNote.AutoPath": "Login.EasiNote.Path",
+    "Warning.Enabled": [
+        "Warning.Timeout",
+        "Warning.MaxDelays",
+        "Warning.DelayTime",
+    ],
+    "Banner.Enabled": "Banner.Style",
+}
 
 class ConfigPage(QWidget):
     """设置 - 配置页"""
@@ -123,12 +134,15 @@ class ConfigPage(QWidget):
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
+                    card = cast(SettingCard, card)
                     card.widget.setMinimumWidth(200)
                     if not IS_FULL:  # LITE 版，禁用进程注入登录
-                        fixed_index = card.widget.findData(LoginMethod.INJECT)
+                        fixed_index = card.widget.findData(LoginMethod.INJECT)  # type: ignore
                         if fixed_index != -1:
-                            card.widget.setItemEnabled(fixed_index, False)
+                            card.widget.setItemEnabled(fixed_index, False)  # type: ignore
+
                 case "Login.SkipOnce":
+                    card = cast(SettingCard, card)
                     button_card = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button_card.clicked.connect(
                         lambda: utils.create_shortcut(
@@ -139,54 +153,62 @@ class ConfigPage(QWidget):
                     )
                     card.hBoxLayout.insertWidget(5, button_card)
                     card.hBoxLayout.insertSpacing(6, 12)
+
                 case "Login.EasiNote":
-                    self.add_resetter(card, "Login.EasiNote", "希沃白板选项")  # type: ignore
-                case (
-                    "Login.EasiNote.Path"
-                    | "Login.EasiNote.ProcessName"
-                    | "Login.EasiNote.WindowTitle"
-                    | "Login.EasiNote.Args"
-                    | "Login.EasiNote.ExtraKills"
-                ):
+                    card = cast(ExpandGroupSettingCard, card)
+                    self.add_resetter(card, "Login.EasiNote", "希沃白板选项")
+
+                case n if n in [
+                    f"Login.EasiNote.{field}" for field in ["Path", "ProcessName", "WindowTitle", "Args", "ExtraKills"]
+                ]:
+                    card = cast(SettingCard, card)
                     card.widget.setFixedWidth(300)
+
                 case "Login.Timeout":
-                    self.add_resetter(card, "Login.Timeout", "超时时长")  # type: ignore
+                    card = cast(ExpandGroupSettingCard, card)
+                    self.add_resetter(card, "Login.Timeout", "超时时长")
+
                 case n if n.startswith("Login.Timeout."):
+                    card = cast(SettingCard, card)
                     card.widget.setMinimumWidth(160)
+
                 case "Login.Position":
+                    card = cast(ExpandGroupSettingCard, card)
                     recoard_card = PushSettingCard(
                         icon=FluentIcon.CAMERA, title="录制模式", content="进入录制模式获取坐标", text="不可用"
                     )
                     recoard_card.setEnabled(False)  # TODO: 录制模式
                     card.addGroupWidget(recoard_card)
-                    self.add_resetter(card, "Login.Position", "位置坐标")  # type: ignore
+                    self.add_resetter(card, "Login.Position", "位置坐标")
                 case "Banner.Style":
-                    self.add_resetter(card, "Banner.Style", "横幅样式")  # type: ignore
+                    card = cast(ExpandGroupSettingCard, card)
+                    self.add_resetter(card, "Banner.Style", "横幅样式")
+
                 case "Banner.Style.Text":
+                    card = cast(SettingCard, card)
                     card.widget.setFixedWidth(420)
+
                 case "Banner.Style.TextFont":
+                    card = cast(SettingCard, card)
                     card.widget.setFixedWidth(200)
-                    card.widget.setClearButtonEnabled(True)
+                    card.widget.setClearButtonEnabled(True)  # type: ignore
+
                 case "App.LogLevel":
+                    card = cast(SettingCard, card)
                     card.widget.setMinimumWidth(104)
 
-        # 从属关系
-        set_enable_by(
-            SettingCard.index["Login.EasiNote.Path"],
-            SettingCard.index["Login.EasiNote.AutoPath"].widget,  # type: ignore
-        )
-        set_enable_by(
-            [
-                SettingCard.index["Warning.Timeout"],
-                SettingCard.index["Warning.MaxDelays"],
-                SettingCard.index["Warning.DelayTime"],
-            ],
-            SettingCard.index["Warning.Enabled"].widget,  # type: ignore
-        )
-        set_enable_by(SettingCard.index["Banner.Style"], SettingCard.index["Banner.Enabled"].widget)  # type: ignore
+                case "App.Theme":
+                    card = cast(SettingCard, card)
+                    card.valueChanged.connect(lambda t: setTheme(Theme(t.value)))
 
-        # 值变化事件
-        SettingCard.index["App.Theme"].valueChanged.connect(lambda t: setTheme(Theme(t.value)))
+        # 从属关系
+        for condition, _targets in ENABLE_MAPPING.items():
+            targets = _targets if isinstance(_targets, list) else [_targets]
+            set_enable_by(
+                switch=SettingCard.index[condition.removeprefix("!")].widget,  # type: ignore
+                widgets=[SettingCard.index[t] for t in targets],
+                reverse=condition.startswith("!"),
+            )
 
     def add_resetter(self, parent: ExpandGroupSettingCard, path: str, display_name: str = "设置"):
         reset_card = PushSettingCard(
