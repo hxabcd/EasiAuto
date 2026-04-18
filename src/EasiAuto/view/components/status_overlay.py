@@ -29,10 +29,11 @@ class StatusOverlayBase(QWidget, metaclass=QABCMeta):
         self, task_text: str = "正在运行", progress_text: str = "等待同步状态...", parent: QWidget | None = None
     ):
         super().__init__(parent)
-        self.stop_requested: bool = False
-
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFixedWidth(440)
+
+        self.finished_icon = IconWidget(FluentIcon.COMPLETED.colored(QColor("#ffffff"), QColor("#ffffff")))
+        self.failed_icon = IconWidget(FluentIcon.INFO.colored(QColor("#ffffff"), QColor("#ffffff")))
 
         if parent is None:
             self.setWindowFlags(
@@ -93,14 +94,6 @@ class StatusOverlayBase(QWidget, metaclass=QABCMeta):
     @abstractmethod
     def status_badge_wrapper(self) -> QStackedWidget: ...
 
-    @property
-    @abstractmethod
-    def finished_icon_wrapper(self) -> IconWidget: ...
-
-    @property
-    @abstractmethod
-    def failed_icon_wrapper(self) -> IconWidget: ...
-
     def set_task_text(self, text: str):
         """更新状态文本"""
         self.task_label_wrapper.setText(text)
@@ -113,24 +106,26 @@ class StatusOverlayBase(QWidget, metaclass=QABCMeta):
         self.set_task_text("正在取消登录")
         self.set_progress_text("稍等片刻……")
         self.stop_button_wrapper.setDisabled(True)
-        self.stop_requested = True
 
-    def on_finished(self):
-        """结束时显示的提示"""
-        if not self.stop_requested:
-            self.set_task_text("自动登录成功")
-            self.set_progress_text("登录任务已成功完成")
-        else:
-            self.set_task_text("已取消")
-            self.set_progress_text("登录任务已被取消")
-        self.status_badge_wrapper.setCurrentWidget(self.finished_icon_wrapper)
+    def on_success(self):
+        """成功时显示的提示"""
+        self.set_task_text("自动登录成功")
+        self.set_progress_text("登录任务已成功完成")
+        self.status_badge_wrapper.setCurrentWidget(self.finished_icon)
+        self.stop_button_wrapper.hide()
+
+    def on_interrupted(self):
+        """中断时显示的提示"""
+        self.set_task_text("已取消")
+        self.set_progress_text("登录任务已被取消")
+        self.status_badge_wrapper.setCurrentWidget(self.failed_icon)
         self.stop_button_wrapper.hide()
 
     def on_failed(self):
         """失败时显示的提示"""
         self.task_label_wrapper.setText("自动登录失败")
         self.progress_label_wrapper.setText("检查日志以获取详细信息")
-        self.status_badge_wrapper.setCurrentWidget(self.failed_icon_wrapper)
+        self.status_badge_wrapper.setCurrentWidget(self.failed_icon)
         self.stop_button_wrapper.hide()
 
 
@@ -164,9 +159,6 @@ class StatusOverlay(StatusOverlayBase):
         self.progress_ring = IndeterminateProgressRing(self.status_badge)
         self.progress_ring.setFixedSize(64, 64)
         self.progress_ring.start()
-
-        self.finished_icon = IconWidget(FluentIcon.COMPLETED.colored(QColor("#ffffff"), QColor("#ffffff")))
-        self.failed_icon = IconWidget(FluentIcon.INFO.colored(QColor("#ffffff"), QColor("#ffffff")))
 
         self.status_badge.addWidget(self.progress_ring)
         self.status_badge.addWidget(self.finished_icon)
@@ -249,14 +241,6 @@ class StatusOverlay(StatusOverlayBase):
     def status_badge_wrapper(self) -> QStackedWidget:
         return self.status_badge
 
-    @property
-    def finished_icon_wrapper(self) -> IconWidget:
-        return self.finished_icon
-
-    @property
-    def failed_icon_wrapper(self) -> IconWidget:
-        return self.failed_icon
-
 
 class SmallStatusOverlay(StatusOverlayBase):
     """另一个体积更小的状态浮窗"""
@@ -283,9 +267,6 @@ class SmallStatusOverlay(StatusOverlayBase):
         self.progress_ring = IndeterminateProgressRing(self.status_badge)
         self.progress_ring.setFixedSize(48, 48)
         self.progress_ring.start()
-
-        self.finished_icon = IconWidget(FluentIcon.COMPLETED.colored(QColor("#ffffff"), QColor("#ffffff")))
-        self.failed_icon = IconWidget(FluentIcon.INFO.colored(QColor("#ffffff"), QColor("#ffffff")))
 
         self.status_badge.addWidget(self.progress_ring)
         self.status_badge.addWidget(self.finished_icon)
@@ -334,15 +315,6 @@ class SmallStatusOverlay(StatusOverlayBase):
     @property
     def status_badge_wrapper(self) -> QStackedWidget:
         return self.status_badge
-
-    @property
-    def finished_icon_wrapper(self) -> IconWidget:
-        return self.finished_icon
-
-    @property
-    def failed_icon_wrapper(self) -> IconWidget:
-        return self.failed_icon
-
 
 if __name__ == "__main__":
     from PySide6.QtWidgets import QApplication

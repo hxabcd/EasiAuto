@@ -13,6 +13,7 @@ from loguru import logger
 from PySide6.QtCore import QThread, Signal
 
 from EasiAuto.common.config import config
+from EasiAuto.common.runtime import capture_handled_exception
 from EasiAuto.common.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 
 
@@ -25,6 +26,8 @@ class LoginError(Exception):
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
+    successed = Signal()
+    interrupted = Signal()
     failed = Signal(str)
     task_updated = Signal(str)
     progress_updated = Signal(str)
@@ -85,12 +88,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         return path if path.exists() else None
 
     def kill_processes(self):
-        target_list = [config.Login.EasiNote.ProcessName]
+        target_list: list[str] = [config.Login.EasiNote.ProcessName]
         if config.Login.KillAgent:
             target_list.append("EasiAgent")
         if extra := config.Login.EasiNote.ExtraKills:
             target_list += extra.split(",")
-        logger.debug(f"要终止的目标进程: {target_list}")
+        logger.debug(f"要终止的目标进程: {', '.join(target_list)}")
 
         for target in target_list:
             kill_process(
@@ -168,6 +171,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     def restart_easinote(self):
         """重启希沃进程"""
 
+        # 终止
         if self.easinote_path is None:
             raise LoginCancelled("希沃白板目录不存在")
 
@@ -175,10 +179,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.kill_processes()
         self.check_interruption()
 
+        # 启动
         self.update_progress("启动希沃白板")
         self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)
         self.check_interruption()
 
+        # 等待启动并唤起
         window_title = config.Login.EasiNote.WindowTitle
         timeout = config.Login.Timeout.LaunchPollingTimeout
         interval = config.Login.Timeout.LaunchPollingInterval
@@ -224,9 +230,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.update_task("完成")
 
                 config.Internal.Statistics.LoginSuccessCounts += 1
+                self.successed.emit()
                 break
             except LoginCancelled:
                 config.Internal.Statistics.LoginInterruptCounts += 1
+                self.interrupted.emit()
                 break
             except Exception as e:
                 retries += 1
@@ -237,6 +245,16 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     time.sleep(2)
                 else:
                     logger.critical(f"{retries}次尝试均登录失败\n{type(e).__name__}: {e}")
+                    capture_handled_exception(
+                        e,
+                        source="automator",
+                        extra_context={
+                            "retries": f"{retries}/{config.App.MaxRetries}",
+                            "automator": self.__class__.__name__,
+                            "current_task": self._prev_task,
+                            "current_progress": self._prev_progress,
+                        },
+                    )
                     self.failed.emit(str(e))
                     break
 

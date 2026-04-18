@@ -13,6 +13,7 @@ import win32api
 import win32com.client
 import win32con
 import win32gui
+import win32process
 from loguru import logger
 
 from PySide6.QtCore import QObject, Qt
@@ -224,7 +225,7 @@ def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int |
 
     def callback(hwnd, _):
         nonlocal hwnd_found
-        _, window_pid = win32gui.GetWindowThreadProcessId(hwnd)
+        _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
         if window_pid == pid:
             window_title = win32gui.GetWindowText(hwnd)
             if (target_title == window_title) if strict else (target_title in window_title):
@@ -245,17 +246,26 @@ def kill_process(name: str, force: bool = False, wait: bool = False, timeout: fl
     """
     for process in psutil.process_iter(["name"]):
         if process.info["name"] == f"{name}.exe":
-            if force:
-                process.kill()
-            else:
-                process.terminate()
-            logger.info(f"已向进程 {name} 发送{'强行' if force else ''}终止信号{', 等待中……' if wait else ''}")
-
             try:
-                process.wait(timeout)
-                logger.info(f"成功关闭进程 {name}")
-            except psutil.TimeoutExpired:
-                logger.warning(f"进程 {name} 关闭超时")
+                if force:
+                    process.kill()
+                else:
+                    process.terminate()
+                logger.info(f"已向进程 {name} 发送{'强行' if force else ''}终止信号{', 等待中……' if wait else ''}")
+
+                try:
+                    process.wait(timeout)
+                    logger.info(f"成功关闭进程 {name}")
+                except psutil.TimeoutExpired:
+                    logger.warning(f"进程 {name} 关闭超时")
+            except psutil.NoSuchProcess:
+                logger.warning(f"进程 {name} 已不存在")
+            except psutil.AccessDenied:
+                logger.warning("访问被拒绝, 回退至 taskkill")
+                if force:
+                    os.system(f'taskkill /f /im "{name}.exe" >nul 2>&1')
+                else:
+                    os.system(f'taskkill /im "{name}.exe" >nul 2>&1')
 
 def get_ci_executable() -> Path | None:
     """获取 ClassIsland 可执行文件位置"""
@@ -314,11 +324,6 @@ def restart() -> None:
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 
-def exit(status) -> NoReturn:
-    logger.info(f"程序退出({status})")
-    sys.exit(status)
-
-
 def stop(status: int = 0) -> NoReturn:
     """退出程序"""
     logger.info("退出程序...")
@@ -326,7 +331,8 @@ def stop(status: int = 0) -> NoReturn:
     if app:
         app.quit()
         app.processEvents()
-    exit(status)
+    logger.info(f"程序退出({status})")
+    sys.exit(status)
 
 
 def crash() -> NoReturn:

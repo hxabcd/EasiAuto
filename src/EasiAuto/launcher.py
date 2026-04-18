@@ -19,12 +19,20 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.common import utils
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.consts import IPC_SERVER_NAME
 from EasiAuto.common.profile import profile
 from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
+from EasiAuto.common.utils import (
+    Point,
+    calc_relative_login_window_position,
+    get_resource,
+    get_screen_size,
+    get_screen_size_physical,
+    init_exit_signal_handlers,
+    stop,
+)
 from EasiAuto.core.automator.manager import automation_manager
 from EasiAuto.view.components import (
     DialogResponse,
@@ -40,7 +48,7 @@ UI_COMMANDS = {None, "settings"}
 FORWARDABLE_COMMANDS = {"login", "skip"}
 
 init_exception_handler()
-utils.init_exit_signal_handlers()
+init_exit_signal_handlers()
 
 app = QApplication(sys.argv)
 translator = FluentTranslator()
@@ -65,7 +73,7 @@ class PostLoginUpdateThread(QThread):
                         body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
                         icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                         icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("icons/EasiAuto.ico"),
+                        icon_src=get_resource("icons/EasiAuto.ico"),
                     )
         except UpdateError as e:
             logger.warning(f"检查更新时发生异常, 已跳过: {e}")
@@ -155,7 +163,7 @@ class Launcher:
                 body=f"{error_message}\n检查日志以获取详细信息",
                 icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                 icon_hint_crop=windows11toast.IconCrop.NONE,
-                icon_src=utils.get_resource("icons/EasiAuto.ico"),
+                icon_src=get_resource("icons/EasiAuto.ico"),
             )
 
         self._post_login_overlay_done = self.status_overlay is None
@@ -200,7 +208,7 @@ class Launcher:
         if from_ipc:
             return
         if self._post_login_overlay_done and self._post_login_update_done:
-            utils.stop()
+            stop()
 
     def _on_stop_automation(self) -> None:
         automation_manager.stop()
@@ -227,8 +235,10 @@ class Launcher:
         return None
 
     def _start_login(self, args: Namespace) -> bool:
-        """启动登录任务；若已有任务在运行则拒绝"""
+        """开始登录任务"""
+
         from_ipc = self._ipc_context
+
         if self.login_running:
             logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
             return False
@@ -237,15 +247,17 @@ class Launcher:
             logger.info("已通过配置文件禁用, 正在退出")
             config.Login.SkipOnce = False
             if not from_ipc:
-                utils.stop()
+                stop()
             return False
 
+        # 解析登录凭据
         credentials = self._resolve_login_credentials(args)
         if credentials is None:
             if not from_ipc:
-                utils.stop(1)
+                stop(1)
             return False
 
+        # 显示警告弹窗
         if config.Warning.Enabled and not args.manual:
             try:
                 msgbox = PreRunPopup()
@@ -258,7 +270,7 @@ class Launcher:
                         case DialogResponse.CANCEL:
                             logger.info("用户取消操作, 正在退出")
                             if not from_ipc:
-                                utils.stop()
+                                stop()
                             return False
                         case DialogResponse.CONTINUE:
                             logger.info("用户确认继续, 继续执行")
@@ -276,35 +288,48 @@ class Launcher:
             except Exception:
                 logger.error("显示警告弹窗时出错, 跳过警告")
 
+        # 显示警示横幅
         if config.Banner.Enabled:
             try:
-                width = utils.get_screen_size()[0]
+                width = get_screen_size()[0]
                 self.banner = WarningBanner(config.Banner.Style)
                 self.banner.setGeometry(0, 80, width, 140)
                 self.banner.show()
             except Exception as e:
                 logger.error(f"显示横幅时出错, 跳过横幅: {e}")
 
-        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        self._current_login_triggered_via_ipc = from_ipc
+        # 显示状态浮窗
         if config.StatusOverlay.Enabled:
-            screen_height = utils.get_screen_size_physical()[1]
-            login_window_buttom = utils.calc_relative_login_window_position(
-                utils.Point(config.Login.Position.AgreementCheckbox),
-                window_size=config.Login.Position.LoginWindowSize,
-                base_size=config.Login.Position.BaseSize,
-            ).y
-            available_space = screen_height - (login_window_buttom + 8)
             try:
+                try:
+                    # 根据屏幕高度和登录窗口位置选择状态浮窗的大小
+                    screen_height = get_screen_size_physical()[1]
+                    expected_pos = Point(config.Login.Position.AgreementCheckbox)
+                    expected_pos.y += 8
+                    login_window_buttom = calc_relative_login_window_position(
+                        expected_pos,
+                        window_size=config.Login.Position.LoginWindowSize,
+                        base_size=config.Login.Position.BaseSize,
+                    ).y
+                    available_space = screen_height - (login_window_buttom + 8)
+                except Exception as e:
+                    logger.warning(f"计算状态浮窗位置时出错: {e}")
+                    available_space = 0
+
                 self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
                 self.status_overlay.stop_clicked.connect(self._on_stop_automation)
                 automation_manager.started.connect(self.status_overlay.show)
-                automation_manager.finished.connect(self.status_overlay.on_finished)
+                automation_manager.successed.connect(self.status_overlay.on_success)
+                automation_manager.interrupted.connect(self.status_overlay.on_interrupted)
                 automation_manager.failed.connect(self.status_overlay.on_failed)
                 automation_manager.task_updated.connect(self.status_overlay.set_task_text)
                 automation_manager.progress_updated.connect(self.status_overlay.set_progress_text)
             except Exception as e:
                 logger.error(f"设置状态浮窗时出错, 跳过状态浮窗: {e}")
+
+        # 开始登录任务
+        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
+        self._current_login_triggered_via_ipc = from_ipc
 
         automation_manager.run(*credentials)
 
@@ -337,7 +362,7 @@ class Launcher:
             return
 
         logger.success("已更新配置文件, 正在退出")
-        utils.stop()
+        stop()
 
     def _dispatch_command(self, args: Namespace) -> None:
         command = getattr(args, "command", None)
@@ -378,12 +403,12 @@ class Launcher:
             forwarded = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
             if forwarded:
                 logger.info(f"已将参数转发到主实例: {command}")
-                utils.stop(0)
+                stop(0)
             logger.warning("检测到已有实例, 但参数转发失败")
-            utils.stop(1)
+            stop(1)
 
         logger.info(f"检测到已有实例, 命令 {command!r} 不允许转发, 当前实例退出")
-        utils.stop(0)
+        stop(0)
 
     def _notify_updated(self, command: str | None) -> None:
         if command == "skip":
@@ -402,7 +427,7 @@ class Launcher:
                         body=f"{config.Update.LastVersion} -> {__version__}",
                         icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                         icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("icons/EasiAuto.ico"),
+                        icon_src=get_resource("icons/EasiAuto.ico"),
                     )
         config.Update.LastVersion = __version__
 

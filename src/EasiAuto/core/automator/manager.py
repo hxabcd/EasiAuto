@@ -9,6 +9,8 @@ from EasiAuto.core.automator import BaseAutomator, CVAutomator, FixedAutomator, 
 class AutomationManager(QObject):
     started = Signal()
     finished = Signal()
+    successed = Signal()
+    interrupted = Signal()
     failed = Signal(str)
     task_updated = Signal(str)
     progress_updated = Signal(str)
@@ -36,6 +38,8 @@ class AutomationManager(QObject):
 
         self._automator.started.connect(self.started)
         self._automator.finished.connect(self.finished)
+        self._automator.successed.connect(self.successed)
+        self._automator.interrupted.connect(self.interrupted)
         self._automator.failed.connect(self.failed)
         self._automator.task_updated.connect(self.task_updated)
         self._automator.progress_updated.connect(self.progress_updated)

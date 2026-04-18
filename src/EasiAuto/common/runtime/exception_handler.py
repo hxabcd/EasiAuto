@@ -1,7 +1,9 @@
 import atexit
 import datetime as dt
+import platform
 import sys
 import traceback
+import uuid
 import winsound
 from pathlib import Path
 from typing import Any
@@ -9,7 +11,6 @@ from typing import Any
 import psutil
 import sentry_sdk
 from loguru import logger
-from sentry_sdk.integrations.loguru import LoguruIntegration
 
 from PySide6.QtCore import QPoint, Qt, QtMsgType, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QDesktopServices
@@ -33,56 +34,127 @@ from EasiAuto.common.consts import IS_DEV, LOG_DIR
 from EasiAuto.common.utils import get_resource, restart, stop
 
 SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
+SENTRY_ATTACH_DEBUG_CONTEXT = True
 
-error_cooldown = dt.timedelta(seconds=2)  # 冷却时间(s)
-ignore_errors = []
-last_error_time = dt.datetime.now() - error_cooldown  # 上一次错误
-error_dialog = None
+ERROR_DEBOUNCE = dt.timedelta(seconds=2)
+last_error_time = dt.datetime.now() - ERROR_DEBOUNCE
+error_dialog_showing = False
+ignore_errors: list[str] = []
+
 
 class StreamToLogger:
     """重定向 print() 到 loguru"""
 
-    def write(self, message):
+    def write(self, message: str) -> None:
         msg = message.strip()
         if msg:
             logger.opt(depth=1).info(msg)
 
-    def flush(self):
+    def flush(self) -> None:
         pass
 
 
-def qt_message_handler(mode: QtMsgType, context, message):  # noqa
+def _build_debug_context(source: str, handled: bool) -> dict[str, Any]:
+    process = psutil.Process()
+    memory_info = process.memory_info()
+    return {
+        "source": source,
+        "handled": handled,
+        "version": __version__,
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "argv": sys.argv,
+        "memory_usage_mb": round(memory_info.rss / 1024 / 1024, 2),
+        "thread_count": process.num_threads(),
+        "is_dev": IS_DEV,
+    }
+
+
+def _last_tb_frame(exc_tb: Any) -> tuple[str, int, str]:
+    tb_last = exc_tb
+    while tb_last and tb_last.tb_next:
+        tb_last = tb_last.tb_next
+    if not tb_last:
+        return "Unknown", 0, "Unknown"
+
+    frame = tb_last.tb_frame
+    return Path(frame.f_code.co_filename).name, tb_last.tb_lineno, frame.f_code.co_name
+
+
+def _log_exception(
+    exc_type: type, exc_value: BaseException, exc_tb: Any, source: str, handled: bool
+) -> tuple[str, str]:
+    file_name, line_no, func_name = _last_tb_frame(exc_tb)
+    process = psutil.Process()
+    memory_info = process.memory_info()
+    thread_count = process.num_threads()
+
+    prefix = "业务异常" if handled else "未捕获异常"
+    log_msg = f"""{prefix}:
+├─来源: {source}
+├─异常类型: {exc_type.__name__}
+├─异常信息: {exc_value}
+├─发生位置: {file_name}:{line_no} in {func_name}
+├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
+└─详细堆栈信息:"""
+    tip_msg = f"""异常类型: {exc_type.__name__}
+└─发生位置: {file_name}:{line_no} in {func_name}"""
+
+    logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
+    logger.complete()
+    return log_msg, tip_msg
+
+
+def _capture_exception_to_sentry(exc_info: tuple[type, BaseException, Any], source: str, handled: bool) -> str | None:
+    if not sentry_sdk.get_client().is_active():
+        return None
+
+    if SENTRY_ATTACH_DEBUG_CONTEXT:
+        debug_context = _build_debug_context(source, handled)
+    else:
+        debug_context = {"source": source, "handled": handled}
+
+    with sentry_sdk.push_scope() as scope:
+        scope.set_tag("source", source)
+        scope.set_tag("handled", str(handled).lower())
+        scope.set_context("runtime", debug_context)
+        return sentry_sdk.capture_exception(exc_info)
+
+
+def capture_handled_exception(
+    error: BaseException, source: str = "unknown", extra_context: dict[str, Any] | None = None
+) -> str | None:
+    """统一上报业务已处理异常"""
+    exc_type = type(error)
+    exc_tb = error.__traceback__
+    exc_info = (exc_type, error, exc_tb)
+
+    _log_exception(exc_type, error, exc_tb, source=source, handled=True)
+    event_id = _capture_exception_to_sentry(exc_info, source=source, handled=True)
+
+    if sentry_sdk.get_client().is_active() and extra_context:
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag("source", source)
+            scope.set_tag("handled", "true")
+            scope.set_context("extra_context", extra_context)
+            sentry_sdk.capture_message("handled_exception_extra_context", level="info")
+    return event_id
+
+
+def qt_message_handler(mode: QtMsgType, context: Any, message: str) -> None:
     """Qt 消息转发到 loguru"""
     msg = message.strip()
     if not msg:
         return
-    match mode:
-        case QtMsgType.QtFatalMsg:
-            logger.critical(msg)
-        case QtMsgType.QtCriticalMsg:
-            logger.error(msg)
-    # if IS_DEV:
-    #     match mode:
-    #         case QtMsgType.QtWarningMsg:
-    #             logger.warning(msg)
-    #         case QtMsgType.QtInfoMsg | QtMsgType.QtSystemMsg:
-    #             logger.info(msg)
-    #         case QtMsgType.QtDebugMsg:
-    #             logger.debug(msg)
+    if mode in (QtMsgType.QtFatalMsg, QtMsgType.QtCriticalMsg):
+        logger.critical(msg)
     logger.complete()
 
 
-class ErrorDialog(Dialog):  # 重大错误提示框
-    def __init__(
-        self,
-        error_details: str = "Traceback (most recent call last):",
-        parent: Any | None = None,
-    ) -> None:
-        # KeyboardInterrupt 直接 exit
+class ErrorDialog(Dialog):
+    def __init__(self, error_details: str = "Traceback (most recent call last):", parent: Any | None = None) -> None:
         if error_details.endswith(("KeyboardInterrupt", "KeyboardInterrupt\n")):
             stop()
-
-        global error_dialog
 
         super().__init__(
             "EasiAuto 崩溃报告",
@@ -91,12 +163,12 @@ class ErrorDialog(Dialog):  # 重大错误提示框
             parent,
         )
 
-        error_dialog = True
+        global error_dialog_showing
+        error_dialog_showing = True
 
         self.is_dragging = False
         self.drag_position = QPoint()
         self.title_bar_height = 30
-
         self.title_layout = QHBoxLayout()
 
         self.iconLabel = ImageLabel()
@@ -116,20 +188,19 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         self.iconLabel.setFixedSize(50, 50)
         self.titleLabel.setText("出错啦！ヽ(*。>Д<)o゜")
         self.titleLabel.setStyleSheet("font-family: Microsoft YaHei UI; font-size: 25px; font-weight: bold;")
-        self.error_log.setReadOnly(True)  # 只读模式
+        self.error_log.setReadOnly(True)
         self.error_log.setPlainText(error_details)
         self.error_log.setMinimumHeight(200)
         self.error_log.setTextInteractionFlags(
-            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard  # 允许鼠标和键盘选择文本
+            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
         self.restart_btn.setFixedWidth(150)
         self.yesButton.hide()
-        self.cancelButton.hide()  # 隐藏取消按钮
+        self.cancelButton.hide()
         self.title_layout.setSpacing(12)
         self.resize(650, 450)
         QApplication.processEvents()
 
-        # 按钮事件
         self.report_problem.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl("https://github.com/hxabcd/EasiAuto/issues/"))
         )
@@ -137,19 +208,19 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         self.ignore_error_btn.clicked.connect(self.ignore_error)
         self.restart_btn.clicked.connect(restart)
 
-        self.title_layout.addWidget(self.iconLabel)  # 标题布局
+        self.title_layout.addWidget(self.iconLabel)
         self.title_layout.addWidget(self.titleLabel)
-        self.textLayout.insertLayout(0, self.title_layout)  # 页面
+        self.textLayout.insertLayout(0, self.title_layout)
         self.textLayout.addWidget(self.error_log)
         self.textLayout.addWidget(self.ignore_same_error)
-        self.buttonLayout.insertStretch(0, 1)  # 按钮布局
+        self.buttonLayout.insertStretch(0, 1)
         self.buttonLayout.insertWidget(0, self.copy_log_btn)
         self.buttonLayout.insertWidget(1, self.report_problem)
         self.buttonLayout.insertStretch(1)
         self.buttonLayout.insertWidget(4, self.ignore_error_btn)
         self.buttonLayout.insertWidget(5, self.restart_btn)
 
-    def copy_log(self) -> None:  # 复制日志
+    def copy_log(self) -> None:
         QApplication.clipboard().setText(self.error_log.toPlainText())
         Flyout.create(
             icon=InfoBarIcon.SUCCESS,
@@ -165,11 +236,11 @@ class ErrorDialog(Dialog):  # 重大错误提示框
         if self.ignore_same_error.isChecked():
             ignore_errors.append("\n".join(self.error_log.toPlainText().splitlines()[2:]) + "\n")
         self.close()
-        global error_dialog
-        error_dialog = False
+        global error_dialog_showing
+        error_dialog_showing = False
 
     def mousePressEvent(self, event: Any) -> None:
-        if event.button() == Qt.LeftButton and event.y() <= self.title_bar_height:
+        if event.button() == Qt.MouseButton.LeftButton and event.y() <= self.title_bar_height:
             self.is_dragging = True
             self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
 
@@ -178,80 +249,70 @@ class ErrorDialog(Dialog):  # 重大错误提示框
             self.move(event.globalPos() - self.drag_position)
 
     def mouseReleaseEvent(self, event: Any) -> None:
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = False
 
 
-@logger.catch
-def log_exception(exc_type: type, exc_value: Exception, exc_tb: Any, prefix: str = "发生全局异常") -> tuple[str, str]:
-    """记录详细异常信息到日志"""
-    # 获取异常抛出位置
-    tb_last = exc_tb
-    while tb_last and tb_last.tb_next:  # 找到最后一帧
-        tb_last = tb_last.tb_next
+def handle_unhandled_exception(exc_type: type, exc_value: BaseException, exc_tb: Any, source: str) -> None:
+    global last_error_time
 
-    if tb_last:
-        frame = tb_last.tb_frame
-        file_name = Path(frame.f_code.co_filename).name
-        line_no = tb_last.tb_lineno
-        func_name = frame.f_code.co_name
-    else:
-        file_name, line_no, func_name = "Unknown", 0, "Unknown"
-
-    process = psutil.Process()
-    memory_info = process.memory_info()
-    thread_count = process.num_threads()
-
-    log_msg = f"""{prefix}:
-├─异常类型: {exc_type.__name__} {exc_type}
-├─异常信息: {exc_value}
-├─发生位置: {file_name}:{line_no} in {func_name}
-├─运行状态: 内存使用 {memory_info.rss / 1024 / 1024:.1f}MB 线程数: {thread_count}
-└─详细堆栈信息:"""
-    tip_msg = f"""异常类型: {exc_type.__name__} {exc_type}
-└─发生位置: {file_name}:{line_no} in {func_name}"""
-
-    logger.opt(exception=(exc_type, exc_value, exc_tb), depth=0).error(log_msg)
-    logger.complete()
-
-    # 发送至 Sentry
-    if sentry_sdk.get_client().is_active():
-        with sentry_sdk.push_scope() as scope:
-            scope.set_tag("prefix", prefix)
-            scope.set_context(
-                "runtime_status",
-                {
-                    "memory_usage_mb": f"{memory_info.rss / 1024 / 1024:.1f}",
-                    "thread_count": thread_count,
-                },
-            )
-            sentry_sdk.capture_exception((exc_type, exc_value, exc_tb))
-
-    return log_msg, tip_msg
-
-
-@logger.catch
-def global_exceptHook(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
     error_details = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     if error_details in ignore_errors:
         return
-    global last_error_time
-    current_time = dt.datetime.now()
-    if current_time - last_error_time > error_cooldown:
-        last_error_time = current_time
 
-        log_msg, tip_msg = log_exception(exc_type, exc_value, exc_tb)
+    now = dt.datetime.now()
+    if now - last_error_time <= ERROR_DEBOUNCE:
+        return
+    last_error_time = now
 
-        if not error_dialog:
-            try:
-                w = ErrorDialog(f"{tip_msg}\n{error_details}")
-                winsound.MessageBeep(winsound.MB_ICONHAND)
-                w.exec()
-            except Exception as e:
-                logger.critical(f"显示错误对话框失败: {e}")
+    _, tip_msg = _log_exception(exc_type, exc_value, exc_tb, source=source, handled=False)
+    _capture_exception_to_sentry((exc_type, exc_value, exc_tb), source=source, handled=False)
+
+    if error_dialog_showing:
+        return
+    try:
+        w = ErrorDialog(f"{tip_msg}\n{error_details}")
+        winsound.MessageBeep(winsound.MB_ICONHAND)
+        w.exec()
+    except Exception as dialog_error:
+        logger.critical(f"显示错误对话框失败: {dialog_error}")
 
 
-def init_exception_handler():
+def _before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
+    # 过滤重复信息
+    if "log_record" in hint:
+        message = event.get("message", "")
+        if isinstance(message, str) and "├─" in message:
+            return None
+    return event
+
+
+def init_sentry() -> None:
+    logger.debug(f"遥测已{'禁用' if not config.App.TelemetryEnabled else '启用'}")
+    if not config.App.TelemetryEnabled:
+        return
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        before_send=_before_send,  # type: ignore
+        release=f"EasiAuto@{__version__}",
+        environment="development" if IS_DEV else "production",
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+        in_app_include=["EasiAuto"],
+        enable_logs=True,
+    )
+
+    machine_id = uuid.UUID(int=uuid.getnode()).hex
+    sentry_sdk.set_user({"id": machine_id})
+    sentry_sdk.set_tag("version", __version__)
+    if SENTRY_ATTACH_DEBUG_CONTEXT:
+        sentry_sdk.set_context("boot_runtime", _build_debug_context(source="init", handled=True))
+
+    atexit.register(lambda: sentry_sdk.flush(timeout=1.0))
+
+
+def init_exception_handler() -> None:
     """初始化异常处理与日志"""
     logger.remove()
     log_format = (
@@ -275,38 +336,22 @@ def init_exception_handler():
         logger.add(
             LOG_DIR / "EasiAuto_{time}.log",
             format=log_format,
-            rotation="1 MB",
-            retention="1 minute",
             encoding="utf-8",
             enqueue=True,
             backtrace=True,
             diagnose=True,
         )
+
+    # 安装统一异常链路
     sys.stdout = StreamToLogger()
     sys.stderr = StreamToLogger()
     qInstallMessageHandler(qt_message_handler)
     atexit.register(logger.complete)
 
-    # 初始化 Sentry
-    logger.debug(f"遥测已{'禁用' if not config.App.TelemetryEnabled else '启用'}")
-    if config.App.TelemetryEnabled:
-
-        def before_send(event, hint):
-            """过滤重复上报日志"""
-            if "log_record" in hint:
-                message = event.get("message", "")
-                if message and "├─" in message:
-                    return None
-            return event
-
-        sentry_sdk.init(
-            dsn=SENTRY_DSN,
-            integrations=[LoguruIntegration(event_level=50)],  # CRITICAL
-            before_send=before_send,
-            release=f"EasiAuto@{__version__}",
-            environment="development" if IS_DEV else "production",
-            traces_sample_rate=1.0,
-            profiles_sample_rate=1.0,
-        )
-
-    sys.excepthook = global_exceptHook
+    init_sentry()
+    sys.excepthook = lambda exc_type, exc_value, exc_tb: handle_unhandled_exception(
+        exc_type,
+        exc_value,
+        exc_tb,
+        source="python_global",
+    )
