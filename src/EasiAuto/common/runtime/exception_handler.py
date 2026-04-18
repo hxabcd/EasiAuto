@@ -303,7 +303,7 @@ def init_sentry() -> None:
         enable_logs=True,
     )
 
-    machine_id = uuid.UUID(int=uuid.getnode()).hex
+    machine_id = uuid.UUID(int=uuid.getnode()).hex[-12:]
     sentry_sdk.set_user({"id": machine_id})
     sentry_sdk.set_tag("version", __version__)
     if SENTRY_ATTACH_DEBUG_CONTEXT:

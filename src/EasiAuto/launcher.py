@@ -1,3 +1,4 @@
+import atexit
 import sys
 import time
 from argparse import ArgumentParser, Namespace
@@ -56,7 +57,14 @@ app.installTranslator(translator)
 setTheme(Theme(config.App.Theme.value))
 setThemeColor("#00C884")
 
-app.aboutToQuit.connect(update_checker.shutdown)
+
+def update_statistics_before_exit():
+    update_checker.shutdown()
+
+    config.Statistics.TotalRunTime += (datetime.now(UTC) - config.Statistics.ThisInstanceLaunchTime).total_seconds()
+
+
+atexit.register(update_statistics_before_exit)
 
 
 class PostLoginUpdateThread(QThread):
@@ -342,7 +350,7 @@ class Launcher:
             return False
 
         if not self._ipc_context:
-            sys.exit(app.exec())
+            stop(app.exec())
         return True
 
     def cmd_settings(self, _) -> None:
@@ -352,7 +360,7 @@ class Launcher:
 
         self._show_settings_window()
         if not self._ipc_context:
-            sys.exit(app.exec())
+            stop(app.exec())
 
     def cmd_skip(self, _) -> None:
         """skip 子命令 - 跳过下一次登录"""
@@ -446,10 +454,6 @@ class Launcher:
 
         self._notify_updated(command)
         self._dispatch_command(args)
-
-        config.Internal.Statistics.TotalRunTime += (
-            datetime.now(UTC) - config.Internal.Statistics.ThisInstanceLaunchTime
-        ).total_seconds()
 
 
 def main() -> None:

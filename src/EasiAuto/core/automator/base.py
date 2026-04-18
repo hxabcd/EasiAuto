@@ -209,10 +209,10 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         # 统计数据
         time_start = time.monotonic()
-        config.Internal.Statistics.LoginCounts += 1
-        if config.Internal.Statistics.LoginCountsPerAccount.get(self.account) is None:
-            config.Internal.Statistics.LoginCountsPerAccount[self.account] = 0
-        config.Internal.Statistics.LoginCountsPerAccount[self.account] += 1
+        config.Statistics.LoginCounts += 1
+        if config.Statistics.LoginCountsPerAccount.get(self.account) is None:
+            config.Statistics.LoginCountsPerAccount[self.account] = 0
+        config.Statistics.LoginCountsPerAccount[self.account] += 1
 
         retries = 0
         while True:
@@ -229,11 +229,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.update_progress("登录完成")
                 self.update_task("完成")
 
-                config.Internal.Statistics.LoginSuccessCounts += 1
+                config.Statistics.LoginSuccessCounts += 1
                 self.successed.emit()
                 break
             except LoginCancelled:
-                config.Internal.Statistics.LoginInterruptCounts += 1
+                config.Statistics.LoginInterruptCounts += 1
                 self.interrupted.emit()
                 break
             except Exception as e:
@@ -260,8 +260,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         elapsed = time.monotonic() - time_start
         logger.info(f"登录流程耗时: {elapsed:.2f}秒")
-        config.Internal.Statistics.TotalLoginTime += elapsed
-        config.Internal.Statistics.MaxLoginTime = max(config.Internal.Statistics.MaxLoginTime, elapsed)
+        config.Statistics.TotalLoginTime += elapsed
+        config.Statistics.MaxLoginTime = max(config.Statistics.MaxLoginTime, elapsed)
 
 
 class PyAutoGuiBaseAutomator(BaseAutomator):

@@ -1,7 +1,6 @@
 """应用配置存储
 提供一个全局 config 单例，用于访问应用的所有配置。
 基于 pydantic，配置项支持类型验证与自动保存，且可将元数据传递给 UI 生成 SettingCard。
-应用的内部数据应存储在 InternalConfig 中。
 """
 
 from __future__ import annotations
@@ -564,6 +563,10 @@ class DebugConfig(ConfigModel):
     AlternateFindWindowMethod: bool = Field(default=False)
 
 
+class InternalConfig(ConfigModel):
+    AutomationPageNoticeShown: bool = Field(default=False)
+
+
 class StatisticsConfig(ConfigModel):
     # Enabled: bool = Field(default=True)  TODO: 全局开关
 
@@ -586,11 +589,6 @@ class StatisticsConfig(ConfigModel):
     LoginCountsPerAccount: dict[str, int] = Field(default_factory=dict)
 
 
-class InternalConfig(ConfigModel):
-    Statistics: StatisticsConfig = Field(default_factory=StatisticsConfig, title="统计数据")
-    AutomationPageNoticeShown: bool = Field(default=False)
-
-
 PAGE_INDEX: dict[str, list[str]] = {
     "SettingsPage": ["Login", "Warning", "Banner", "StatusOverlay", "App"],
     "AutomationPage": ["ClassIsland"],
@@ -599,17 +597,23 @@ PAGE_INDEX: dict[str, list[str]] = {
 
 
 class Config(ConfigModel):
+    # SettingsPage
     Login: LoginConfig = Field(default_factory=LoginConfig, title="登录选项")
     Warning: WarningConfig = Field(default_factory=WarningConfig, title="警告弹窗")
     Banner: BannerConfig = Field(default_factory=BannerConfig, title="警示横幅")
     StatusOverlay: StatusOverlayConfig = Field(default_factory=StatusOverlayConfig, title="状态浮窗")
     App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
 
-    Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
+    # AutomationPage
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
 
+    # UpdatePage
+    Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
+
+    # 内部
     Debug: DebugConfig = Field(default_factory=DebugConfig, title="调试选项")
     Internal: InternalConfig = Field(default_factory=InternalConfig, title="内部数据")
+    Statistics: StatisticsConfig = Field(default_factory=StatisticsConfig, title="统计数据")
 
     @staticmethod
     def migrate_config(obj: Any):
