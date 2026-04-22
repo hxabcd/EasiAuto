@@ -75,7 +75,7 @@ class AdvancedOptionsDialog(MessageBoxBase):
 
     def _on_encryption_changed(self, checked: bool):
         profile.encryption_enabled = checked
-        profile.save(reason=ProfileChangeReason.ENCRYPTION_CHANGED)
+        profile.save(reason="encryption_changed")
 
 
 class ProfileStatusBar(QWidget):
@@ -350,7 +350,7 @@ class ProfileManagePage(QWidget):
             return
 
         ok = self.binding_backend.sync(profile)
-        profile.save(reason=ProfileChangeReason.BINDINGS_CHANGED)
+        profile.save(reason="bindings_changed")
 
         if not ok:
             errors = self.binding_backend.last_errors
@@ -444,7 +444,7 @@ class ProfileManagePage(QWidget):
         self.current_automation.account_name = self.account_name_edit.text().strip() or None
 
         profile.upsert_automation(self.current_automation)
-        profile.save(reason=ProfileChangeReason.AUTOMATION_SAVED)
+        profile.save(reason="automation_saved")
 
     def _handle_save_automation(self):
         try:
@@ -531,12 +531,12 @@ class ProfileManagePage(QWidget):
             return
 
         automation.enabled = enabled
-        profile.save(reason=ProfileChangeReason.AUTOMATION_SAVED)
+        profile.save(reason="automation_saved")
 
     def _handle_action_remove(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
         if profile.delete_automation(automation.id):
-            profile.save(reason=ProfileChangeReason.AUTOMATION_DELETED)
+            profile.save(reason="automation_deleted")
             if self.current_list_item == item:
                 self.current_list_item = None
                 self.current_automation = None
@@ -585,10 +585,10 @@ class ProfileManagePage(QWidget):
             item_widget.update_display(automation)
 
     def _on_profile_model_changed(self, reason: ProfileChangeReason):
-        if reason in {ProfileChangeReason.AUTOMATION_SAVED, ProfileChangeReason.AUTOMATION_DELETED}:
+        if reason in {"automation_saved", "automation_deleted"}:
             self._sync_bindings()
             return
-        if reason == ProfileChangeReason.BINDINGS_CHANGED:
+        if reason == "bindings_changed":
             self.refresh_binding_display()
 
 

@@ -408,10 +408,10 @@ class AutomationPage(QWidget):
 
     def _on_profile_changed(self, reason: ProfileChangeReason):
         if reason in {
-            ProfileChangeReason.AUTOMATION_SAVED,
-            ProfileChangeReason.AUTOMATION_DELETED,
-            ProfileChangeReason.BINDINGS_CHANGED,
-            ProfileChangeReason.PROFILE_CHANGED,
+            "automation_saved",
+            "automation_deleted",
+            "bindings_changed",
+            "profile_changed",
         }:
             self._schedule_binding_reload()
 

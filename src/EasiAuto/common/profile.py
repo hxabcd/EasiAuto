@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from cryptography.fernet import InvalidToken
 from loguru import logger
@@ -20,17 +19,17 @@ _PROFILE_SCHEMA_VERSION = 2
 _PASSWORD_TOKEN_PREFIX = f"ea{_PROFILE_SCHEMA_VERSION}$"
 
 
-class ProfileChangeReason(str, Enum):
-    PROFILE_CHANGED = "profile_changed"
-    AUTOMATION_SAVED = "automation_saved"
-    AUTOMATION_DELETED = "automation_deleted"
-    BINDINGS_LOCAL_UPDATED = "bindings_local_updated"
-    BINDINGS_CHANGED = "bindings_changed"
-    ENCRYPTION_CHANGED = "encryption_changed"
-
+ProfileChangeReason = Literal[
+    "profile_changed",
+    "automation_saved",
+    "automation_deleted",
+    "bindings_local_updated",
+    "bindings_changed",
+    "encryption_changed",
+]
 
 class ProfileNotifier(QObject):
-    changed = Signal(object)
+    changed = Signal(str)
 
 
 def encrypt_password(plaintext: str) -> str:
@@ -155,7 +154,7 @@ class Profile(BaseModel):
             logger.warning(f"清理了 {removed} 条无效关联")
         return removed
 
-    def save(self, reason: ProfileChangeReason = ProfileChangeReason.PROFILE_CHANGED) -> None:
+    def save(self, reason: ProfileChangeReason = "profile_changed") -> None:
         path = PROFILE_PATH
 
         try:

@@ -21,7 +21,7 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.profile import EasiAutomation, ProfileChangeReason, SubjectRef, profile
+from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
 from EasiAuto.core.binding_sync import ClassIslandBindingBackend
 from EasiAuto.view.utils import get_main_container
 
@@ -528,10 +528,10 @@ class BindingPage(QWidget):
                 id=old_guid_lookup.get(key),
             )
 
-        profile.save(reason=ProfileChangeReason.BINDINGS_LOCAL_UPDATED)
+        profile.save(reason="bindings_local_updated")
 
         ok = self.backend.sync(profile)
-        profile.save(reason=ProfileChangeReason.BINDINGS_CHANGED)
+        profile.save(reason="bindings_changed")
 
         if not ok:
             errors = self.backend.last_errors
