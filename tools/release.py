@@ -3,12 +3,14 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Literal
 
+import announcement_manager as am
 import requests
 from windows11toast import toast
 
@@ -46,7 +48,7 @@ from qfluentwidgets import (
 MANIFEST_REPO = "hxabcd/EasiAutoWeb"
 MANIFEST_FILE_PATH = "public/update.json"
 OWNER_REPO = os.getenv("GITHUB_REPOSITORY", "hxabcd/EasiAuto")
-TARGET_BRANCH = "master"
+REQUEST_TIMEOUT = 15
 
 def get_sha256(file_path: Path) -> str:
     """计算文件的 SHA256 哈希值"""
@@ -55,6 +57,27 @@ def get_sha256(file_path: Path) -> str:
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
+
+def get_default_branch(repo: str, token: str) -> str:
+    resp = requests.get(
+        f"https://api.github.com/repos/{repo}",
+        headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json().get("default_branch", "main")
+
+
+def collect_release_assets(dist_dir: Path, version: str) -> list[Path]:
+    pattern = re.compile(rf"^EasiAuto_v{re.escape(version)}(?:_lite)?\.zip$", re.IGNORECASE)
+    files = [path for path in dist_dir.iterdir() if path.is_file() and pattern.match(path.name)]
+    files.sort(key=lambda path: path.name)
+    if not files:
+        raise ValueError(
+            f"在目录 {dist_dir} 中未找到版本 {version} 的构建产物，命名应为 EasiAuto_v{version}.zip 或 EasiAuto_v{version}_lite.zip"
+        )
+    return files
 
 
 def generate_release_body(
@@ -102,7 +125,7 @@ def create_github_release(version: str, body: str, is_dev: bool, is_draft: bool 
 
     # 检查 Release 是否已存在
     get_url = f"https://api.github.com/repos/{OWNER_REPO}/releases/tags/v{version}"
-    resp = requests.get(get_url, headers=headers)
+    resp = requests.get(get_url, headers=headers, timeout=REQUEST_TIMEOUT)
     if resp.status_code == 200:
         print(f"⚠️ Release v{version} 已存在，将被更新。")
         release_data = resp.json()
@@ -115,28 +138,41 @@ def create_github_release(version: str, body: str, is_dev: bool, is_draft: bool 
             "draft": is_draft,
             "prerelease": is_dev,
         }
-        resp = requests.patch(update_url, headers=headers, json=data)
+        resp = requests.patch(update_url, headers=headers, json=data, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     url = f"https://api.github.com/repos/{OWNER_REPO}/releases"
     data = {
         "tag_name": f"v{version}",
-        "target_commitish": TARGET_BRANCH,
+        "target_commitish": get_default_branch(OWNER_REPO, token),
         "name": f"EasiAuto v{version}",
         "body": body,
         "draft": is_draft,
         "prerelease": is_dev,
     }
-    resp = requests.post(url, headers=headers, json=data)
+    resp = requests.post(url, headers=headers, json=data, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     return resp.json()
 
 
-def upload_asset(upload_url_template: str, file_path: Path):
+def upload_asset(upload_url_template: str, file_path: Path, release_assets: list[dict]):
     """上传 Release 资产"""
     token = os.getenv("RELEASE_PAT")
+    if not token:
+        raise ValueError("未找到 TOKEN")
+
     filename = file_path.name
+    existing_asset = next((asset for asset in release_assets if asset.get("name") == filename), None)
+    if existing_asset and existing_asset.get("id"):
+        delete_url = f"https://api.github.com/repos/{OWNER_REPO}/releases/assets/{existing_asset['id']}"
+        delete_resp = requests.delete(
+            delete_url,
+            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        delete_resp.raise_for_status()
+
     # upload_url 类似于 https://uploads.github.com/repos/octocat/Hello-World/releases/1/assets{?name,label}
     # 需要去掉模板部分
     base_upload_url = upload_url_template.split("{", maxsplit=1)[0]
@@ -149,12 +185,8 @@ def upload_asset(upload_url_template: str, file_path: Path):
 
     print(f"⬆️ 正在上传: {filename} ...")
     with file_path.open("rb") as f:
-        resp = requests.post(upload_url, headers=headers, data=f)
-
-    if resp.status_code == 422:
-        print(f"⚠️ 资产 {filename} 可能已存在，跳过上传 (或需要手动删除后重试)。")
-    else:
-        resp.raise_for_status()
+        resp = requests.post(upload_url, headers=headers, data=f, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
     print(f"✅ 上传完成: {filename}")
 
 
@@ -177,7 +209,7 @@ def update_manifest(
 
     # 1. 获取现有清单内容
     api_url = f"https://api.github.com/repos/{MANIFEST_REPO}/contents/{MANIFEST_FILE_PATH}"
-    resp = requests.get(api_url, headers=headers)
+    resp = requests.get(api_url, headers=headers, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     file_data = resp.json()
     manifest = json.loads(base64.b64decode(file_data["content"]).decode("utf-8"))
@@ -186,18 +218,15 @@ def update_manifest(
     # 2. 准备新版本下载信息
     downloads = []
     # 构建产物命名规则: EasiAuto_{version}(_lite).zip
-    for filename in dist_dir.iterdir():
-        if filename.suffix == ".zip" and version in filename.name:
-            # 简单的 channel 判定逻辑
-            channel = "lite" if "lite" in filename.name else "default"
-
-            downloads.append(
-                {
-                    "channel": channel,
-                    "url": f"https://github.com/{OWNER_REPO}/releases/download/v{version}/{filename.name}",
-                    "sha256": get_sha256(filename),
-                }
-            )
+    for file_path in collect_release_assets(dist_dir, version):
+        channel = "lite" if "_lite" in file_path.stem.lower() else "default"
+        downloads.append(
+            {
+                "channel": channel,
+                "url": f"https://github.com/{OWNER_REPO}/releases/download/v{version}/{file_path.name}",
+                "sha256": get_sha256(file_path),
+            }
+        )
 
     # 3. 构造新版本条目
     new_version_entry = {
@@ -224,9 +253,10 @@ def update_manifest(
         "message": f"Release {version}",
         "content": base64.b64encode(updated_content.encode("utf-8")).decode("utf-8"),
         "sha": sha,
+        "branch": get_default_branch(MANIFEST_REPO, token),
     }
 
-    put_resp = requests.put(api_url, headers=headers, json=put_data)
+    put_resp = requests.put(api_url, headers=headers, json=put_data, timeout=REQUEST_TIMEOUT)
     put_resp.raise_for_status()
     print(f"✅ 清单文件已成功更新至版本 {version}")
 
@@ -490,7 +520,7 @@ class ReleaseFormWidget(QWidget):
 
     def do_release(self):
         # 1. Validation
-        version = self.version_edit.text().strip()
+        version = self.version_edit.text().strip().lstrip("v")
         if not version:
             InfoBar.error("错误", "请输入版本号", parent=self)
             return
@@ -528,18 +558,19 @@ class ReleaseFormWidget(QWidget):
             self.release_btn.setText("发版中...")
             QApplication.processEvents()
 
+            assets = collect_release_assets(dist_dir, version)
+
             # --- New GitHub Release Logic ---
             body = generate_release_body(desc if desc else None, highlights, others)
 
             print(f"🚀 创建 GitHub Release v{version} ...")
             release_info = create_github_release(version=version, body=body, is_dev=self.is_dev_switch.isChecked())
             upload_url_template = release_info["upload_url"]
+            release_assets = release_info.get("assets", [])
 
             print("📦 开始上传构建产物...")
-            # Upload matching assets
-            for filename in dist_dir.iterdir():
-                if filename.suffix == ".zip" and version in filename.name:
-                    upload_asset(upload_url_template, filename)
+            for file_path in assets:
+                upload_asset(upload_url_template, file_path, release_assets)
             # --------------------------------
 
             update_manifest(
@@ -569,7 +600,7 @@ class ReleaseGUI(FluentWindow):
         super().__init__()
         setTheme(Theme.AUTO)
         self.setWindowIcon(QIcon("src/EasiAuto/resources/icons/EasiAuto.ico"))
-        self.setWindowTitle("EasiAuto 发版工具")
+        self.setWindowTitle("EasiAuto 发行中心")
         self.resize(800, 720)
 
         self.navigationInterface.setExpandWidth(160)
@@ -580,6 +611,8 @@ class ReleaseGUI(FluentWindow):
 
         self.addSubInterface(self.build_widget, FluentIcon.DEVELOPER_TOOLS, "构建")
         self.addSubInterface(self.release_form_widget, FluentIcon.UPDATE, "发版")
+        self.announcement_widget = am.AnnouncementManagerWidget(self)
+        self.addSubInterface(self.announcement_widget, FluentIcon.INFO, "公告管理")
 
         # Connect "Build and Release" button
         self.release_form_widget.build_release_btn.clicked.connect(self.handle_build_and_release)
@@ -606,6 +639,8 @@ class ReleaseGUI(FluentWindow):
 
 
 def cmd_update_manifest(args):
+    if args.token:
+        os.environ["RELEASE_PAT"] = args.token
     update_manifest(
         dist_dir=Path(args.dist_dir),
         version=args.version,
@@ -627,7 +662,7 @@ def cmd_ui(_):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="EasiAuto 发版工具", description="更新远端仓库的 EasiAuto 更新清单文件")
+    parser = argparse.ArgumentParser(prog="EasiAuto 发行中心", description="统一管理构建、发版与公告")
     subparsers = parser.add_subparsers(title="子命令", dest="command")
 
     # update-manifest 子命令
@@ -639,10 +674,24 @@ def main():
     update_manifest_parser.add_argument("--highlights", default="[]", help="JSON 格式的亮点列表")
     update_manifest_parser.add_argument("--others", default="[]", help="JSON 格式的其他更新列表")
     update_manifest_parser.add_argument("--dist-dir", default="build", help="构建产物所在目录")
+    update_manifest_parser.add_argument("--token", default="", help="GitHub Token")
     update_manifest_parser.set_defaults(func=cmd_update_manifest)
 
+    template_parser = subparsers.add_parser("template", help="输出公告模板")
+    template_parser.set_defaults(func=am.cmd_template)
+
+    pull_parser = subparsers.add_parser("pull", help="拉取远端公告")
+    pull_parser.add_argument("--token", default="", help="GitHub Token")
+    pull_parser.set_defaults(func=am.cmd_pull)
+
+    push_parser = subparsers.add_parser("push", help="将本地公告 JSON 推送到远端")
+    push_parser.add_argument("--file", required=True, help="本地公告 JSON 文件路径")
+    push_parser.add_argument("--token", default="", help="GitHub Token")
+    push_parser.add_argument("--skip-pull", action="store_true", help="跳过拉取远端 SHA")
+    push_parser.set_defaults(func=am.cmd_push)
+
     # ui 子命令
-    ui_parser = subparsers.add_parser("ui", help="打开图形界面")
+    ui_parser = subparsers.add_parser("ui", help="打开发行中心图形界面")
     ui_parser.set_defaults(func=cmd_ui)
 
     args = parser.parse_args()
