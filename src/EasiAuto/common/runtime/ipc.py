@@ -53,7 +53,7 @@ class ArgvIpcServer(QObject):
             payload = json.loads(raw.decode("utf-8"))
             argv = payload.get("argv")
             if isinstance(argv, list) and all(isinstance(x, str) for x in argv):
-                logger.info(f"收到次实例参数转发: argv={argv!r}")
+                logger.info("收到次实例参数转发")
                 self.on_argv(argv)
             else:
                 logger.warning("收到无效 IPC 数据: 缺少 argv")

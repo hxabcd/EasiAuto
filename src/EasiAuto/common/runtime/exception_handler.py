@@ -7,10 +7,12 @@ import uuid
 import winsound
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import psutil
 import sentry_sdk
 from loguru import logger
+from sentry_sdk.integrations.loguru import LoguruIntegration
 
 from PySide6.QtCore import QPoint, Qt, QtMsgType, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QDesktopServices
@@ -40,6 +42,7 @@ ERROR_DEBOUNCE = dt.timedelta(seconds=2)
 last_error_time = dt.datetime.now() - ERROR_DEBOUNCE
 error_dialog_showing = False
 ignore_errors: list[str] = []
+_last_sentry_event_id: str | None = None
 
 
 class StreamToLogger:
@@ -105,20 +108,32 @@ def _log_exception(
     return log_msg, tip_msg
 
 
-def _capture_exception_to_sentry(exc_info: tuple[type, BaseException, Any], source: str, handled: bool) -> str | None:
+def _capture_exception_to_sentry(
+    exc_info: tuple[type, BaseException, Any],
+    source: str,
+    handled: bool,
+    extra_context: dict[str, Any] | None = None,
+) -> str | None:
     if not sentry_sdk.get_client().is_active():
         return None
+
+    global _last_sentry_event_id
 
     if SENTRY_ATTACH_DEBUG_CONTEXT:
         debug_context = _build_debug_context(source, handled)
     else:
         debug_context = {"source": source, "handled": handled}
 
-    with sentry_sdk.push_scope() as scope:
+    with sentry_sdk.new_scope() as scope:
         scope.set_tag("source", source)
         scope.set_tag("handled", str(handled).lower())
         scope.set_context("runtime", debug_context)
-        return sentry_sdk.capture_exception(exc_info)
+        if extra_context:
+            scope.set_context("extra_context", extra_context)
+        event_id = sentry_sdk.capture_exception(exc_info)
+        if event_id:
+            _last_sentry_event_id = event_id
+        return event_id
 
 
 def capture_handled_exception(
@@ -130,15 +145,7 @@ def capture_handled_exception(
     exc_info = (exc_type, error, exc_tb)
 
     _log_exception(exc_type, error, exc_tb, source=source, handled=True)
-    event_id = _capture_exception_to_sentry(exc_info, source=source, handled=True)
-
-    if sentry_sdk.get_client().is_active() and extra_context:
-        with sentry_sdk.push_scope() as scope:
-            scope.set_tag("source", source)
-            scope.set_tag("handled", "true")
-            scope.set_context("extra_context", extra_context)
-            sentry_sdk.capture_message("handled_exception_extra_context", level="info")
-    return event_id
+    return _capture_exception_to_sentry(exc_info, source=source, handled=True, extra_context=extra_context)
 
 
 def qt_message_handler(mode: QtMsgType, context: Any, message: str) -> None:
@@ -201,9 +208,7 @@ class ErrorDialog(Dialog):
         self.resize(650, 450)
         QApplication.processEvents()
 
-        self.report_problem.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://github.com/hxabcd/EasiAuto/issues/"))
-        )
+        self.report_problem.clicked.connect(self.report_problem_to_github)
         self.copy_log_btn.clicked.connect(self.copy_log)
         self.ignore_error_btn.clicked.connect(self.ignore_error)
         self.restart_btn.clicked.connect(restart)
@@ -231,6 +236,16 @@ class ErrorDialog(Dialog):
             isClosable=True,
             aniType=FlyoutAnimationType.PULL_UP,
         )
+
+    def report_problem_to_github(self) -> None:
+        error_text = self.error_log.toPlainText().strip()
+        lines = []
+        lines.append(f"## 问题描述\n请描述你当时的操作步骤和预期行为。\n\n## 错误日志\n```text\n{error_text}\n```")
+        if _last_sentry_event_id:
+            lines.append(f"Sentry 事件ID: {_last_sentry_event_id}")
+        body = "\n".join(lines)
+        query = urlencode({"title": "请概括发生的问题", "body": body})
+        QDesktopServices.openUrl(QUrl(f"https://github.com/hxabcd/EasiAuto/issues/new?{query}"))
 
     def ignore_error(self) -> None:
         if self.ignore_same_error.isChecked():
@@ -278,12 +293,14 @@ def handle_unhandled_exception(exc_type: type, exc_value: BaseException, exc_tb:
         logger.critical(f"显示错误对话框失败: {dialog_error}")
 
 
+def get_last_sentry_event_id() -> str | None:
+    return _last_sentry_event_id
+
+
 def _before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
-    # 过滤重复信息
-    if "log_record" in hint:
-        message = event.get("message", "")
-        if isinstance(message, str) and "├─" in message:
-            return None
+    # 过滤敏感信息
+    if any(keyword in str(event).lower() for keyword in [" -p ", " --password "]):
+        return None
     return event
 
 
@@ -294,6 +311,7 @@ def init_sentry() -> None:
 
     sentry_sdk.init(
         dsn=SENTRY_DSN,
+        integrations=[LoguruIntegration(event_level=None)],
         before_send=_before_send,  # type: ignore
         release=f"EasiAuto@{__version__}",
         environment="development" if IS_DEV else "production",
