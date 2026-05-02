@@ -26,14 +26,14 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.profile import EasiAutomation, ProfileChangeReason, profile
-from EasiAuto.common.utils import create_shortcut
-from EasiAuto.core.binding_sync import ClassIslandBindingBackend
+from EasiAuto.models.profile import EasiAutomation, ProfileChangeReason, profile
+from EasiAuto.core.utils import create_shortcut
+from EasiAuto.services.binding_sync import ClassIslandBindingBackend
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
 from EasiAuto.view.components.setting_card import CardType
-from EasiAuto.view.utils import get_main_container, get_main_window
+from EasiAuto.view.helpers import get_main_container, get_main_window
 
 
 class AdvancedOptionsDialog(MessageBoxBase):

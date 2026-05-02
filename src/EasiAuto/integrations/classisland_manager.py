@@ -14,9 +14,9 @@ from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
-from EasiAuto.common.profile import EasiAutomation, profile
-from EasiAuto.common.utils import kill_process
+from EasiAuto.consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.core.utils import kill_process
+from EasiAuto.models.profile import EasiAutomation, profile
 
 
 class CiSubject(BaseModel):

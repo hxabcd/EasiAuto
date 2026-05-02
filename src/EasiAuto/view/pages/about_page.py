@@ -23,8 +23,8 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.common.consts import IS_FULL
-from EasiAuto.common.utils import get_resource
+from EasiAuto.consts import IS_FULL
+from EasiAuto.core.utils import get_resource
 
 
 class AboutPage(QWidget):

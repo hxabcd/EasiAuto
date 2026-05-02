@@ -6,8 +6,8 @@ from pathlib import Path
 import psutil
 from loguru import logger
 
-from EasiAuto.common.config import config
-from EasiAuto.common.consts import VENDOR_PATH
+from EasiAuto.consts import VENDOR_PATH
+from EasiAuto.models.config import config
 
 from .base import BaseAutomator, LoginError
 

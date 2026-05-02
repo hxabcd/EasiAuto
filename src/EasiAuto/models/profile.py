@@ -11,9 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.common.config import config
-from EasiAuto.common.consts import EA_PREFIX, PROFILE_PATH
-from EasiAuto.common.secret_store import get_profile_cipher
+from EasiAuto.consts import EA_PREFIX, PROFILE_PATH
+from EasiAuto.core.security import get_profile_cipher
+from EasiAuto.models.config import config
 
 _PROFILE_SCHEMA_VERSION = 2
 _PASSWORD_TOKEN_PREFIX = f"ea{_PROFILE_SCHEMA_VERSION}$"

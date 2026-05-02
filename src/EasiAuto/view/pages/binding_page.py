@@ -21,9 +21,9 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.profile import EasiAutomation, profile
-from EasiAuto.core.binding_sync import ClassIslandBindingBackend, SubjectRef
-from EasiAuto.view.utils import get_main_container
+from EasiAuto.models.profile import EasiAutomation, profile
+from EasiAuto.services.binding_sync import ClassIslandBindingBackend, SubjectRef
+from EasiAuto.view.helpers import get_main_container
 
 
 @dataclass

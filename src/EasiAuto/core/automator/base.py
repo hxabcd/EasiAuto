@@ -12,9 +12,9 @@ from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
-from EasiAuto.common.config import config
-from EasiAuto.common.runtime import capture_handled_exception
-from EasiAuto.common.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
+from EasiAuto.core.runtime import capture_handled_exception
+from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
+from EasiAuto.models.config import config
 
 
 class LoginCancelled(Exception):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
 from loguru import logger
 
@@ -21,7 +21,6 @@ class ArgvIpcServer(QObject):
         self._sockets: set[QLocalSocket] = set()
 
     def start(self) -> bool:
-        # 清理可能遗留的旧 server 名称
         QLocalServer.removeServer(self.server_name)
         if not self._server.listen(self.server_name):
             logger.error("启动 IPC 服务失败")
@@ -66,20 +65,3 @@ class ArgvIpcServer(QObject):
         if socket in self._sockets:
             self._sockets.remove(socket)
         socket.deleteLater()
-
-
-def send_argv_to_primary(server_name: str, argv: Sequence[str], timeout_ms: int = 1200) -> bool:
-    """次实例向主实例发送 argv"""
-    socket = QLocalSocket()
-    socket.connectToServer(server_name)
-    if not socket.waitForConnected(timeout_ms):
-        return False
-
-    payload = json.dumps({"argv": list(argv)}, ensure_ascii=False).encode("utf-8")
-    socket.write(payload)
-    socket.flush()
-
-    ok = socket.waitForBytesWritten(timeout_ms)
-    socket.disconnectFromServer()
-    socket.close()
-    return bool(ok)

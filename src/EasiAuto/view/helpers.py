@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import ExpandGroupSettingCard, FluentIconBase, SwitchButton, ToolTipFilter
 from qfluentwidgets.common.config import Theme
 
-from EasiAuto.common.utils import get_resource
+from EasiAuto.core.utils import get_resource
 
 if TYPE_CHECKING:
     from EasiAuto.view.main_window import MainWindow

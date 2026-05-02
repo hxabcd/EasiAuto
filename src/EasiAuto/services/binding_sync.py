@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from loguru import logger
 from pydantic import BaseModel
 
-from EasiAuto.common.config import config
-from EasiAuto.common.profile import EasiAutomation, profile
 from EasiAuto.integrations.classisland_manager import (
     CiSubject,
     ManagedCiAutomation,
@@ -17,6 +15,8 @@ from EasiAuto.integrations.classisland_manager import (
 from EasiAuto.integrations.classisland_manager import (
     classisland_manager as ci_manager,
 )
+from EasiAuto.models.config import config
+from EasiAuto.models.profile import EasiAutomation, profile
 
 
 class SubjectRef(BaseModel):

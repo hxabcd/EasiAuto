@@ -1,13 +1,13 @@
 import time
 from pathlib import Path
 
-from EasiAuto.common.config import config
-from EasiAuto.common.utils import (
+from EasiAuto.core.utils import (
     Point,
     calc_relative_login_window_position,
     get_scale,
     get_screen_size_physical,
 )
+from EasiAuto.models.config import config
 
 from .base import PyAutoGuiBaseAutomator
 

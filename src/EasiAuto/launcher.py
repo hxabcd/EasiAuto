@@ -20,13 +20,10 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.common.announcement import announcement_service
-from EasiAuto.common.config import DownloadSource, UpdateMode, config
-from EasiAuto.common.consts import IPC_SERVER_NAME
-from EasiAuto.common.profile import profile
-from EasiAuto.common.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
-from EasiAuto.common.update import UpdateError, cleanup_update_cache, update_checker
-from EasiAuto.common.utils import (
+from EasiAuto.consts import IPC_SERVER_NAME
+from EasiAuto.core.automator.manager import automation_manager
+from EasiAuto.core.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
+from EasiAuto.core.utils import (
     Point,
     calc_relative_login_window_position,
     get_resource,
@@ -36,7 +33,10 @@ from EasiAuto.common.utils import (
     migrate_desktop_shortcut_icon,
     stop,
 )
-from EasiAuto.core.automator.manager import automation_manager
+from EasiAuto.models.config import DownloadSource, UpdateMode, config
+from EasiAuto.models.profile import profile
+from EasiAuto.services.announcement_service import announcement_service
+from EasiAuto.services.update_service import UpdateError, cleanup_update_cache, update_checker
 from EasiAuto.view.components import (
     DialogResponse,
     PreRunPopup,

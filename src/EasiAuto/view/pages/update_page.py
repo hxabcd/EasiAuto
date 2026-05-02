@@ -39,12 +39,12 @@ from qfluentwidgets import (
     setFont,
 )
 
-from EasiAuto.common import utils
-from EasiAuto.common.config import DownloadSource, UpdateMode, config
-from EasiAuto.common.consts import CACHE_DIR
-from EasiAuto.common.update import ChangeLog, UpdateDecision, update_checker
+from EasiAuto.core import utils
+from EasiAuto.models.config import DownloadSource, UpdateMode, config
+from EasiAuto.consts import CACHE_DIR
+from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_checker
 from EasiAuto.view.components import SettingCard
-from EasiAuto.view.utils import get_app, get_main_container, set_tooltip
+from EasiAuto.view.helpers import get_app, get_main_container, set_tooltip
 
 
 class HighlightedChangeLogCard(CardWidget):

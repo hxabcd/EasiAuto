@@ -24,7 +24,7 @@ from qfluentwidgets import (
     themeColor,
 )
 
-from EasiAuto.view.utils import set_tooltip
+from EasiAuto.view.helpers import set_tooltip
 
 
 class SettingIconWidget(IconWidget):

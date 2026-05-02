@@ -6,7 +6,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from loguru import logger
 
-from EasiAuto.common.consts import EA_DATADIR
+from EasiAuto.consts import EA_DATADIR
 
 SERVICE_NAME = "EasiAuto"
 KEY_USERNAME = "profile"

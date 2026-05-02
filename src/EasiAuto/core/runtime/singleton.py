@@ -10,7 +10,7 @@ import win32process
 import winerror
 from loguru import logger
 
-from EasiAuto.common.consts import EA_EXECUTABLE
+from EasiAuto.consts import EA_EXECUTABLE
 
 MUTEX_NAME = "EasiAutoMutex"
 

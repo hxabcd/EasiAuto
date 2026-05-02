@@ -23,7 +23,7 @@ from pydantic.fields import FieldInfo
 from PySide6.QtGui import QColor
 
 from EasiAuto import __version__
-from EasiAuto.common.consts import CONFIG_PATH, IS_FULL
+from EasiAuto.consts import CONFIG_PATH, IS_FULL
 
 
 @total_ordering

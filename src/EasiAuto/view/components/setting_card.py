@@ -32,7 +32,7 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from EasiAuto.common.config import ConfigGroup, ConfigItem
+from EasiAuto.models.config import ConfigGroup, ConfigItem
 from EasiAuto.view.components.qfw_widgets import SettingIconWidget
 
 

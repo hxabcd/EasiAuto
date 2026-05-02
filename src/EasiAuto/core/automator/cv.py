@@ -2,9 +2,9 @@ import time
 
 from loguru import logger
 
-from EasiAuto.common.config import config
-from EasiAuto.common.consts import IS_FULL
-from EasiAuto.common.utils import Point, get_resource, get_scale
+from EasiAuto.consts import IS_FULL
+from EasiAuto.core.utils import Point, get_resource, get_scale
+from EasiAuto.models.config import config
 
 from .base import LoginError, PyAutoGuiBaseAutomator
 

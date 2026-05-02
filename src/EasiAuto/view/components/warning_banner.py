@@ -2,7 +2,7 @@ from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from EasiAuto.common.config import BannerStyleConfig
+from EasiAuto.models.config import BannerStyleConfig
 
 
 class WarningBanner(QWidget):

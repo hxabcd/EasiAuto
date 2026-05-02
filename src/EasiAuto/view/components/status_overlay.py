@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 from qfluentwidgets import FluentIcon, IconWidget, ImageLabel, IndeterminateProgressRing, PrimaryPushButton
 
-from EasiAuto.common.utils import QABCMeta, get_resource, get_scale, get_screen_size
+from EasiAuto.core.utils import QABCMeta, get_resource, get_scale, get_screen_size
 
 
 class StatusOverlayBase(QWidget, metaclass=QABCMeta):

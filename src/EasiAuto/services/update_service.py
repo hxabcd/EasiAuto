@@ -21,8 +21,8 @@ from packaging.version import Version
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
-from EasiAuto.common.config import DownloadSource, PackageChannel, UpdateChannal, config
-from EasiAuto.common.consts import CACHE_DIR, EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+from EasiAuto.consts import CACHE_DIR, EA_BASEDIR, EA_EXECUTABLE, IS_DEV
+from EasiAuto.models.config import DownloadSource, PackageChannel, UpdateChannal, config
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 

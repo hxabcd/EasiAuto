@@ -7,7 +7,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
 from qfluentwidgets import InfoBar, InfoBarIcon, InfoBarPosition, PushButton, TextWrap
 
-from EasiAuto.common.announcement import Announcement
+from EasiAuto.services.announcement_service import Announcement
 
 
 class AnnouncementCard(InfoBar):

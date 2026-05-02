@@ -14,7 +14,7 @@ from qfluentwidgets import (
     PushButton,
 )
 
-from EasiAuto.common.utils import get_resource
+from EasiAuto.core.utils import get_resource
 
 
 class DialogResponse(Enum):

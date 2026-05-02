@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from EasiAuto.common.consts import (
+from EasiAuto.consts import (
     EA_BASEDIR,
     EA_EXECUTABLE,
     EA_RESDIR,

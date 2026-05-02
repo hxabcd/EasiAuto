@@ -1,6 +1,6 @@
 import time
 
-from EasiAuto.common.config import config
+from EasiAuto.models.config import config
 
 from .base import BaseAutomator
 

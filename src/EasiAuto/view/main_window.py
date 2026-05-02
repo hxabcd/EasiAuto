@@ -13,7 +13,7 @@ from qfluentwidgets import (
     setTheme,
 )
 
-from EasiAuto.common.utils import get_resource
+from EasiAuto.core.utils import get_resource
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
 
 

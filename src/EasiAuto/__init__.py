@@ -3,7 +3,7 @@
 __version__ = "1.2.0"
 __author__ = "hxabcd"
 
-from .common.consts import IS_DEV, IS_FULL
+from .consts import IS_DEV, IS_FULL
 
 if IS_DEV:
     from loguru import logger
