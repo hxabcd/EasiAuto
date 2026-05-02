@@ -39,10 +39,10 @@ jobs:
         build_type: [full, lite]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
 
@@ -50,13 +50,13 @@ jobs:
         run: uv python install
 
       - name: Install Dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
 
       - name: Build and Zip
         run: uv run python tools/build.py --type ${{ matrix.build_type }}
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           # 使用 Tag 名或触发 ID，确保 Release 任务能找到对应的构建产物
           name: EasiAuto_${{ github.ref_name }}${{ matrix.build_type == 'lite' && '_lite' || '' }}
@@ -74,7 +74,7 @@ jobs:
       contents: write
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: EasiAuto_${{ github.ref_name }}*
           path: release-dist
@@ -94,7 +94,7 @@ jobs:
           fi
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.0
         with:
           token: ${{ secrets.RELEASE_PAT }}
           tag_name: ${{ github.event.inputs.version }}
@@ -108,10 +108,11 @@ jobs:
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          uv run tools/release.py \
+          uv run python -m tools.distribution_center update-manifest \
             --version "${{ github.event.inputs.version }}" \
             --is-dev ${{ steps.check_version.outputs.IS_PRERELEASE }} \
             --confirm-required ${{ github.event.inputs.confirm-required }} \
             --desc "${{ github.event.inputs.release_desc }}" \
             --highlights '${{ github.event.inputs.highlights_json }}' \
             --others '${{ github.event.inputs.others_json }}' \
+            --dist-dir release-dist
