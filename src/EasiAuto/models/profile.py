@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from cryptography.fernet import InvalidToken
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 from PySide6.QtCore import QObject, Signal
 
@@ -64,12 +64,12 @@ class EasiAutomation(BaseModel):
     enabled: bool = Field(default=True, description="是否启用")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    @field_validator("account", "password")
-    @classmethod
-    def not_empty(cls, v: str) -> str:
-        if not v.strip():
+    @model_serializer(mode="wrap")
+    def check_on_dump(self, serializer):
+        if not self.account.strip() or not self.password.strip():
             raise ValueError("账号和密码不能为空")
-        return v
+
+        return serializer(self)
 
     @property
     def display_name(self) -> str | None:
