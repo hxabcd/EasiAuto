@@ -22,7 +22,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.models.profile import EasiAutomation, profile
-from EasiAuto.services.binding_sync import ClassIslandBindingBackend, SubjectRef
+from EasiAuto.services.binding_service import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.helpers import get_main_container
 
 
