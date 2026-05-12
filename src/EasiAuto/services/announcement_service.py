@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -201,7 +202,12 @@ class AnnouncementService(QObject):
         return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
     def _cleanup_threads(self) -> None:
-        self._threads = [thread for thread in self._threads if thread.isRunning()]
+        alive: list[QThread] = []
+        for thread in self._threads:
+            with suppress(RuntimeError):
+                if thread.isRunning():
+                    alive.append(thread)
+        self._threads = alive
 
     def _start_worker_thread(self, worker: QObject, *, connect_signals) -> QThread:
         self._cleanup_threads()

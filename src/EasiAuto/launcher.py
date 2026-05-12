@@ -2,7 +2,7 @@ import atexit
 import sys
 import time
 from argparse import ArgumentParser, Namespace
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from typing import assert_never
 
@@ -60,14 +60,16 @@ setTheme(Theme(config.App.Theme.value))
 setThemeColor("#00C884")
 
 
-def update_statistics_before_exit():
-    announcement_service.shutdown()
-    update_checker.shutdown()
+def shutdown():
+    with suppress(Exception):
+        announcement_service.shutdown()
+    with suppress(Exception):
+        update_checker.shutdown()
+    with suppress(Exception):
+        config.Statistics.TotalRunTime += (datetime.now(UTC) - config.Statistics.ThisInstanceLaunchTime).total_seconds()
 
-    config.Statistics.TotalRunTime += (datetime.now(UTC) - config.Statistics.ThisInstanceLaunchTime).total_seconds()
 
-
-atexit.register(update_statistics_before_exit)
+atexit.register(shutdown)
 
 
 class PostLoginUpdateThread(QThread):
