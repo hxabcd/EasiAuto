@@ -21,7 +21,7 @@
      - 监听 ClassIsland 运行状态（通过互斥锁）
      - 支持 ClassIsland v1 和 v2 版本
 
-   - `binding_sync.py`: ClassIsland 绑定同步逻辑
+   - `services/binding_service.py`: ClassIsland 绑定同步逻辑
      - 将 EasiAuto 档案与 ClassIsland 科目绑定
      - 生成 ClassIsland 自动化配置对象
      - 规则: 下一节课为目标科目 AND 上一节课不是目标科目
@@ -244,11 +244,11 @@ uv run python tools/build.py --type lite    # LITE 版 (轻量，无 OpenCV)
 
 ### G. 单例、IPC 与进程管理
 
-#### 单例保障 ([singleton.py](src/EasiAuto/common/runtime/singleton.py))
+#### 单例保障 ([singleton.py](src/EasiAuto/core/runtime/singleton.py))
 
 - **互斥锁**：Windows 命名互斥锁 `EasiAutoMutex` (`CreateMutex`)
 
-#### IPC 参数转发 ([ipc.py](src/EasiAuto/common/runtime/ipc.py))
+#### IPC 参数转发 ([client.py/server.py](src/EasiAuto/core/ipc/))
 
 - **协议**：Qt `QLocalServer` / `QLocalSocket`
 - **消息格式**：JSON，`{"argv": ["login", "--id", "xxx"]}`
@@ -258,7 +258,7 @@ uv run python tools/build.py --type lite    # LITE 版 (轻量，无 OpenCV)
 
 ### H. 异常处理与遥测
 
-#### Sentry 上报 ([exception_handler.py](src/EasiAuto/common/runtime/exception_handler.py))
+#### Sentry 上报 ([exception_handler.py](src/EasiAuto/core/runtime/exception_handler.py))
 
 - 自动上报未捕获异常到 Sentry（DSN 内置，可在 Debug 配置关闭）
 - **调试上下文**：附带内存使用、线程数、版本号、Python 版本、平台信息
@@ -273,7 +273,7 @@ uv run python tools/build.py --type lite    # LITE 版 (轻量，无 OpenCV)
 
 ---
 
-### I. 秘密存储 ([secret_store.py](src/EasiAuto/common/secret_store.py))
+### I. 密码加密 ([security.py](src/EasiAuto/core/security.py))
 
 - **加密**：Fernet 对称加密（`cryptography` 库）
 - **密钥**：存于 `data/profile.key`（Windows 隐藏属性），首次运行自动生成
@@ -283,7 +283,7 @@ uv run python tools/build.py --type lite    # LITE 版 (轻量，无 OpenCV)
 
 ---
 
-### J. 关键常量与环境判断 ([consts.py](src/EasiAuto/common/consts.py))
+### J. 关键常量与环境判断 ([consts.py](src/EasiAuto/consts.py))
 
 | 常量 | 含义 |
 |------|------|
@@ -323,13 +323,13 @@ uv run python tools/build.py --type lite    # LITE 版 (轻量，无 OpenCV)
 | 登录执行 | `automator/manager.py` | `AutomationManager` |
 | 四种登录方案 | `automator/{fixed,cv,uia,inject}.py` | `FixedAutomator`, `CVAutomator`, `UIAAutomator`, `InjectAutomator` |
 | CI 集成 | `integrations/classisland_manager.py` | `ClassIslandManager` |
-| CI 绑定 | `core/binding_sync.py` | `ClassIslandBindingBackend` |
-| 配置存储 | `common/config.py` | `Config` (Pydantic), `ConfigModel` |
-| 档案管理 | `common/profile.py` | `EasiAutomation`, `Profile` |
-| 密码加密 | `common/secret_store.py` | `encrypt_token`, `decrypt_token` |
-| 常量定义 | `common/consts.py` | `IS_DEV`, `IS_FULL`, `CONFIG_PATH` 等 |
-| 单例与 IPC | `common/runtime/{singleton,ipc}.py` | `check_singleton`, `IPCServer`, `IPCClient` |
-| 异常处理 | `common/runtime/exception_handler.py` | `init_exception_handler` |
+| CI 绑定 | `services/binding_service.py` | `ClassIslandBindingBackend` |
+| 配置存储 | `models/config.py` | `Config` (Pydantic), `ConfigModel` |
+| 档案管理 | `models/profile.py` | `EasiAutomation`, `Profile` |
+| 密码加密 | `core/security.py` | `encrypt_token`, `decrypt_token` |
+| 常量定义 | `consts.py` | `IS_DEV`, `IS_FULL`, `CONFIG_PATH` 等 |
+| 单例与 IPC | `core/runtime/singleton.py` + `core/ipc/{client,server}.py` | `check_singleton`, `ArgvIpcServer`, `send_argv_to_primary` |
+| 异常处理 | `core/runtime/exception_handler.py` | `init_exception_handler` |
 | UI 主窗口 | `view/main_window.py` | `MainWindow` (MSFluentWindow) |
 | UI 自动化页 | `view/pages/automation_page.py` | `AutomationPage` |
 | 构建脚本 | `tools/build.py` | Nuitka 编译与打包 |
