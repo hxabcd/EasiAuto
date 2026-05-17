@@ -23,10 +23,10 @@ from qfluentwidgets import (
     setTheme,
 )
 
-from EasiAuto.core import utils
-from EasiAuto.services.announcement_service import Announcement, announcement_service
-from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.consts import IS_FULL
+from EasiAuto.core import utils
+from EasiAuto.models.config import ConfigGroup, LoginMethod, config
+from EasiAuto.services.announcement_service import Announcement, announcement_service
 from EasiAuto.view.components import AnnouncementCard, SettingCard
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.helpers import get_main_container, set_enable_by

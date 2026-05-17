@@ -32,10 +32,10 @@ from qfluentwidgets import (
     TransparentPushButton,
 )
 
-from EasiAuto.models.config import config
-from EasiAuto.models.profile import ProfileChangeReason, profile
 from EasiAuto.core.utils import get_ci_executable
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
+from EasiAuto.models.config import config
+from EasiAuto.models.profile import ProfileChangeReason, profile
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.helpers import Icons, get_main_container, set_enable_by
 

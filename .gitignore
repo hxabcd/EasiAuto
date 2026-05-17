@@ -18,12 +18,17 @@ wheels/
 .env
 opencv_minimal_build
 TODO
+.ruff_cache
 
 # EasiAuto-generated files
 data
 logs
 cache
 config.json
+
+# Claude Code
+.claude
+CLAUDE.md
 
 # C# Injector Extension
 tools/develop/ENLoginInjector/.vs

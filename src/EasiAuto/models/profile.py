@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from cryptography.fernet import InvalidToken
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from PySide6.QtCore import QObject, Signal
 
