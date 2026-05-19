@@ -7,11 +7,13 @@ from EasiAuto.core.utils import (
     get_scale,
     get_screen_size_physical,
 )
-from EasiAuto.models.config import config
+from EasiAuto.models.config import LoginMethod, config
 
 from .base import PyAutoGuiBaseAutomator
+from .registry import register
 
 
+@register(LoginMethod.FIXED)
 class FixedAutomator(PyAutoGuiBaseAutomator):
     """通过固定位置来登录"""
 
