@@ -30,6 +30,12 @@ dependencies = [
     "windows11toast>=1.2.6",
 ]
 
+[project.scripts]
+dist-center = "tools.distribution_center:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/EasiAuto", "tools"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

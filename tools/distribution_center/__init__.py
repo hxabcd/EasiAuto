@@ -63,6 +63,7 @@ def cmd_update_manifest(args):
         desc=args.desc or None,
         highlights=json.loads(args.highlights),
         others=json.loads(args.others),
+        push_to_beta=args.push_to_beta,
     )
 
 
@@ -95,8 +96,12 @@ def cmd_push(args) -> None:
         _, sha = fetch_json_from_repo(ANNOUNCEMENT_REPO, ANNOUNCEMENT_FILE_PATH, token)
 
     put_json_to_repo(
-        ANNOUNCEMENT_REPO, ANNOUNCEMENT_FILE_PATH, sha, payload,
-        f"Update announcements ({len(payload['announcements'])} items)", token,
+        ANNOUNCEMENT_REPO,
+        ANNOUNCEMENT_FILE_PATH,
+        sha,
+        payload,
+        f"Update announcements ({len(payload['announcements'])} items)",
+        token,
     )
     print("远端公告已更新")
 
@@ -114,6 +119,7 @@ def main():
     p.add_argument("--highlights", default="[]", help="JSON 格式的亮点列表")
     p.add_argument("--others", default="[]", help="JSON 格式的其他更新列表")
     p.add_argument("--dist-dir", default="build", help="构建产物所在目录")
+    p.add_argument("--push-to-beta", action="store_true", help="正式版同步推送到测试版")
     p.add_argument("--token", default="", help="GitHub Token")
     p.set_defaults(func=cmd_update_manifest)
 

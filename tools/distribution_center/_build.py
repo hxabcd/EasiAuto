@@ -82,9 +82,9 @@ class BuildWidget(QWidget):
         # Build type selection
         type_row = QHBoxLayout()
         type_row.addWidget(StrongBodyLabel("构建类型:", self))
-        self.full_check = CheckBox("Full（标准版）", self)
+        self.full_check = CheckBox("Full", self)
         self.full_check.setChecked(True)
-        self.lite_check = CheckBox("Lite（无 CV）", self)
+        self.lite_check = CheckBox("Lite", self)
         self.lite_check.setChecked(True)
         type_row.addWidget(self.full_check)
         type_row.addWidget(self.lite_check)

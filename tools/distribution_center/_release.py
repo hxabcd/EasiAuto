@@ -163,6 +163,7 @@ def update_manifest(
     desc: str | None = None,
     highlights: list[dict],
     others: list[str],
+    push_to_beta: bool = False,
 ):
     from ._shared import MANIFEST_FILE_PATH, MANIFEST_REPO, fetch_json_from_repo, put_json_to_repo
 
@@ -198,6 +199,8 @@ def update_manifest(
         manifest["latest_dev"] = version
     else:
         manifest["latest"] = version
+        if push_to_beta:
+            manifest["latest_dev"] = version
 
     put_json_to_repo(
         MANIFEST_REPO,
@@ -230,6 +233,7 @@ class ReleaseThread(QThread):
             desc = cfg.get("desc") or None
             highlights = cfg["highlights"]
             others = cfg["others"]
+            push_to_beta = cfg.get("push_to_beta", False)
 
             self.log_signal.emit("📦 Collecting release assets...")
             assets = collect_release_assets(dist_dir, version)
@@ -254,6 +258,7 @@ class ReleaseThread(QThread):
                 desc=desc,
                 highlights=highlights,
                 others=others,
+                push_to_beta=push_to_beta,
             )
 
             self.finished_signal.emit(True, f"版本 {version} 发版成功!")
@@ -350,7 +355,7 @@ class ReleaseFormWidget(QWidget):
         right_layout.addLayout(dir_row)
 
         switch_row_1 = QHBoxLayout()
-        switch_row_1.addWidget(StrongBodyLabel("预览版", right))
+        switch_row_1.addWidget(StrongBodyLabel("测试版", right))
         self.is_dev_switch = SwitchButton(right)
         switch_row_1.addWidget(self.is_dev_switch)
         switch_row_1.addStretch(1)
@@ -362,6 +367,17 @@ class ReleaseFormWidget(QWidget):
         switch_row_2.addWidget(self.confirm_switch)
         switch_row_2.addStretch(1)
         right_layout.addLayout(switch_row_2)
+
+        switch_row_3 = QHBoxLayout()
+        switch_row_3.addWidget(StrongBodyLabel("同步推送到测试版", right))
+        self.push_to_beta_switch = SwitchButton(right)
+        self.push_to_beta_switch.setOnText("是")
+        self.push_to_beta_switch.setOffText("否")
+        self.push_to_beta_switch.setDisabled(self.is_dev_switch.isChecked())
+        self.is_dev_switch.checkedChanged.connect(self._on_is_dev_toggled)
+        switch_row_3.addWidget(self.push_to_beta_switch)
+        switch_row_3.addStretch(1)
+        right_layout.addLayout(switch_row_3)
 
         right_layout.addSpacing(8)
 
@@ -393,6 +409,9 @@ class ReleaseFormWidget(QWidget):
     def _refresh_version(self):
         v = _detect_version()
         self.version_label.setText(v if v else "—")
+
+    def _on_is_dev_toggled(self, checked: bool):
+        self.push_to_beta_switch.setDisabled(checked)
 
     def _browse_dist(self):
         path = QFileDialog.getExistingDirectory(self, "选择构建产物目录", self.dist_edit.text())
@@ -428,7 +447,6 @@ class ReleaseFormWidget(QWidget):
 
         highlights = []
         for row in range(self.highlights_table.rowCount()):
-
             name_item = self.highlights_table.item(row, 0)
             desc_item = self.highlights_table.item(row, 1)
             if name_item and desc_item:
@@ -444,6 +462,7 @@ class ReleaseFormWidget(QWidget):
             "desc": desc,
             "highlights": highlights,
             "others": others,
+            "push_to_beta": self.push_to_beta_switch.isChecked(),
         }
 
     def _set_buttons_enabled(self, enabled: bool):
@@ -491,9 +510,7 @@ class ReleaseFormWidget(QWidget):
         self._log("🔨 开始构建...")
 
         self._build_mgr = BuildManager()
-        self._build_mgr.build_thread.finished_signal.connect(
-            lambda success, _: self._on_build_done(success, config)
-        )
+        self._build_mgr.build_thread.finished_signal.connect(lambda success, _: self._on_build_done(success, config))
         self._build_mgr.start_build()
 
     def _on_build_done(self, success: bool, config: dict):
