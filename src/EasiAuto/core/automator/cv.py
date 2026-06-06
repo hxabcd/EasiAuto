@@ -4,13 +4,11 @@ from loguru import logger
 
 from EasiAuto.consts import IS_FULL
 from EasiAuto.core.utils import Point, get_resource, get_scale
-from EasiAuto.models.config import LoginMethod, config
+from EasiAuto.models.config import config
 
 from .base import LoginError, PyAutoGuiBaseAutomator
-from .registry import register
 
 
-@register(LoginMethod.CV)
 class CVAutomator(PyAutoGuiBaseAutomator):
     """通过识别图像登录"""
 

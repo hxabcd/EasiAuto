@@ -2,8 +2,7 @@ from loguru import logger
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.core.automator import BaseAutomator
-from EasiAuto.core.automator.registry import get_automator_class
+from EasiAuto.core.automator import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
 from EasiAuto.models.config import LoginMethod, config
 
 
@@ -21,12 +20,13 @@ class AutomationManager(QObject):
         self._automator: BaseAutomator | None = None
 
     def _get_strategy_class(self, strategy: LoginMethod) -> type[BaseAutomator]:
-        cls = get_automator_class(strategy)
-        if cls is None:
-            from EasiAuto.core.automator.fixed import FixedAutomator
-
-            cls = FixedAutomator  # DEFAULT
-        return cls
+        strategies: dict[LoginMethod, type[BaseAutomator]] = {
+            LoginMethod.FIXED: FixedAutomator,
+            LoginMethod.CV: CVAutomator,
+            LoginMethod.UIA: UIAAutomator,
+            LoginMethod.INJECT: InjectAutomator,
+        }
+        return strategies.get(strategy, FixedAutomator)
 
     def run(self, account: str, password: str):
         if self._automator and self._automator.isRunning():
