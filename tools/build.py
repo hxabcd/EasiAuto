@@ -33,6 +33,8 @@ def run_nuitka(build_type: Literal["full", "lite"]):
         # ------ 基本参数 ------
         f"--main={MAIN}",
         "--mode=standalone",
+        "--jobs=3",
+        "--low-memory",
         # "--msvc=latest",
         "--assume-yes-for-downloads",
         "--include-data-dir=resources=resources",
@@ -82,6 +84,12 @@ def run_nuitka(build_type: Literal["full", "lite"]):
                 shutil.rmtree(dest_vendors)
             print(f"Copying vendors to {dest_vendors}...")
             shutil.copytree("vendors", dest_vendors)
+
+        dll_src = Path("SeewoPipeBridge.dll")
+        if dll_src.exists():
+            dll_dst = dist_path / dll_src.name
+            print(f"Copying {dll_src} to {dll_dst}...")
+            shutil.copy2(dll_src, dll_dst)
 
     # 删除冗余文件
     if build_type == "lite":

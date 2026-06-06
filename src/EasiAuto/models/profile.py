@@ -64,10 +64,19 @@ class EasiAutomation(BaseModel):
     enabled: bool = Field(default=True, description="是否启用")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
+    token: str | None = Field(default=None, description="二维码登录令牌")
+    user_id: str | None = Field(default=None, description="希沃用户 ID")
+    nick_name: str | None = Field(default=None, description="希沃用户昵称")
+    phone: str | None = Field(default=None, description="希沃用户手机号")
+
     @model_serializer(mode="wrap")
     def check_on_dump(self, serializer):
-        if not self.account.strip() or not self.password.strip():
-            raise ValueError("账号和密码不能为空")
+        if self.is_qrcode_profile:
+            return serializer(self)
+        if not self.account.strip():
+            raise ValueError("账号不能为空")
+        if not self.password.strip():
+            raise ValueError("密码不能为空")
 
         return serializer(self)
 
@@ -98,6 +107,10 @@ class EasiAutomation(BaseModel):
         label = self.name or self.account
         return f"希沃自动登录（{label}）"
 
+    @property
+    def is_qrcode_profile(self) -> bool:
+        return bool(self.token)
+
 
 class Profile(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -116,6 +129,14 @@ class Profile(BaseModel):
             return payload
         for item in payload["automations"]:
             item["password"] = encrypt_password(item["password"])
+            if item.get("token"):
+                item["token"] = encrypt_password(item["token"])
+                if item.get("user_id"):
+                    item["user_id"] = encrypt_password(item["user_id"])
+                if item.get("nick_name"):
+                    item["nick_name"] = encrypt_password(item["nick_name"])
+                if item.get("phone"):
+                    item["phone"] = encrypt_password(item["phone"])
         return payload
 
     @classmethod
@@ -130,6 +151,21 @@ class Profile(BaseModel):
             except Exception as e:
                 logger.error(f"解密账号 {item.account} 的密码失败, 已清空密码: {e}")
                 item.password = ""
+            try:
+                if item.token:
+                    item.token = decrypt_password(item.token)
+                    if item.user_id:
+                        item.user_id = decrypt_password(item.user_id)
+                    if item.nick_name:
+                        item.nick_name = decrypt_password(item.nick_name)
+                    if item.phone:
+                        item.phone = decrypt_password(item.phone)
+            except Exception as e:
+                logger.error(f"解密账号 {item.account} 的令牌失败, 已清空令牌: {e}")
+                item.token = None
+                item.user_id = None
+                item.nick_name = None
+                item.phone = None
 
     def save(self, reason: ProfileChangeReason = "profile_changed") -> None:
         path = PROFILE_PATH

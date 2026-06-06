@@ -4,7 +4,7 @@ from loguru import logger
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QListWidgetItem, QScroller, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QLabel, QListWidgetItem, QProgressBar, QPushButton, QScroller, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
     AvatarWidget,
@@ -32,6 +32,7 @@ from EasiAuto.models.profile import EasiAutomation, ProfileChangeReason, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
+from EasiAuto.view.components.qrcode_login_dialog import QRCodeLoginDialog
 from EasiAuto.view.components.setting_card import CardType
 from EasiAuto.view.helpers import get_main_container, get_main_window
 
@@ -143,6 +144,10 @@ class ProfileCard(CardWidget):
         self.detail_label = BodyLabel(self.automation.detail_name)
         self.detail_label.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
 
+        self.type_badge = BodyLabel("")
+        self.type_badge.setContentsMargins(6, 2, 6, 2)
+        self.type_badge.setStyleSheet("font-size: 11px; border-radius: 4px; padding: 1px 6px;")
+
         self.subject_bar = PillOverflowBar()
         self.subject_bar.setContentsMargins(0, 6, 0, 0)
         self.subject_bar.setSpacing(6)
@@ -152,6 +157,10 @@ class ProfileCard(CardWidget):
         self.subject_bar.setLastWidget(self.add_subject_button)
 
         text_layout.addWidget(self.name_label)
+        badge_row = QHBoxLayout()
+        badge_row.addWidget(self.type_badge)
+        badge_row.addStretch()
+        text_layout.addLayout(badge_row)
         text_layout.addWidget(self.detail_label)
         text_layout.addWidget(self.subject_bar)
 
@@ -243,6 +252,12 @@ class ProfileCard(CardWidget):
         self.name_label.setText(self.automation.display_name or "未命名自动化")
         self.detail_label.setText(self.automation.detail_name or "")
         self.enabled_switch.setChecked(automation.enabled)
+        if automation.is_qrcode_profile:
+            self.type_badge.setText("扫码登录")
+            self.type_badge.setStyleSheet("font-size: 11px; border-radius: 4px; padding: 1px 6px; background: #00C884; color: white;")
+        else:
+            self.type_badge.setText("账密登录")
+            self.type_badge.setStyleSheet("font-size: 11px; border-radius: 4px; padding: 1px 6px; background: #3498db; color: white;")
 
     def set_subject_tags(self, tags: list[str]):
         self._update_subjects(tags)
@@ -261,7 +276,7 @@ class ProfileManagePage(QWidget):
     """档案编辑页"""
 
     profileChanged = Signal()
-    runAutomation = Signal(str, str)
+    runAutomation = Signal(str, str, str)  # account, password, automation_id
 
     def __init__(self):
         super().__init__()
@@ -325,12 +340,17 @@ class ProfileManagePage(QWidget):
         form_layout.addRow(BodyLabel("密码"), self.password_edit)
         form_layout.addRow(BodyLabel("希沃用户名 (可选)"), self.account_name_edit)
 
+        self.qrcode_login_btn = PrimaryPushButton("二维码登录")
+        self.qrcode_login_btn.setFixedWidth(160)
+        self.qrcode_login_btn.clicked.connect(self._on_qrcode_login_clicked)
+
         self.save_button = PrimaryPushButton("保存")
         self.save_button.clicked.connect(self._handle_save_automation)
 
         self.editor_layout.addWidget(self.new_auto_hint)
         self.editor_layout.addWidget(self.automation_name_label)
         self.editor_layout.addWidget(self.form)
+        self.editor_layout.addWidget(self.qrcode_login_btn)
         self.editor_layout.addStretch(1)
         self.editor_layout.addWidget(self.save_button)
 
@@ -400,6 +420,54 @@ class ProfileManagePage(QWidget):
         self._update_editor(self.current_automation)
         self.editor_widget.setEnabled(True)
 
+    def _on_qrcode_login_clicked(self) -> None:
+        dialog = QRCodeLoginDialog(self.window())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        data = dialog.login_data
+        if not data:
+            return
+
+        nick_name = data.get("nickName", "")
+        user_id = data.get("userId", "")
+
+        if self.current_automation and not self.is_new_automation:
+            self.current_automation.token = data.get("token", "")
+            self.current_automation.user_id = user_id
+            self.current_automation.nick_name = nick_name
+            self.current_automation.phone = data.get("phone", "")
+            self.current_automation.account = ""
+            self.current_automation.password = ""
+            self.current_automation.account_name = None
+            self.current_automation.name = self.current_automation.name or nick_name
+            profile.upsert_automation(self.current_automation)
+            profile.save(reason="automation_saved")
+            self._init_selector()
+            self.profileChanged.emit()
+            return
+
+        automation = EasiAutomation(
+            account="", password="", name=nick_name, account_name=None,
+            token=data.get("token", ""), user_id=user_id,
+            nick_name=nick_name, phone=data.get("phone", ""),
+        )
+        existing = next((item for item in profile.list_automations() if item.user_id == user_id), None)
+        if existing:
+            existing.token = automation.token
+            existing.user_id = automation.user_id
+            existing.nick_name = automation.nick_name
+            existing.phone = automation.phone
+            existing.name = existing.name or nick_name
+            existing.account_name = None
+            profile.upsert_automation(existing)
+        else:
+            profile.upsert_automation(automation)
+
+        profile.save(reason="automation_saved")
+        self._init_selector()
+        self.profileChanged.emit()
+
     def _display_name(self, automation: EasiAutomation) -> str:
         return automation.name or automation.account_name or automation.account or "未命名档案"
 
@@ -408,10 +476,15 @@ class ProfileManagePage(QWidget):
         self.new_auto_hint.setVisible(self.is_new_automation)
         self.automation_name_label.setText(self._display_name(automation))
 
+        is_qr = automation.is_qrcode_profile
         self.name_edit.setText(automation.name or "")
-        self.account_edit.setText(automation.account)
-        self.password_edit.setText(automation.password)
-        self.account_name_edit.setText(automation.account_name or "")
+        self.account_edit.setText("" if is_qr else automation.account)
+        self.password_edit.setText("" if is_qr else automation.password)
+        self.account_name_edit.setText("" if is_qr else (automation.account_name or ""))
+
+        self.account_edit.setDisabled(is_qr)
+        self.password_edit.setDisabled(is_qr)
+        self.account_name_edit.setDisabled(is_qr)
 
         self.editor_widget.setEnabled(True)
 
@@ -422,23 +495,30 @@ class ProfileManagePage(QWidget):
         self.account_edit.clear()
         self.password_edit.clear()
         self.account_name_edit.clear()
+        self.account_edit.setEnabled(True)
+        self.password_edit.setEnabled(True)
+        self.account_name_edit.setEnabled(True)
         self.editor_widget.setDisabled(True)
 
     def _save_form(self):
         if not self.current_automation:
             raise ValueError("未选择档案")
 
-        account = self.account_edit.text().strip()
-        password = self.password_edit.text()
+        is_qr = self.current_automation.is_qrcode_profile
+        account = self.account_edit.text().strip() if not is_qr else self.current_automation.account
+        password = self.password_edit.text() if not is_qr else ""
 
-        if account == "":
-            raise ValueError("账号不能为空")
-        if password == "":
-            raise ValueError("密码不能为空")
+        if not is_qr:
+            if account == "":
+                raise ValueError("账号不能为空")
+            if password == "":
+                raise ValueError("密码不能为空")
 
-        existing = next((item for item in profile.list_automations() if item.account == account), None)
-        if existing and existing.id != self.current_automation.id:
-            raise ValueError("账号已存在")
+        existing = None
+        if not is_qr:
+            existing = next((item for item in profile.list_automations() if item.account == account), None)
+            if existing and existing.id != self.current_automation.id:
+                raise ValueError("账号已存在")
 
         self.current_automation.name = self.name_edit.text().strip() or None
         self.current_automation.account = account
@@ -510,7 +590,7 @@ class ProfileManagePage(QWidget):
             logger.error(f"无法找到自动化: {automation_id}")
             return
 
-        self.runAutomation.emit(automation.account, automation.password)
+        self.runAutomation.emit(automation.account, automation.password, automation_id)
         logger.info(f"信号已发送: 运行自动化 {automation.id}")
 
     def _handle_action_export(self, automation_id: str) -> None:
@@ -612,7 +692,7 @@ class ProfilePage(QWidget):
     """设置 - 档案页"""
 
     profileChanged = Signal()
-    runAutomation = Signal(str, str)
+    runAutomation = Signal(str, str, str)  # account, password, automation_id
 
     def __init__(self):
         super().__init__()

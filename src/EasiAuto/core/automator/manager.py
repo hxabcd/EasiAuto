@@ -28,13 +28,19 @@ class AutomationManager(QObject):
             cls = FixedAutomator  # DEFAULT
         return cls
 
-    def run(self, account: str, password: str):
+    def run(self, account: str, password: str, token_data: dict | None = None):
         if self._automator and self._automator.isRunning():
             logger.warning("已有一个正在运行的登录任务")
             return
 
-        strategy_class = self._get_strategy_class(config.Login.Method)
-        self._automator = strategy_class(account, password)
+        if token_data:
+            from EasiAuto.core.automator.qrcode import QRCodeAutomator
+
+            logger.info("检测到二维码档案, 强制使用 IPC 注入登录")
+            self._automator = QRCodeAutomator(account, password, token_data)
+        else:
+            strategy_class = self._get_strategy_class(config.Login.Method)
+            self._automator = strategy_class(account, password)
 
         self._automator.started.connect(self.started)
         self._automator.finished.connect(self.finished)

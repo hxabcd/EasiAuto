@@ -18,7 +18,7 @@ from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePa
 
 
 class MainWindow(MSFluentWindow):
-    runAutomation = Signal(str, str)
+    runAutomation = Signal(str, str, str)  # account, password, automation_id
 
     def __init__(self):
         logger.debug("初始化界面")
@@ -65,7 +65,7 @@ class MainWindow(MSFluentWindow):
 
     def _init_signals(self):
         # 登录请求
-        self.profile_page.runAutomation.connect(self.runAutomation)
+        self.profile_page.runAutomation.connect(self.runAutomation.emit)
 
         # 数据同步
         self.automation_page.editClicked.connect(self._on_edit_automation)

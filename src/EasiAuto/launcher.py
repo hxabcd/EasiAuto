@@ -122,10 +122,17 @@ class Launcher:
         self.main_window.raise_()
         self.main_window.activateWindow()
 
-    def _handle_login_request_from_ui(self, account: str, password: str) -> None:
+    def _handle_login_request_from_ui(self, account: str, password: str, automation_id: str | None = None) -> None:
         """响应从 UI 发送的自动登录执行请求"""
         if self.main_window:
             self.main_window.showMinimized()
+
+        profile_id: str | None = automation_id
+        if profile_id is None:
+            for auto in profile.list_automations():
+                if auto.account == account:
+                    profile_id = auto.id
+                    break
 
         with self.from_ipc():
             self._start_login(
@@ -133,7 +140,7 @@ class Launcher:
                     account=account,
                     password=password,
                     manual=True,
-                    id=None,
+                    id=profile_id,
                 )
             )
 
@@ -229,8 +236,11 @@ class Launcher:
             if not auto.enabled:
                 logger.warning(f"档案 {args.id} 已被禁用")
                 return None
-            if auto.account == "" or auto.password == "":
-                logger.error(f"档案 {args.id} 的账号或密码为空")
+            if not auto.is_qrcode_profile and auto.account == "":
+                logger.error(f"档案 {args.id} 的账号为空")
+                return None
+            if not auto.is_qrcode_profile and auto.password == "":
+                logger.error(f"档案 {args.id} 的密码为空")
                 return None
             return auto.account, auto.password
 
@@ -262,6 +272,19 @@ class Launcher:
             if not from_ipc:
                 stop(1)
             return False
+
+        account, password = credentials
+
+        token_data: dict | None = None
+        if args.id:
+            auto = profile.get_automation(args.id)
+            if auto and auto.is_qrcode_profile:
+                token_data = {
+                    "token": auto.token,
+                    "userId": auto.user_id or "",
+                    "nickName": auto.nick_name or "",
+                    "phone": auto.phone or "",
+                }
 
         # 显示警告弹窗
         if config.Warning.Enabled and not args.manual:
@@ -337,7 +360,7 @@ class Launcher:
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._current_login_triggered_via_ipc = from_ipc
 
-        automation_manager.run(*credentials)
+        automation_manager.run(account, password, token_data)
 
         self.login_running = True
         return True

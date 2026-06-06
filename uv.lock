@@ -215,19 +215,35 @@ wheels = [
 ]
 
 [[package]]
+name = "dll-injector"
+version = "1.0.5"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "psutil" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/12/0b/d14e7d0b8f8bef9319ef0bcdc9b452d6944e58181b0847feecefca35d409/dll_injector-1.0.5.tar.gz", hash = "sha256:6e65180b2085b23151df8c198e663de651e433b66ca57d707095317485c4569c", size = 20921, upload-time = "2024-07-02T16:07:52.52Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/48/bb/f4fc0c6e01314cb018d0b02702c80227b8f36aca76f3446dc7cadac0be0c/DLL_Injector-1.0.5-py3-none-any.whl", hash = "sha256:8cde58d04353c08afa29458ce5941693585da9c04e2c632e5f81ef3fe0955d31", size = 21318, upload-time = "2024-07-02T16:07:50.984Z" },
+]
+
+[[package]]
 name = "easiauto"
 version = "1.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
+    { name = "dll-injector" },
     { name = "keyring" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "packaging" },
+    { name = "pefile" },
     { name = "pillow" },
     { name = "psutil" },
+    { name = "purelypdb" },
     { name = "pyautogui" },
     { name = "pydantic" },
+    { name = "pydll-injector" },
     { name = "pyside6" },
     { name = "pyside6-fluent-widgets" },
     { name = "pywin32" },
@@ -247,14 +263,18 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=46.0.3" },
+    { name = "dll-injector", specifier = "==1.0.5" },
     { name = "keyring", specifier = ">=25.7.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.4.2" },
     { name = "packaging", specifier = ">=25.0" },
+    { name = "pefile", specifier = ">=2024.8.26" },
     { name = "pillow", specifier = ">=12.0.0" },
     { name = "psutil", specifier = ">=7.1.3" },
+    { name = "purelypdb", specifier = ">=1.0.0" },
     { name = "pyautogui", specifier = ">=0.9.54" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pydll-injector", specifier = "==0.1.2" },
     { name = "pyside6", specifier = ">=6.9.3" },
     { name = "pyside6-fluent-widgets", specifier = ">=1.11.1" },
     { name = "pywin32", specifier = ">=311" },
@@ -449,6 +469,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pefile"
+version = "2024.8.26"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/03/4f/2750f7f6f025a1507cd3b7218691671eecfd0bbebebe8b39aa0fe1d360b8/pefile-2024.8.26.tar.gz", hash = "sha256:3ff6c5d8b43e8c37bb6e6dd5085658d658a7a0bdcd20b6a07b1fcfc1c4e9d632", size = 76008, upload-time = "2024-08-26T20:58:38.155Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/54/16/12b82f791c7f50ddec566873d5bdd245baa1491bac11d15ffb98aecc8f8b/pefile-2024.8.26-py3-none-any.whl", hash = "sha256:76f8b485dcd3b1bb8166f1128d395fa3d87af26360c2358fb75b80019b957c6f", size = 74766, upload-time = "2024-08-26T21:01:02.632Z" },
+]
+
+[[package]]
 name = "pillow"
 version = "12.1.1"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -543,6 +572,15 @@ wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/04/78/0acd37ca84ce3ddffaa92ef0f571e073faa6d8ff1f0559ab1272188ea2be/psutil-7.2.2-cp36-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:b58fabe35e80b264a4e3bb23e6b96f9e45a3df7fb7eed419ac0e5947c61e47cc", size = 148266, upload-time = "2026-01-28T18:15:31.597Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/b4/90/e2159492b5426be0c1fef7acba807a03511f97c5f86b3caeda6ad92351a7/psutil-7.2.2-cp37-abi3-win_amd64.whl", hash = "sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988", size = 137737, upload-time = "2026-01-28T18:15:33.849Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/8c/c7/7bb2e321574b10df20cbde462a94e2b71d05f9bbda251ef27d104668306a/psutil-7.2.2-cp37-abi3-win_arm64.whl", hash = "sha256:8c233660f575a5a89e6d4cb65d9f938126312bca76d8fe087b947b3a1aaac9ee", size = 134617, upload-time = "2026-01-28T18:15:36.514Z" },
+]
+
+[[package]]
+name = "purelypdb"
+version = "1.0.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/de/c0/2c6a8d4be7abde156e196ebd7d9a3163ab019ce4e625887491ba6ae6124d/purelypdb-1.0.0.tar.gz", hash = "sha256:ffdbe94b43aa9369a3fe56e3f483f63f004d4bbd768d6631d61cbf8c063fc488", size = 28593, upload-time = "2025-12-09T06:55:51.012Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/3a/cf/a3ff9992879390497c84851ae3d0e7de4ce7210c74db9d0b798c49b98c27/purelypdb-1.0.0-py3-none-any.whl", hash = "sha256:9f029ac222a81ba36bee8b075b00ef516856cc14c82c6639319b6cf2ce3db6cb", size = 31944, upload-time = "2025-12-09T06:55:48.922Z" },
 ]
 
 [[package]]
@@ -663,6 +701,15 @@ wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/aa/81/05e400037eaf55ad400bcd318c05bb345b57e708887f07ddb2d20e3f0e98/pydantic_core-2.41.5-graalpy312-graalpy250_312_native-macosx_11_0_arm64.whl", hash = "sha256:aabf5777b5c8ca26f7824cb4a120a740c9588ed58df9b2d196ce92fba42ff8dc", size = 1915388, upload-time = "2025-11-04T13:42:52.215Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/6e/0d/e3549b2399f71d56476b77dbf3cf8937cec5cd70536bdc0e374a421d0599/pydantic_core-2.41.5-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c007fe8a43d43b3969e8469004e9845944f1a80e6acd47c150856bb87f230c56", size = 1942879, upload-time = "2025-11-04T13:42:56.483Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/f7/07/34573da085946b6a313d7c42f82f16e8920bfd730665de2d11c0c37a74b5/pydantic_core-2.41.5-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:76d0819de158cd855d1cbb8fcafdf6f5cf1eb8e470abe056d5d161106e38062b", size = 2139017, upload-time = "2025-11-04T13:42:59.471Z" },
+]
+
+[[package]]
+name = "pydll-injector"
+version = "0.1.2"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/c3/5f/43f5e262c21fbc31711991cb7790804e9c8f5dcd63603f9154edf3b95e26/pydll_injector-0.1.2.tar.gz", hash = "sha256:8d128144837827ba48ef831289656268f093af68a1bdb036665d5ed4fd20c71e", size = 22453, upload-time = "2025-07-30T00:57:38.386Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/7c/46/49f742f04272c6479249ad810baeaab96010e9a74b9c2c3a8a67600c2119/pydll_injector-0.1.2-py3-none-any.whl", hash = "sha256:2187a224059d6931549f7c212b1a4c13ee5218e9f84d2da8892756f022db27e2", size = 10814, upload-time = "2025-07-30T00:57:37.395Z" },
 ]
 
 [[package]]

@@ -1,3 +1,6 @@
+import hashlib
+import re
+import shutil
 import subprocess
 import time
 import winreg
@@ -12,6 +15,7 @@ from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
+from EasiAuto.consts import EA_BASEDIR
 from EasiAuto.core.runtime import capture_handled_exception
 from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 from EasiAuto.models.config import config
@@ -32,12 +36,13 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     task_updated = Signal(str)
     progress_updated = Signal(str)
 
-    def __init__(self, account: str, password: str) -> None:
+    def __init__(self, account: str, password: str, token_data: dict | None = None) -> None:
         super().__init__()
         self.setObjectName(f"Automator:{self.__class__.__name__}")
 
         self.account: str = account
         self.password: str = password
+        self.token_data: dict | None = token_data
         self.easinote_path: Path | None = self.get_easinote_path()
         self.easiauto_hwnd: int | None = None
 
@@ -72,8 +77,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         if config.Login.EasiNote.AutoPath:
             try:
                 with winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
-                    r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
+                        winreg.HKEY_LOCAL_MACHINE,
+                        r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
                 ) as key:
                     path_str = winreg.QueryValueEx(key, "ExePath")[0]
                     logger.debug(f"自动获取到路径: {path_str}")
@@ -128,7 +133,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     def _log_all_windows(self):
         windows = self._enum_all_windows()
 
-        # 按窗口标题排序
         windows.sort(key=lambda x: x[1])
 
         logger.debug("==========当前窗口==========")
@@ -168,6 +172,49 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             elapsed += interval
         return False
 
+    def _replace_account_dll(self) -> None:
+        """比对并替换 EasiNote.Account.dll"""
+        src = EA_BASEDIR / "EasiNote.Account.dll"
+        if not src.exists():
+            logger.debug("项目根目录未找到 EasiNote.Account.dll，跳过替换")
+            return
+
+        base = self.easinote_path.parent.parent
+        version_pattern = re.compile(r"^EasiNote5_\d+\.\d+\.\d+\.\d+$")
+
+        version_dirs = sorted(
+            [d for d in base.iterdir() if d.is_dir() and version_pattern.match(d.name)],
+            key=lambda d: [int(n) for n in d.name.split("_")[1].split(".")],
+            reverse=True,
+        )
+
+        if not version_dirs:
+            logger.debug("未找到希沃版本目录，跳过 DLL 替换")
+            return
+
+        target_dir = version_dirs[0] / "Main"
+        target = target_dir / "EasiNote.Account.dll"
+
+        if target.exists():
+            src_hash = hashlib.sha256(src.read_bytes()).hexdigest()
+            tgt_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+            if src_hash == tgt_hash:
+                logger.debug("EasiNote.Account.dll 一致，无需替换")
+                return
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            backup = target.with_suffix(".dll.bak")
+            logger.info(f"备份原文件 -> {backup}")
+            shutil.copy2(target, backup)
+
+        logger.info(f"正在替换 EasiNote.Account.dll -> {target}")
+        try:
+            shutil.copy2(src, target)
+            logger.success(f"已替换 {target}")
+        except Exception as e:
+            logger.warning(f"替换 EasiNote.Account.dll 失败: {e}")
+
     def restart_easinote(self):
         """重启希沃进程"""
 
@@ -178,6 +225,9 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.update_progress("终止希沃进程")
         self.kill_processes()
         self.check_interruption()
+
+        # 替换 DLL
+        self._replace_account_dll()
 
         # 启动
         self.update_progress("启动希沃白板")
@@ -304,13 +354,13 @@ class PyAutoGuiBaseAutomator(BaseAutomator):
             pyautogui.typewrite(text, interval=0.01)
 
     def click(
-        self,
-        x: SupportsInt | tuple[int, int] | Point,
-        y: SupportsInt | None = None,
-        *,
-        clicks: SupportsIndex = 1,
-        interval: float = 0,
-        duration: float = 0,
+            self,
+            x: SupportsInt | tuple[int, int] | Point,
+            y: SupportsInt | None = None,
+            *,
+            clicks: SupportsIndex = 1,
+            interval: float = 0,
+            duration: float = 0,
     ):
         """统一点击函数"""
         import pyautogui
