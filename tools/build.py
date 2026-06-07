@@ -48,6 +48,7 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
 
     resources_src = str(Path("resources").resolve())
     vendors_src = str(Path("vendors").resolve())
+    icon_src = str(Path("resources/icons/EasiAuto.ico").resolve())
 
     cmd = [
         "uv",
@@ -65,7 +66,7 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
         "--add-data", f"{vendors_src}{';'}vendors",
         "--hidden-import", "comtypes.stream",
         "--hidden-import", "sentry_sdk.integrations",
-        "--icon=resources/icons/EasiAuto.ico",
+        f"--icon={icon_src}",
     ]
 
     if build_type == "lite":
