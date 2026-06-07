@@ -88,4 +88,20 @@ def _focus_existing_instance(current_pid: int) -> bool:
 
 def check_singleton(focus_existing: bool = True) -> bool:
     """检查程序是否可作为唯一实例继续运行"""
-    return True
+    global _singleton_mutex
+
+    try:
+        _singleton_mutex = win32event.CreateMutex(None, False, MUTEX_NAME)  # type: ignore[arg-type]
+        if win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS:
+            return True
+    except Exception as e:
+        logger.error(f"创建互斥锁失败: {e}")
+        # 互斥锁不可用时，退化为窗口/进程扫描
+        if focus_existing:
+            return not _focus_existing_instance(os.getpid())
+        return not any(_is_same_app_process(pid) for _, pid in _iter_other_process_windows(os.getpid()))
+
+    logger.warning("检测到另一个正在运行的实例 (Mutex)")
+    if focus_existing:
+        _focus_existing_instance(os.getpid())
+    return False

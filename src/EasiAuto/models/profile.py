@@ -70,6 +70,8 @@ class EasiAutomation(BaseModel):
 
     @model_serializer(mode="wrap")
     def check_on_dump(self, serializer):
+        if self.is_qrcode_profile:
+            return serializer(self)
         if not self.account.strip():
             raise ValueError("账号不能为空")
         if not self.password.strip():
@@ -149,10 +151,12 @@ class Profile(BaseModel):
         if not self.encryption_enabled:
             return payload
         for item in payload["automations"]:
-            item["type"] = "qrcode" if item.get("token") else "password"
-            item["password"] = encrypt_password(item["password"])
-            if item.get("token"):
+            is_qr = bool(item.get("token"))
+            item["type"] = "qrcode" if is_qr else "password"
+            if is_qr:
                 item["token"] = encrypt_password(item["token"])
+            else:
+                item["password"] = encrypt_password(item["password"])
         return payload
 
     @classmethod
@@ -162,17 +166,18 @@ class Profile(BaseModel):
 
     def _decrypt_automation_passwords(self) -> None:
         for item in self.automations:
-            try:
-                item.password = decrypt_password(item.password)
-            except Exception as e:
-                logger.error(f"解密密码失败: {e}")
-                item.password = ""
             if isinstance(item, QrcodeAutomation):
                 try:
                     item.token = decrypt_password(item.token)
                 except Exception as e:
                     logger.error(f"解密令牌失败: {e}")
                     item.token = ""
+            else:
+                try:
+                    item.password = decrypt_password(item.password)
+                except Exception as e:
+                    logger.error(f"解密密码失败: {e}")
+                    item.password = ""
 
     def save(self, reason: ProfileChangeReason = "profile_changed") -> None:
         path = PROFILE_PATH

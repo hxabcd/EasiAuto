@@ -26,6 +26,7 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
+from EasiAuto.consts import IS_FULL
 from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.models.profile import EasiAutomation, QrcodeAutomation, ProfileChangeReason, profile
@@ -290,7 +291,9 @@ class ProfileManagePage(QWidget):
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.action_bar.addAction(Action(FluentIcon.ADD, "添加", triggered=self._add_automation))
-        self.action_bar.addAction(Action(FluentIcon.QRCODE, "扫码添加", triggered=self._on_qrcode_add))
+        self.action_qrcode_add = Action(FluentIcon.QRCODE, "扫码添加", triggered=self._on_qrcode_add)
+        self.action_qrcode_add.setEnabled(IS_FULL)
+        self.action_bar.addAction(self.action_qrcode_add)
         self.action_bar.addAction(Action(FluentIcon.SYNC, "刷新", triggered=self._init_selector))
 
         self.auto_list = ListWidget()

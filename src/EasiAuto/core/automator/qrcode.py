@@ -138,9 +138,9 @@ class QRCodeAutomator(BaseAutomator):
 
 def deploy_resources():
     source_dir = EA_BASEDIR
-    dllpatcher_exe = source_dir / "DllPatcher" / "DllPatcher.exe"
+    dllpatcher_exe = VENDOR_PATH / "DllPatcher" / "DllPatcher.exe"
     if not dllpatcher_exe.exists():
-        dllpatcher_exe = source_dir / "tools" / "DllPatcher" / "bin" / "Release" / "net6.0" / "DllPatcher.exe"
+        dllpatcher_exe = source_dir / "tools" / "DllPatcher" / "bin" / "Release" / "net8.0" / "DllPatcher.exe"
 
     easinote_base = None
     try:
