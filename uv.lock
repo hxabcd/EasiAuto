@@ -216,7 +216,7 @@ wheels = [
 
 [[package]]
 name = "easiauto"
-version = "1.2.2"
+version = "1.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },

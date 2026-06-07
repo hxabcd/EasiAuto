@@ -7,14 +7,14 @@ from loguru import logger
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (
-    QDialog,
-    QHBoxLayout,
-    QLabel,
-    QProgressBar,
-    QVBoxLayout
+from PySide6.QtWidgets import QLabel
+from qfluentwidgets import (
+    BodyLabel,
+    Dialog,
+    PrimaryPushButton,
+    ProgressBar,
+    PushButton,
 )
-from qfluentwidgets import BodyLabel, PrimaryPushButton, PushButton, SubtitleLabel
 
 QRCODE_URL = "https://id.seewo.com/scan/qrcode"
 CHECK_URL = "https://id.seewo.com/scan/pcCheckQrcode"
@@ -94,73 +94,52 @@ class _PollWorker(QThread):
                 continue
 
 
-class QRCodeLoginDialog(QDialog):
+class QRCodeLoginDialog(Dialog):
 
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("二维码登录")
+        super().__init__("二维码登录", "")
         self.setMinimumSize(420, 540)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         self._login_data: dict | None = None
         self._countdown: int = 0
         self._countdown_timer: QTimer | None = None
         self._worker: _PollWorker | None = None
 
+        self.titleLabel.setText("请使用希沃白板或微信扫描二维码")
+        self.contentLabel.hide()
+        self.yesButton.hide()
+        self.cancelButton.hide()
+
         self._init_ui()
         QTimer.singleShot(100, self._start_login)
 
     def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setSpacing(14)
-        layout.setContentsMargins(28, 24, 28, 24)
-
-        title = SubtitleLabel("请使用希沃白板或微信扫描二维码")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
         self._qr_label = QLabel()
         self._qr_label.setAlignment(Qt.AlignCenter)
         self._qr_label.setMinimumSize(QR_SIZE + 24, QR_SIZE + 24)
         self._qr_label.setStyleSheet("border: 2px solid #d0d0d0; border-radius: 10px; padding: 10px; background: white;")
-        layout.addWidget(self._qr_label, 1)
+        self.textLayout.addWidget(self._qr_label, 1)
 
-        self._countdown_bar = QProgressBar()
+        self._countdown_bar = ProgressBar()
         self._countdown_bar.setRange(0, QRCODE_TTL)
         self._countdown_bar.setValue(QRCODE_TTL)
         self._countdown_bar.setTextVisible(True)
         self._countdown_bar.setFormat("二维码有效时间剩余: %v 秒")
-        self._countdown_bar.setFixedHeight(18)
-        self._countdown_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                border-radius: 4px;
-                background-color: #E0E0E0;
-                text-align: center;
-                font-size: 12px;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                border-radius: 4px;
-            }
-        """)
-        layout.addWidget(self._countdown_bar)
+        self._countdown_bar.setFixedHeight(6)
+        self.textLayout.addWidget(self._countdown_bar)
 
         self._status_label = BodyLabel("正在获取二维码...")
         self._status_label.setAlignment(Qt.AlignCenter)
         self._status_label.setWordWrap(True)
-        layout.addWidget(self._status_label)
+        self.textLayout.addWidget(self._status_label)
 
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
         self._refresh_btn = PrimaryPushButton("刷新二维码")
         self._refresh_btn.clicked.connect(self._start_login)
-        btn_layout.addWidget(self._refresh_btn)
-        btn_layout.addStretch()
+        self.buttonLayout.insertWidget(0, self._refresh_btn)
+
         self._cancel_btn = PushButton("取消")
         self._cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self._cancel_btn)
-        layout.addLayout(btn_layout)
+        self.buttonLayout.addWidget(self._cancel_btn)
 
     @property
     def login_data(self) -> dict | None:

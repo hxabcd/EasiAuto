@@ -32,7 +32,7 @@ from EasiAuto.core.utils import (
     stop,
 )
 from EasiAuto.models.config import DownloadSource, UpdateMode, config
-from EasiAuto.models.profile import profile
+from EasiAuto.models.profile import QrcodeAutomation, profile
 from EasiAuto.services.announcement_service import announcement_service
 from EasiAuto.services.toast_service import ToastNotifier
 from EasiAuto.services.update_service import UpdateError, cleanup_update_cache, update_checker
@@ -278,7 +278,7 @@ class Launcher:
         token_data: dict | None = None
         if args.id:
             auto = profile.get_automation(args.id)
-            if auto and auto.is_qrcode_profile:
+            if auto and auto.is_qrcode_profile and isinstance(auto, QrcodeAutomation):
                 token_data = {
                     "token": auto.token,
                     "userId": auto.user_id or "",
