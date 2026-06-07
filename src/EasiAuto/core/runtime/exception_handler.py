@@ -339,14 +339,15 @@ def init_exception_handler() -> None:
         "<cyan>{name}</cyan>@<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
         "<level>{message}</level>"
     )
-    logger.add(
-        sys.stderr,
-        format=log_format,
-        colorize=True,
-        enqueue=True,
-        backtrace=True,
-        diagnose=True,
-    )
+    if sys.stderr is not None:
+        logger.add(
+            sys.stderr,
+            format=log_format,
+            colorize=True,
+            enqueue=True,
+            backtrace=True,
+            diagnose=True,
+        )
 
     logger.debug("初始化异常处理与日志")
     logger.debug(f"日志存储已{'禁用' if not config.App.LogEnabled else '启用'}")
