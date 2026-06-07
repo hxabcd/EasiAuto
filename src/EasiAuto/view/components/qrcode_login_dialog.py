@@ -11,9 +11,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QVBoxLayout
 )
-from qfluentwidgets import BodyLabel, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel
+from qfluentwidgets import BodyLabel, PrimaryPushButton, PushButton, SubtitleLabel
 
 QRCODE_URL = "https://id.seewo.com/scan/qrcode"
 CHECK_URL = "https://id.seewo.com/scan/pcCheckQrcode"
@@ -124,12 +125,25 @@ class QRCodeLoginDialog(QDialog):
         self._qr_label.setStyleSheet("border: 2px solid #d0d0d0; border-radius: 10px; padding: 10px; background: white;")
         layout.addWidget(self._qr_label, 1)
 
-        self._countdown_bar = ProgressBar()
+        self._countdown_bar = QProgressBar()
         self._countdown_bar.setRange(0, QRCODE_TTL)
         self._countdown_bar.setValue(QRCODE_TTL)
         self._countdown_bar.setTextVisible(True)
-        self._countdown_bar.setFormat("二维码有效期: %v 秒")
-        self._countdown_bar.setFixedHeight(20)
+        self._countdown_bar.setFormat("二维码有效时间剩余: %v 秒")
+        self._countdown_bar.setFixedHeight(18)
+        self._countdown_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                border-radius: 4px;
+                background-color: #E0E0E0;
+                text-align: center;
+                font-size: 12px;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 4px;
+            }
+        """)
         layout.addWidget(self._countdown_bar)
 
         self._status_label = BodyLabel("正在获取二维码...")
@@ -195,7 +209,7 @@ class QRCodeLoginDialog(QDialog):
         self._qr_label.setPixmap(pixmap)
 
         self._countdown = QRCODE_TTL
-        self._countdown_bar.setValue(self._countdown)
+        self._countdown_bar.setValue(QRCODE_TTL)
         self._status_label.setText("等待扫码...")
         self._refresh_btn.setEnabled(True)
         self._start_countdown()

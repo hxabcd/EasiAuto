@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+import psutil
 
 from loguru import logger
 
@@ -11,7 +12,6 @@ PIPE_NAME = r"\\.\pipe\SeewoOpenTokenPipe"
 
 
 class QRCodeAutomator(BaseAutomator):
-
     def __init__(self, account: str, password: str, token_data: dict | None = None) -> None:
         super().__init__(account, password)
         self._token_data = token_data or {}

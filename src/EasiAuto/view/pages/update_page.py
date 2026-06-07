@@ -385,10 +385,15 @@ class UpdatePage(QWidget):
         self._last_error: str | None = None
         self._signal_connected: bool = False
         self._tried_downloads: int = 0
+        self._first_show: bool = True
 
         self.init_ui()
         self.action = UpdateStatus.CHECK
-        if config.Update.Mode > UpdateMode.NEVER:
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._first_show and config.Update.Mode > UpdateMode.NEVER:
+            self._first_show = False
             update_checker.check_async()
 
     def init_ui(self):

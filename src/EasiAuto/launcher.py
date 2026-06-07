@@ -376,9 +376,6 @@ class Launcher:
 
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
-        if config.Update.TargetDownloadSource == DownloadSource.AUTO:
-            update_checker.init_latency()
-
         self._show_settings_window()
         if not self._ipc_context:
             stop(app.exec())

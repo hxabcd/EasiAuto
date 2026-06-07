@@ -19,9 +19,26 @@ OUTPUT_DIR = Path("build")
 VERSION = Version(__version__)
 
 
+def build_dllpatcher():
+    patcher_dir = Path("tools/DllPatcher")
+    if not patcher_dir.exists():
+        print("DllPatcher directory not found, skipping...")
+        return
+    print("Building DllPatcher...")
+    subprocess.run(
+        ["dotnet", "build", "-c", "Release"],
+        cwd=str(patcher_dir),
+        check=True,
+        shell=True,
+    )
+    print("DllPatcher build succeeded.")
+
+
 def run_nuitka(build_type: Literal["full", "lite"]):
     """执行 Nuitka 打包"""
     target_dir = OUTPUT_DIR / build_type
+
+    build_dllpatcher()
 
     # Nuitka 基础命令 (使用 uv run 确保环境正确)
     cmd = [
@@ -85,11 +102,20 @@ def run_nuitka(build_type: Literal["full", "lite"]):
             print(f"Copying vendors to {dest_vendors}...")
             shutil.copytree("vendors", dest_vendors)
 
-        dll_src = Path("SeewoPipeBridge.dll")
-        if dll_src.exists():
-            dll_dst = dist_path / dll_src.name
-            print(f"Copying {dll_src} to {dll_dst}...")
-            shutil.copy2(dll_src, dll_dst)
+        for dll_name in ("SeewoPipeBridge.dll", "Newtonsoft.Json.dll"):
+            dll_src = Path(dll_name)
+            if dll_src.exists():
+                dll_dst = dist_path / dll_src.name
+                print(f"Copying {dll_src} to {dll_dst}...")
+                shutil.copy2(dll_src, dll_dst)
+
+        dllpatcher_dir = Path("tools/DllPatcher/bin/Release/net6.0")
+        if dllpatcher_dir.exists():
+            dest_patcher = dist_path / "DllPatcher"
+            if dest_patcher.exists():
+                shutil.rmtree(dest_patcher)
+            print(f"Copying DllPatcher to {dest_patcher}...")
+            shutil.copytree(dllpatcher_dir, dest_patcher)
 
     # 删除冗余文件
     if build_type == "lite":

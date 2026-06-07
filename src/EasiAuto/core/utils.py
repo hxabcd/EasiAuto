@@ -148,6 +148,11 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
         desktop_path = Path(shell.SpecialFolders("Desktop"))
         shortcut_path = desktop_path / name
 
+        # 如果快捷方式已存在，先删除（解决覆盖保存时的权限问题）
+        if shortcut_path.exists():
+            shortcut_path.unlink(missing_ok=True)
+            logger.debug(f"已删除现有快捷方式: {shortcut_path}")
+
         shortcut = shell.CreateShortcut(str(shortcut_path))
         shortcut.TargetPath = str(EA_EXECUTABLE)
         shortcut.Arguments = args

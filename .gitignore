@@ -19,6 +19,7 @@ wheels/
 opencv_minimal_build
 TODO
 .ruff_cache
+.idea/
 
 # EasiAuto-generated files
 data
@@ -34,3 +35,7 @@ CLAUDE.md
 tools/develop/ENLoginInjector/.vs
 tools/develop/ENLoginInjector/ENLoginInjector/bin
 tools/develop/ENLoginInjector/ENLoginInjector/obj
+
+# C# DllPatcher
+tools/DllPatcher/bin
+tools/DllPatcher/obj

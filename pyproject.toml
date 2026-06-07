@@ -13,6 +13,7 @@ requires-python = ">=3.12"
 dependencies = [
     "cryptography>=46.0.3",
     "keyring>=25.7.0",
+    "lief==0.17.6",
     "loguru>=0.7.3",
     "numpy>=2.4.2",
     "packaging>=25.0",
