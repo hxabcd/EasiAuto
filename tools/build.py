@@ -42,6 +42,13 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
 
     build_dllpatcher()
 
+    spec_file = target_dir / f"{APP_NAME}.spec"
+    if spec_file.exists():
+        spec_file.unlink()
+
+    resources_src = str(Path("resources").resolve())
+    vendors_src = str(Path("vendors").resolve())
+
     cmd = [
         "uv",
         "run",
@@ -54,8 +61,8 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
         f"--distpath={dist_path}",
         f"--workpath={target_dir / 'build'}",
         f"--specpath={target_dir}",
-        "--add-data", f"resources{';'}resources",
-        "--add-data", f"vendors{';'}vendors",
+        "--add-data", f"{resources_src}{';'}resources",
+        "--add-data", f"{vendors_src}{';'}vendors",
         "--hidden-import", "comtypes.stream",
         "--hidden-import", "sentry_sdk.integrations",
         "--icon=resources/icons/EasiAuto.ico",
