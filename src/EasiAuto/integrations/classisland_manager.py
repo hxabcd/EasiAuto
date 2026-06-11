@@ -168,6 +168,7 @@ class ClassIslandManager:
         self.unmanaged_automations: list[dict] = []
         self.managed_automations: list[ManagedCiAutomation] = []
         self.notifier = ClassIslandNotifier()
+        self.is_imports_available = False
 
         self.reload()
 
@@ -201,7 +202,7 @@ class ClassIslandManager:
     def _signature(raw: list[dict]) -> str:
         return json.dumps(raw, ensure_ascii=False, sort_keys=True)
 
-    def reload(self, emit_if_changed: bool = True):
+    def reload(self, notify_on_change: bool = True):
         """重新加载所有配置"""
         try:
             previous_signature = self._signature(self.ci_automations_raw)
@@ -210,18 +211,24 @@ class ClassIslandManager:
             self.ci_automations_raw = json.loads(self.current_automation_path.read_text(encoding="utf-8"))
 
             self._resolve_automations()
-            if emit_if_changed:
+
+            if notify_on_change:
                 current_signature = self._signature(self.ci_automations_raw)
                 if previous_signature != current_signature:
                     self.notifier.changed.emit()
         except Exception as e:
             raise RuntimeError("加载 ClassIsland 配置时出错") from e
 
-    def _resolve_automations(self) -> None:
-        """将原始自动化按照受管理状态分离"""
+    def _resolve_automations(self) -> list[ManagedCiAutomation]:
+        """将原始自动化按照受管理状态分离
+
+        Returns:
+            list[ManagedCiAutomation]: 可导入的旧自动化
+        """
         self.unmanaged_automations = []
         self.managed_automations = []
-        imported_account = set()
+        pending_imports: list[ManagedCiAutomation] = []
+        imported_account: set[str] = set()
         for raw in self.ci_automations_raw:
             try:
                 if raw.get("ActionSet", {}).get("Name", "").startswith(EA_PREFIX):
@@ -232,16 +239,8 @@ class ClassIslandManager:
                         if auto.account in imported_account:
                             continue
 
-                        new_auto = EasiAutomation(
-                            account=auto.account,
-                            password=auto.password,
-                            name=auto.get_name(),
-                        )
-                        profile.upsert_automation(new_auto)
+                        pending_imports.append(auto)
                         imported_account.add(auto.account)
-                        logger.info(f"已导入旧的自动化档案: {auto.account}")
-
-                        auto.args = f"--id {new_auto.id}"
                         self.managed_automations.append(auto)
                     else:
                         logger.warning(f"无效的自动化: {auto.name}, 已清除")
@@ -251,15 +250,68 @@ class ClassIslandManager:
                 logger.warning(f"解析 ClassIsland 自动化时出错: {e}")
                 self.unmanaged_automations.append(raw)
 
-        if imported_account:
+        self.is_imports_available = len(pending_imports) > 0
+        return pending_imports
+
+    def import_legacy_automation(self) -> tuple[bool, str]:
+        """
+        解析自动化，并同步导入旧档案后写回 ClassIsland
+
+        Returns:
+            tuple[bool, str]: 导入是否成功及提示消息
+        """
+        pending_imports = self._resolve_automations()
+        if not pending_imports:
+            return True, "没有需要导入的旧自动化"
+
+        imported_count: int = 0
+        failed_count: int = 0
+        for auto in pending_imports:
+            try:
+                # _resolve_automations 已确保 account 和 password 不为空
+                account = cast(str, auto.account)
+                password = cast(str, auto.password)
+
+                new_auto = EasiAutomation(
+                    account=account,
+                    password=password,
+                    name=auto.get_name(),
+                )
+                profile.upsert_automation(new_auto)
+                auto.args = f"--id {new_auto.id}"
+
+                imported_count += 1
+                logger.info(f"已导入旧的自动化档案: {account}")
+            except Exception as e:
+                failed_count += 1
+                logger.warning(f"导入旧自动化失败: {auto}，原因: {e}")
+
+        if imported_count <= 0:
+            return False, "没有成功导入任何条目"
+
+        if need_restart := self.is_running:
+            self.stop_ci(wait=True)
+        try:
             profile.save(reason="automation_saved")
-            self.save_automations(self.managed_automations)
+            if not self.save_automations(self.managed_automations):
+                return False, "保存至 ClassIsland 失败"
+        except Exception:
+            return False, "保存时出错"
+        if need_restart:
+            self.start_ci()
+
+        if failed_count > 0:
+            return True, f"{failed_count} 项导入失败"
+        return True, ""
 
     def get_automations(self) -> list[ManagedCiAutomation]:
         return self.managed_automations
 
     def save_automations(self, automations: list[ManagedCiAutomation]) -> bool:
         """保存自动化至 ClassIsland"""
+        if self.is_running:
+            logger.warning("无法保存自动化: ClassIsland 正在运行")
+            return False
 
         try:
             output = self.unmanaged_automations
@@ -269,7 +321,7 @@ class ClassIslandManager:
             content = json.dumps(output)
             self.current_automation_path.write_text(content, encoding="utf-8")
 
-            self.reload(emit_if_changed=False)
+            self.reload(notify_on_change=False)
             self.notifier.changed.emit()
             return True
         except Exception as e:
@@ -296,8 +348,8 @@ class ClassIslandManager:
     def start_ci(self):
         subprocess.Popen(self.exe_path, cwd=self.exe_path.parent)
 
-    def stop_ci(self):
-        kill_process("ClassIsland.Desktop" if self.is_v2 else "ClassIsland")
+    def stop_ci(self, force: bool = False, wait: bool = False, timeout: int = 2):
+        kill_process("ClassIsland.Desktop" if self.is_v2 else "ClassIsland", force=force, wait=wait, timeout=timeout)
 
 
 class _ClassIslandManagerProxy:
