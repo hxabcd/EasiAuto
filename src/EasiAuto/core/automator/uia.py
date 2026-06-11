@@ -1,10 +1,12 @@
 import time
 
-from EasiAuto.models.config import config
+from EasiAuto.models.config import LoginMethod, config
 
 from .base import BaseAutomator
+from .registry import register
 
 
+@register(LoginMethod.UIA)
 class UIAAutomator(BaseAutomator):
     """通过 UI Automation 自动定位组件位置来登录"""
 

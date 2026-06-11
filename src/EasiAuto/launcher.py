@@ -4,7 +4,7 @@ import time
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
-from typing import assert_never
+from typing import Any, assert_never
 
 from loguru import logger
 from packaging.version import Version
@@ -31,8 +31,8 @@ from EasiAuto.core.utils import (
     migrate_desktop_shortcut_icon,
     stop,
 )
-from EasiAuto.models.config import DownloadSource, UpdateMode, config
-from EasiAuto.models.profile import QrcodeAutomation, profile
+from EasiAuto.models.config import UpdateMode, config
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, QrcodeAutomation, profile
 from EasiAuto.services.announcement_service import announcement_service
 from EasiAuto.services.toast_service import ToastNotifier
 from EasiAuto.services.update_service import UpdateError, cleanup_update_cache, update_checker
@@ -122,25 +122,17 @@ class Launcher:
         self.main_window.raise_()
         self.main_window.activateWindow()
 
-    def _handle_login_request_from_ui(self, account: str, password: str, automation_id: str | None = None) -> None:
+    def _handle_login_request_from_ui(self, automation: BaseAutomation) -> None:
         """响应从 UI 发送的自动登录执行请求"""
         if self.main_window:
             self.main_window.showMinimized()
 
-        profile_id: str | None = automation_id
-        if profile_id is None:
-            for auto in profile.list_automations():
-                if auto.account == account:
-                    profile_id = auto.id
-                    break
 
         with self.from_ipc():
             self._start_login(
                 Namespace(
-                    account=account,
-                    password=password,
+                    id=automation.id,
                     manual=True,
-                    id=profile_id,
                 )
             )
 
@@ -227,7 +219,7 @@ class Launcher:
         automation_manager.stop()
         self.stop_requested = True
 
-    def _resolve_login_credentials(self, args: Namespace) -> tuple[str, str] | None:
+    def _resolve_login_credentials(self, args: Namespace) -> tuple[str, Any] | None:
         if args.id:
             auto = profile.get_automation(args.id)
             if auto is None:
@@ -236,22 +228,40 @@ class Launcher:
             if not auto.enabled:
                 logger.warning(f"档案 {args.id} 已被禁用")
                 return None
-            if not auto.is_qrcode_profile and auto.account == "":
-                logger.error(f"档案 {args.id} 的账号为空")
-                return None
-            if not auto.is_qrcode_profile and auto.password == "":
-                logger.error(f"档案 {args.id} 的密码为空")
-                return None
-            return auto.account, auto.password
+
+            match auto:
+                case EasiAutomation():
+                    if auto.account == "":
+                        logger.error(f"档案 {args.id} 的账号为空")
+                        return None
+                    if auto.password == "":
+                        logger.error(f"档案 {args.id} 的密码为空")
+                        return None
+                    return auto.type, (auto.account, auto.password)
+                case QrcodeAutomation():
+                    return auto.type, {
+                        "token": auto.token,
+                        "userId": auto.user_id or "",
+                        "nickName": auto.nick_name or "",
+                        "phone": auto.phone or "",
+                    }
+            return None
 
         if args.account and args.password:
-            return args.account, args.password
+            return "password", (args.account, args.password)
 
         logger.error("参数错误: 使用 --account 时必须同时提供 --password")
         return None
 
     def _start_login(self, args: Namespace) -> bool:
-        """开始登录任务"""
+        """开始登录任务
+
+        args:
+            id: str | None - 档案 ID
+            account: str | None - 账号（当使用 --account 时必填）
+            password: str | None - 密码（当使用 --account 时必填）
+            manual: bool - 是否为手动执行（不显示确认弹窗）
+        """
 
         from_ipc = self._ipc_context
 
@@ -267,24 +277,12 @@ class Launcher:
             return False
 
         # 解析登录凭据
-        credentials = self._resolve_login_credentials(args)
-        if credentials is None:
+        result = self._resolve_login_credentials(args)
+        if result is None:
             if not from_ipc:
                 stop(1)
             return False
-
-        account, password = credentials
-
-        token_data: dict | None = None
-        if args.id:
-            auto = profile.get_automation(args.id)
-            if auto and auto.is_qrcode_profile and isinstance(auto, QrcodeAutomation):
-                token_data = {
-                    "token": auto.token,
-                    "userId": auto.user_id or "",
-                    "nickName": auto.nick_name or "",
-                    "phone": auto.phone or "",
-                }
+        type, credentials = result
 
         # 显示警告弹窗
         if config.Warning.Enabled and not args.manual:
@@ -360,7 +358,7 @@ class Launcher:
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._current_login_triggered_via_ipc = from_ipc
 
-        automation_manager.run(account, password, token_data)
+        automation_manager.run(type, credentials)
 
         self.login_running = True
         return True

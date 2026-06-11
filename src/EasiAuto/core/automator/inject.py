@@ -7,12 +7,14 @@ import psutil
 from loguru import logger
 
 from EasiAuto.consts import VENDOR_PATH
-from EasiAuto.models.config import config
+from EasiAuto.models.config import LoginMethod, config
 
 from .base import BaseAutomator, LoginError
+from .registry import register
 
 INJECTOR_LAUNCHER = VENDOR_PATH / "Snoop" / "Snoop.InjectorLauncher.x86.exe"
 INJECTOR = VENDOR_PATH / "ENLoginInjector.dll"
+
 
 @dataclass
 class InjectTarget:
@@ -24,6 +26,7 @@ class InjectTarget:
     settings: str = ""
 
 
+@register(LoginMethod.INJECT)
 class InjectAutomator(BaseAutomator):
     """通过注入希沃白板进程登录"""
 

@@ -1,6 +1,6 @@
 [dependency-groups]
 dev = [
-    "pyinstaller>=6.0.0",
+    "nuitka>=2.8.9",
     "ruff>=0.15.5",
 ]
 

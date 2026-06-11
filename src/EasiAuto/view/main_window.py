@@ -14,11 +14,12 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core.utils import get_resource
+from EasiAuto.models.profile import BaseAutomation
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
 
 
 class MainWindow(MSFluentWindow):
-    runAutomation = Signal(str, str, str)  # account, password, automation_id
+    runAutomation = Signal(BaseAutomation)
 
     def __init__(self):
         logger.debug("初始化界面")

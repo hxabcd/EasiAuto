@@ -21,7 +21,7 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.models.profile import EasiAutomation, profile
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, QrcodeAutomation, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.helpers import get_main_container
 
@@ -265,11 +265,19 @@ class BindingPage(QWidget):
         return f"{subject.provider}:name:{subject.name.strip().lower()}"
 
     @staticmethod
-    def _profile_display_name(automation: EasiAutomation) -> str:
+    def _profile_display_name(automation: BaseAutomation) -> str:
         label = automation.display_name or "未命名档案"
         if not automation.enabled:
             label = f"{label} (禁用)"
         return label
+    
+    @staticmethod
+    def _profile_account_name(automation: BaseAutomation) -> str:
+        if isinstance(automation, EasiAutomation):
+            return automation.account_name or automation.account or ""
+        if isinstance(automation, QrcodeAutomation):
+            return automation.nick_name or automation.user_id or ""
+        return ""
 
     def _subject_status_text(self, row: _SubjectRow) -> str:
         if not row.automation_id:
@@ -390,9 +398,9 @@ class BindingPage(QWidget):
         self.profile_layout.addWidget(card_unbound)
 
         # 档案卡片
-        for automation in profile.list_automations():
+        for automation in profile.list_automation():
             display_name = self._profile_display_name(automation)
-            account_name = automation.account_name or automation.account or ""
+            account_name = self._profile_account_name(automation)
             card = ProfileCard(automation.id, display_name, account_name)
             card.clicked.connect(lambda pid=automation.id: self._on_profile_card_clicked(pid))
             card.editClicked.connect(self.editClicked)

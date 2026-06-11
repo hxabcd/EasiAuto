@@ -32,13 +32,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     task_updated = Signal(str)
     progress_updated = Signal(str)
 
-    def __init__(self, account: str, password: str, token_data: dict | None = None) -> None:
+    def __init__(self, account: str, password: str) -> None:
         super().__init__()
         self.setObjectName(f"Automator:{self.__class__.__name__}")
 
         self.account: str = account
         self.password: str = password
-        self.token_data: dict | None = token_data
         self.easinote_path: Path | None = self.get_easinote_path()
         self.easiauto_hwnd: int | None = None
 
