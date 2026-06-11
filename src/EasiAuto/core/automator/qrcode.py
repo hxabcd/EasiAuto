@@ -16,6 +16,16 @@ from EasiAuto.consts import VENDOR_PATH
 from .base import BaseAutomator, LoginError
 
 PIPE_NAME = r"\\.\pipe\SeewoOpenTokenPipe"
+LOGIN_INFO_PIPE = r"\\.\pipe\SeewoLoginInfoPipe"
+
+
+def fetch_current_login_info() -> dict | None:
+    """从 SeewoLoginInfoPipe 获取当前已登录账户信息"""
+    try:
+        with open(LOGIN_INFO_PIPE, "r", encoding="utf-8") as pipe:
+            return json.loads(pipe.readline())
+    except Exception:
+        return None
 
 
 def _file_sha1(path: Path) -> str:
@@ -137,6 +147,7 @@ class QRCodeAutomator(BaseAutomator):
     def __init__(self, token_data: dict) -> None:
         super().__init__(account="", password="")
         self._token_data = token_data
+        self._target_user_id = token_data.get("userId", "")
 
     def _after_easinote_dead(self):
         deploy_resources()
@@ -169,19 +180,31 @@ class QRCodeAutomator(BaseAutomator):
         for attempt in range(1, max_retries + 1):
             self.check_interruption()
             try:
-                with open(PIPE_NAME, "w", encoding="utf-8") as pipe:
+                with open(PIPE_NAME, "r+", encoding="utf-8") as pipe:
                     pipe.write(json_data + "\n")
                     pipe.flush()
-                logger.info("[IPC] 令牌投递成功")
-                self.update_progress("令牌已投递, 等待登录完成")
-                time.sleep(2)
-                return
+                    response_line = pipe.readline()
+                    if response_line:
+                        response = json.loads(response_line)
+                        if response.get("Success"):
+                            logger.info(f"[IPC] 登录成功: {response.get('Message', '')}")
+                            self.update_progress("登录完成")
+                            time.sleep(1)
+                            return
+                        else:
+                            err_msg = response.get("Message", "未知错误")
+                            err_detail = response.get("ErrorDetail", "")
+                            logger.error(f"[IPC] 登录失败: {err_msg} ({err_detail})")
+                            raise LoginError(f"管道登录失败: {err_msg}")
+                logger.warning("[IPC] 未收到响应，重试...")
+            except LoginError:
+                raise
             except FileNotFoundError:
                 logger.debug(f"[IPC] 管道尚未就绪, 第 {attempt}/{max_retries} 次重试...")
                 self.update_progress(f"等待管道就绪 ({attempt}/{max_retries})")
                 time.sleep(1)
             except OSError as e:
-                logger.warning(f"[IPC] 管道写入异常: {e}")
+                logger.debug(f"[IPC] 管道未就绪: {e}, 第 {attempt}/{max_retries} 次重试...")
                 time.sleep(1)
 
         raise LoginError(f"命名管道 {PIPE_NAME} 在 {max_retries} 次尝试内未能就绪")

@@ -116,45 +116,59 @@ class ProfileCard(CardWidget):
 
     editClicked = Signal(str)  # profile_id
 
-    def __init__(self, profile_id: str | None, display_name: str, account_name: str, parent=None):
+    def __init__(self, automation: BaseAutomation, parent=None):
         super().__init__(parent)
-        self.profile_id = profile_id
+        self._automation = automation
+        self.profile_id = automation.id
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
 
-        # 左侧头像
         self.avatar_label = AvatarWidget()
         self.avatar_label.setRadius(32)
-        if profile_id:
-            self.avatar_label.setText(display_name[:1])
 
-        # 中间信息
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(0)
 
-        self.name_label = SubtitleLabel(display_name)
-        self.account_label = BodyLabel(account_name)
+        self.name_label = SubtitleLabel()
+        self.account_label = BodyLabel()
 
         text_layout.addWidget(self.name_label)
         text_layout.addWidget(self.account_label)
 
-        # 右侧编辑按钮
         self.command_bar = CommandBar()
         self.command_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
         self.action_edit = Action(
             FluentIcon.EDIT,
             "编辑",
-            triggered=lambda: self.editClicked.emit(profile_id) if profile_id else None,
+            triggered=lambda: self.editClicked.emit(automation.id) if automation.id else None,
         )
         self.command_bar.addAction(self.action_edit)
 
         layout.addWidget(self.avatar_label)
         layout.addLayout(text_layout, 1)
         layout.addWidget(self.command_bar, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self._update_display()
+
+    def _update_display(self):
+        auto = self._automation
+        display_name = (auto.display_name or "未命名档案") if hasattr(auto, "display_name") else "未命名档案"
+        if hasattr(auto, "enabled") and not auto.enabled:
+            display_name = f"{display_name} (禁用)"
+        self.name_label.setText(display_name)
+        self.account_label.setText(getattr(auto, "account_name", "") or getattr(auto, "account", "") or "")
+
+        if isinstance(auto, QrcodeAutomation) and auto.avatar:
+            try:
+                self.avatar_label.setImage(str(auto.avatar))
+            except Exception:
+                self.avatar_label.setText(display_name[:1])
+        else:
+            self.avatar_label.setText(display_name[:1])
 
     def set_checked(self, checked: bool):
         if checked:
@@ -399,9 +413,7 @@ class BindingPage(QWidget):
 
         # 档案卡片
         for automation in profile.list_automation():
-            display_name = self._profile_display_name(automation)
-            account_name = self._profile_account_name(automation)
-            card = ProfileCard(automation.id, display_name, account_name)
+            card = ProfileCard(automation)
             card.clicked.connect(lambda pid=automation.id: self._on_profile_card_clicked(pid))
             card.editClicked.connect(self.editClicked)
             self.profile_cards[automation.id] = card

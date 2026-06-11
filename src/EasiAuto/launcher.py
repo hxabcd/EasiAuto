@@ -286,7 +286,18 @@ class Launcher:
         # 显示警告弹窗
         if config.Warning.Enabled and not args.manual:
             try:
+                # 提取显示名称
+                display_name = ""
+                if args.id:
+                    auto = profile.get_automation(args.id)
+                    if auto:
+                        display_name = auto.display_name or ""
+                if not display_name and isinstance(credentials, tuple):
+                    display_name = credentials[0]
+
                 msgbox = PreRunPopup()
+                if display_name:
+                    msgbox.set_account(display_name)
                 delays = 0
                 while True:
                     if delays >= config.Warning.MaxDelays:

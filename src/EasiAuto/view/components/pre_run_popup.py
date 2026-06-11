@@ -98,19 +98,26 @@ class PreRunPopup(Dialog):
         self.response = result
         self.recievedResponse.emit(result)
 
+    def set_account(self, name: str):
+        """设置要显示的账号昵称"""
+        self._account_name = name
+
     def countdown(self, timeout: int) -> DialogResponse:
         self.response = DialogResponse.CANCEL
 
         if timeout <= 0:
             raise ValueError("倒计时时长必须是正整数")
 
-        # 更新倒计时文本
+        name = getattr(self, "_account_name", "") or ""
+        name_html = f"<b>「{name}」</b>" if name else ""
+
         def update_text():
             nonlocal timeout
             if timeout > 0:
                 self.contentLabel.setText(
                     "<span style='color: transparent;'>占位文本</span>"
-                    + f"将在 <span style='font-size: 20px; font-weight: 600; font-family: monospace;'>{timeout}</span> 秒后继续执行"
+                    + f"将在 <span style='font-size: 20px; font-weight: 600; font-family: monospace;'>{timeout}</span>"
+                    + f" 秒后继续登录{name_html}"
                 )
                 timeout -= 1
             else:
@@ -118,7 +125,6 @@ class PreRunPopup(Dialog):
 
         update_text()
 
-        # 计时器
         timer = QTimer()
         timer.timeout.connect(update_text)
         timer.setInterval(1000)

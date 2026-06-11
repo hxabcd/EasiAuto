@@ -25,6 +25,13 @@ class LoginError(Exception):
     pass
 
 
+class _AlreadyLoggedIn(Exception):
+    """已登录同一账户，跳过"""
+    def __init__(self, nickname: str):
+        super().__init__(f"已登录「{nickname}」，跳过")
+        self.nickname = nickname
+
+
 class BaseAutomator(QThread, metaclass=QABCMeta):
     successed = Signal()
     interrupted = Signal()
@@ -175,6 +182,20 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         if self.easinote_path is None:
             raise LoginCancelled("希沃白板目录不存在")
 
+        # 检查是否已登录同一账户
+        if config.Login.SkipIfLoggedIn and getattr(self, "_target_user_id", ""):
+            from EasiAuto.core.automator.qrcode import fetch_current_login_info
+
+            info = fetch_current_login_info()
+            if info and info.get("statusCode") == 202:
+                current_uid = info.get("userId", "")
+                if current_uid and current_uid == self._target_user_id:
+                    nick = info.get("nickName", "") or info.get("userName", "") or current_uid
+                    logger.info(f"希沃白板已登录同一账户「{nick}」(userId={current_uid})，跳过重启和登录")
+                    self.update_progress(f"已登录「{nick}」, 无需重复登录")
+                    self.update_task("已登录, 跳过")
+                    raise _AlreadyLoggedIn(nick)
+
         self.update_progress("终止希沃进程")
         self.kill_processes()
         self.check_interruption()
@@ -230,6 +251,11 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.update_progress("登录完成")
                 self.update_task("完成")
 
+                config.Statistics.LoginSuccessCounts += 1
+                self.successed.emit()
+                break
+            except _AlreadyLoggedIn as e:
+                logger.info(f"登录跳过: {e}")
                 config.Statistics.LoginSuccessCounts += 1
                 self.successed.emit()
                 break

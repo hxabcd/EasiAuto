@@ -5,7 +5,9 @@ import time
 import requests
 from loguru import logger
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from typing import Any
+
+from PySide6.QtCore import QPoint, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel
 from qfluentwidgets import (
@@ -105,6 +107,10 @@ class QRCodeLoginDialog(Dialog):
         self._countdown: int = 0
         self._countdown_timer: QTimer | None = None
         self._worker: _PollWorker | None = None
+
+        self._is_dragging = False
+        self._drag_position = QPoint()
+        self._title_bar_height = 30
 
         self.titleLabel.setText("请使用希沃白板或微信扫描二维码")
         self.contentLabel.hide()
@@ -253,6 +259,19 @@ class QRCodeLoginDialog(Dialog):
             self._status_label.setText("二维码已过期，正在刷新...")
             self._start_login()
 
+    def mousePressEvent(self, event: Any) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and event.position().y() <= self._title_bar_height:
+            self._is_dragging = True
+            self._drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event: Any) -> None:
+        if self._is_dragging:
+            self.move(event.globalPosition().toPoint() - self._drag_position)
+
+    def mouseReleaseEvent(self, event: Any) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = False
+
     def reject(self) -> None:
         self._cleanup_worker()
         super().reject()
@@ -268,3 +287,25 @@ class QRCodeLoginDialog(Dialog):
         self._worker.stop()
         self._worker.terminate()
         self._worker.wait(100)
+
+
+def fetch_qrcode_avatar(token: str) -> str | None:
+    """获取二维码登录用户的头像 URL"""
+    try:
+        resp = requests.get(
+            "https://edu.seewo.com/api/v2/user/info",
+            headers={
+                "Cookie": f"x-auth-app=EasiNote5; x-auth-token={token}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json",
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        user_data = data.get("data", {})
+        extended = user_data.get("userInfoExtendVo", {}) or {}
+        return extended.get("animatedUserPhoto") or user_data.get("photoUrl") or None
+    except Exception:
+        return None

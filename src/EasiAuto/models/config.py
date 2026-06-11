@@ -295,6 +295,12 @@ class LoginConfig(ConfigModel):
         description="下次运行时跳过自动登录，适用于公开课等需临时禁用的场景",
         json_schema_extra={"icon": "Send"},
     )
+    SkipIfLoggedIn: bool = Field(
+        default=True,
+        title="已登录则跳过",
+        description="若当前希沃白板已登录同一账号，则跳过重启和登录流程",
+        json_schema_extra={"icon": "PageRight"},
+    )
     KillAgent: bool = Field(
         default=False,
         title="终止 EasiAgent 服务",
