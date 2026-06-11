@@ -71,5 +71,6 @@ def migrate_legacy_data_layout() -> None:
     _migrate_legacy_directory(EA_BASEDIR / "logs", LOG_DIR)
     _migrate_legacy_directory(EA_BASEDIR / "cache", CACHE_DIR)
 
+
 if not EA_DATADIR.exists():
     migrate_legacy_data_layout()

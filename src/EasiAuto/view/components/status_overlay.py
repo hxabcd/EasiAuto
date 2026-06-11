@@ -316,6 +316,7 @@ class SmallStatusOverlay(StatusOverlayBase):
     def status_badge_wrapper(self) -> QStackedWidget:
         return self.status_badge
 
+
 if __name__ == "__main__":
     from PySide6.QtWidgets import QApplication
 

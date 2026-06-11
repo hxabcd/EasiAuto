@@ -36,11 +36,13 @@ class _PollWorker(QThread):
 
     def setup_session(self) -> None:
         self._session = requests.Session()
-        self._session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": "https://id.seewo.com/login",
-            "X-Requested-With": "XMLHttpRequest",
-        })
+        self._session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://id.seewo.com/login",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        )
 
     def fetch_qr(self) -> None:
         self._running = True
@@ -95,7 +97,6 @@ class _PollWorker(QThread):
 
 
 class QRCodeLoginDialog(Dialog):
-
     def __init__(self, parent=None):
         super().__init__("二维码登录", "")
         self.setMinimumSize(420, 540)
@@ -117,7 +118,9 @@ class QRCodeLoginDialog(Dialog):
         self._qr_label = QLabel()
         self._qr_label.setAlignment(Qt.AlignCenter)
         self._qr_label.setMinimumSize(QR_SIZE + 24, QR_SIZE + 24)
-        self._qr_label.setStyleSheet("border: 2px solid #d0d0d0; border-radius: 10px; padding: 10px; background: white;")
+        self._qr_label.setStyleSheet(
+            "border: 2px solid #d0d0d0; border-radius: 10px; padding: 10px; background: white;"
+        )
         self.textLayout.addWidget(self._qr_label, 1)
 
         self._countdown_bar = ProgressBar()
@@ -184,7 +187,9 @@ class QRCodeLoginDialog(Dialog):
             self._refresh_btn.setEnabled(True)
             return
 
-        pixmap = pixmap.scaled(QR_SIZE, QR_SIZE, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        pixmap = pixmap.scaled(
+            QR_SIZE, QR_SIZE, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
         self._qr_label.setPixmap(pixmap)
 
         self._countdown = QRCODE_TTL

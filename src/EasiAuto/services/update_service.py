@@ -44,6 +44,7 @@ DOWNLOAD_SOURCES: dict[DownloadSource, str] = {
     DownloadSource.GHFAST: "https://ghfast.top/https://github.com",
 }
 
+
 @dataclass(frozen=True)
 class DownloadItem:
     channel: str

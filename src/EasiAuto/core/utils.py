@@ -292,6 +292,7 @@ def get_window_by_pid(pid: int, target_title: str, strict: bool = True) -> int |
     win32gui.EnumWindows(callback, None)
     return hwnd_found
 
+
 def kill_process(name: str, force: bool = False, wait: bool = False, timeout: float = 1.0) -> None:
     """终止进程
 
@@ -322,6 +323,7 @@ def kill_process(name: str, force: bool = False, wait: bool = False, timeout: fl
                     os.system(f'taskkill /f /im "{name}.exe" >nul 2>&1')
                 else:
                     os.system(f'taskkill /im "{name}.exe" >nul 2>&1')
+
 
 def get_ci_executable() -> Path | None:
     """获取 ClassIsland 可执行文件位置"""

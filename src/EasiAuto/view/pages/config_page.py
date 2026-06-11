@@ -42,6 +42,7 @@ ENABLE_MAPPING: dict[str, str | list[str]] = {
     "Banner.Enabled": "Banner.Style",
 }
 
+
 class ConfigPage(QWidget):
     """设置 - 配置页"""
 

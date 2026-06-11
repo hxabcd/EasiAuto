@@ -91,15 +91,9 @@ def normalize_announcement(item: dict[str, Any]) -> dict[str, Any]:
         severity = "info"
 
     start_at = (
-        _format_iso(item.get("start_at_date"), item.get("start_at_time"))
-        if item.get("start_at_enabled")
-        else None
+        _format_iso(item.get("start_at_date"), item.get("start_at_time")) if item.get("start_at_enabled") else None
     )
-    end_at = (
-        _format_iso(item.get("end_at_date"), item.get("end_at_time"))
-        if item.get("end_at_enabled")
-        else None
-    )
+    end_at = _format_iso(item.get("end_at_date"), item.get("end_at_time")) if item.get("end_at_enabled") else None
 
     if start_at and end_at:
         if datetime.fromisoformat(end_at) < datetime.fromisoformat(start_at):

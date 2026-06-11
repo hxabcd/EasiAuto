@@ -1,9 +1,10 @@
+from typing import Any
+
 from loguru import logger
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.core.automator import BaseAutomator
-from EasiAuto.core.automator.registry import get_automator_class
+from EasiAuto.core.automator import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
 from EasiAuto.models.config import LoginMethod, config
 
 
@@ -21,26 +22,27 @@ class AutomationManager(QObject):
         self._automator: BaseAutomator | None = None
 
     def _get_strategy_class(self, strategy: LoginMethod) -> type[BaseAutomator]:
-        cls = get_automator_class(strategy)
-        if cls is None:
-            from EasiAuto.core.automator.fixed import FixedAutomator
+        strategies: dict[LoginMethod, type[BaseAutomator]] = {
+            LoginMethod.FIXED: FixedAutomator,
+            LoginMethod.CV: CVAutomator,
+            LoginMethod.UIA: UIAAutomator,
+            LoginMethod.INJECT: InjectAutomator,
+        }
+        return strategies.get(strategy, FixedAutomator)
 
-            cls = FixedAutomator  # DEFAULT
-        return cls
-
-    def run(self, account: str, password: str, token_data: dict | None = None):
+    def run(self, type: str, credentials: Any):
         if self._automator and self._automator.isRunning():
             logger.warning("已有一个正在运行的登录任务")
             return
 
-        if token_data:
+        if type == "qrcode":
             from EasiAuto.core.automator.qrcode import QRCodeAutomator
 
-            logger.info("检测到二维码档案, 强制使用 IPC 注入登录")
-            self._automator = QRCodeAutomator(account, password, token_data)
+            logger.info("检测到二维码档案")
+            self._automator = QRCodeAutomator(credentials)
         else:
             strategy_class = self._get_strategy_class(config.Login.Method)
-            self._automator = strategy_class(account, password)
+            self._automator = strategy_class(*credentials)
 
         self._automator.started.connect(self.started)
         self._automator.finished.connect(self.finished)
