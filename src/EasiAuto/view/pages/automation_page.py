@@ -189,10 +189,10 @@ class PathSelectSubpage(QWidget):
         hint_desc = BodyLabel("<span style='font-size: 15px;'>EasiAuto 的「自动化」功能依赖于 ClassIsland</span>")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        actions = QWidget()
 
-        actions_layout = QHBoxLayout(actions)
+        actions_layout = QHBoxLayout()
         actions_layout.setSpacing(10)
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         get_ci_button = PrimaryPushButton(icon=FluentIcon.DOWNLOAD, text="获取 ClassIsland")
         get_ci_button.setFixedWidth(150)
@@ -211,7 +211,7 @@ class PathSelectSubpage(QWidget):
         layout.addWidget(hint_label)
         layout.addWidget(hint_desc)
         layout.addSpacing(18)
-        layout.addWidget(actions)
+        layout.addLayout(actions_layout)
 
     def browse_ci_path(self):
         logger.debug("打开文件选择对话框")
@@ -252,6 +252,72 @@ class PathSelectSubpage(QWidget):
                 duration=3000,
                 parent=get_main_container(),
             )
+
+
+class ImportLegacySubpage(QWidget):
+    """自动化页 - 导入旧自动化 子页面"""
+
+    def __init__(self):
+        super().__init__()
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon_container = QHBoxLayout()
+        icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_icon = IconWidget(FluentIcon.INFO)
+        hint_icon.setFixedSize(96, 96)
+        icon_container.addWidget(hint_icon)
+
+        hint_label = TitleLabel("需要更新自动化")
+        hint_desc = BodyLabel(
+            "<span style='font-size: 15px;'>EasiAuto 的档案系统已升级，需要更新先前的自动化以继续编辑</span>"
+        )
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        self.import_button = PrimaryPushButton(icon=FluentIcon.UP, text="更新自动化")
+        self.import_button.setFixedWidth(180)
+        self.import_button.clicked.connect(self.on_import_legacy)
+
+        actions_layout.addWidget(self.import_button)
+
+        layout.addLayout(icon_container)
+        layout.addSpacing(12)
+        layout.addWidget(hint_label)
+        layout.addWidget(hint_desc)
+        layout.addSpacing(18)
+        layout.addLayout(actions_layout)
+
+    def on_import_legacy(self):
+        self.import_button.setEnabled(False)
+        try:
+            ok, message = ci_manager.import_legacy_automation()
+            if ok:
+                InfoBar.success(
+                    title="更新成功",
+                    content=message,
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=4000,
+                    parent=get_main_container(),
+                )
+            else:
+                InfoBar.error(
+                    title="更新失败",
+                    content=message,
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=4000,
+                    parent=get_main_container(),
+                )
+        finally:
+            self.import_button.setEnabled(True)
 
 
 class CiRunningWarnOverlay(QWidget):
@@ -377,6 +443,7 @@ class AutomationPage(QWidget):
         self.main_widget = QStackedWidget()
 
         self.path_select_page = PathSelectSubpage()
+        self.import_legacy_page = ImportLegacySubpage()
         self.overlay_page = CiRunningWarnOverlay()
         self.binding_page = BindingPage()
 
@@ -385,6 +452,7 @@ class AutomationPage(QWidget):
         self.status_bar.reloadClicked.connect(lambda: self.binding_page.reload(reload=True))
 
         self.main_widget.addWidget(self.path_select_page)
+        self.main_widget.addWidget(self.import_legacy_page)
         self.main_widget.addWidget(self.overlay_page)
         self.main_widget.addWidget(self.binding_page)
 
@@ -447,10 +515,12 @@ class AutomationPage(QWidget):
     def check_status(self):
         """检查状态并切换页面"""
         target_page: QWidget
-        if ci_manager is None:
+        if not ci_manager:
             target_page = self.path_select_page
         elif ci_manager.is_running:
             target_page = self.overlay_page
+        elif ci_manager.is_imports_available:
+            target_page = self.import_legacy_page
         else:
             target_page = self.binding_page
 

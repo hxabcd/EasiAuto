@@ -24,8 +24,8 @@ from EasiAuto.consts import EA_PREFIX, PROFILE_PATH
 from EasiAuto.core.security import get_profile_cipher
 from EasiAuto.models.config import config
 
-_PROFILE_SCHEMA_VERSION = 2
-_SECRET_TOKEN_PREFIX = f"ea{_PROFILE_SCHEMA_VERSION}$"
+_PROFILE_SCHEMA_VERSION = 3
+_SECRET_TOKEN_PREFIX = "ea$"
 
 ProfileChangeReason = Literal[
     "profile_changed",
@@ -234,13 +234,24 @@ class Profile(BaseModel):
 
         try:
             raw = cls._load_raw_payload(path)
-            assert raw.get("schema_version", -1) == _PROFILE_SCHEMA_VERSION
+            schema_version = raw.get("schema_version", -1)
+            if not isinstance(schema_version, int) or schema_version < 2:
+                logger.warning("强制重建档案")
+                rebuilt = cls()
+                rebuilt.save()
+                return rebuilt
+            if schema_version < 3:
+                logger.warning("从 v2 档案升级到 v3")
+                for i, _ in enumerate(raw["automations"]):
+                    raw["automations"][i]["type"] = "password"
+                    raw["automations"][i]["password"] = raw["automations"][i]["password"].replace("ea2$", "ea$", 1)
+                raw["schema_version"] = 3
+
+                upgraded = cls(**raw)
+                upgraded.save()
+                return upgraded
             return cls(**raw)
-        except AssertionError as e:
-            logger.warning(f"档案版本不兼容, 按新结构强制重建: {e}")
-            rebuilt = cls()
-            rebuilt.save()
-            return rebuilt
+
         except Exception as e:
             raise RuntimeError(f"档案文件 {path} 解析失败") from e
 

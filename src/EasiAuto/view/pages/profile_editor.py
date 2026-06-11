@@ -613,6 +613,9 @@ class ProfileManagePage(QWidget):
                 self.account_edit.setText(automation.account)
                 self.password_edit.setText(automation.password)
                 self.account_name_edit.setText(automation.account_name or "")
+                self.account_edit.setDisabled(False)
+                self.password_edit.setDisabled(False)
+                self.account_name_edit.setDisabled(True)
             case QrcodeAutomation():
                 self.account_edit.setText("")
                 self.password_edit.setText("")
