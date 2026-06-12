@@ -19,27 +19,9 @@ ICON = RESOURCES / "icons" / "EasiAuto.ico"
 VERSION = Version(__version__)
 
 
-def build_dllpatcher():
-    """编译 DllPatcher (C# 辅助工具)"""
-    patcher_dir = ROOT / "tools/DllPatcher"
-    if not patcher_dir.exists():
-        print("DllPatcher directory not found, skipping...")
-        return
-    print("Building DllPatcher...")
-    subprocess.run(
-        ["dotnet", "build", "-c", "Release"],
-        cwd=str(patcher_dir),
-        check=True,
-        shell=True,
-    )
-    print("DllPatcher build succeeded.")
-
-
 def run_pyinstaller(build_type: Literal["full", "lite"]):
     """执行 PyInstaller 打包"""
     target_dir = OUTPUT_DIR / build_type
-
-    build_dllpatcher()
 
     # PyInstaller 命令
     cmd = [
@@ -95,20 +77,22 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
     # 复制 vendors 目录 (FULL)
     if build_type == "full":
         vendors_dir = ROOT / "vendors"
+
+        # DllPatcher 编译产物先放入 vendors，再随 vendors 整体复制
+        dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net6.0"
+        if dllpatcher_dir.exists():
+            dest_patcher = vendors_dir / "DllPatcher"
+            if dest_patcher.exists():
+                shutil.rmtree(dest_patcher)
+            print(f"Copying DllPatcher to {dest_patcher}...")
+            shutil.copytree(dllpatcher_dir, dest_patcher)
+
         if vendors_dir.exists():
             dest_vendors = dist_path / "vendors"
             if dest_vendors.exists():
                 shutil.rmtree(dest_vendors)
             print(f"Copying vendors to {dest_vendors}...")
             shutil.copytree(vendors_dir, dest_vendors)
-
-        dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net6.0"
-        if dllpatcher_dir.exists():
-            dest_patcher = dist_path / "DllPatcher"
-            if dest_patcher.exists():
-                shutil.rmtree(dest_patcher)
-            print(f"Copying DllPatcher to {dest_patcher}...")
-            shutil.copytree(dllpatcher_dir, dest_patcher)
 
     # 删除冗余/不需要的 DLL
     redundant_patterns = [
