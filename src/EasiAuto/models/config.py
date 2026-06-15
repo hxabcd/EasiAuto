@@ -603,6 +603,7 @@ class DebugConfig(ConfigModel):
 
 class InternalConfig(ConfigModel):
     AutomationPageNoticeShown: bool = Field(default=False)
+    LastCheckTime: datetime | None = Field(default=None)
 
 
 class StatisticsConfig(ConfigModel):

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
@@ -381,7 +381,6 @@ class UpdatePage(QWidget):
         self._action: UpdateStatus
         self._decision: UpdateDecision | None = None
         self._update_file: str = "EasiAuto_Unknown.zip"
-        self._last_check: str | None = None
         self._last_error: str | None = None
         self._signal_connected: bool = False
         self._tried_downloads: int = 0
@@ -443,6 +442,19 @@ class UpdatePage(QWidget):
         layout.addWidget(status_widget)
         layout.addWidget(HorizontalSeparator())
         layout.addWidget(self.content_widget)
+
+    @property
+    def _last_check(self) -> str | None:
+        """从配置读取上次检查时间（返回格式化字符串）"""
+        val = config.Internal.LastCheckTime
+        if val is None:
+            return None
+        return val.strftime("%Y-%m-%d %H:%M:%S")
+
+    @_last_check.setter
+    def _last_check(self, value: datetime | None) -> None:
+        """设置上次检查时间并持久化到配置"""
+        config.Internal.LastCheckTime = value
 
     @property
     def action(self) -> UpdateStatus:
@@ -555,7 +567,7 @@ class UpdatePage(QWidget):
         self.action = UpdateStatus.CHECKING
 
     def check_finished(self, decision: UpdateDecision):
-        self._last_check = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        self._last_check = datetime.now()
 
         if decision.available and len(decision.downloads) > 0:
             self._decision = decision
