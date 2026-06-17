@@ -409,7 +409,7 @@ class ProfileManagePage(QWidget):
             if len(errors) > 3:
                 content += "；..."
             InfoBar.error(
-                title="关联同步存在失败项",
+                title="同步自动化失败",
                 content=content,
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
@@ -712,16 +712,6 @@ class ProfileManagePage(QWidget):
 
         self.profileChanged.emit()
 
-        InfoBar.success(
-            title="成功",
-            content="档案已保存",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=get_main_container(),
-        )
-
     def _on_item_clicked(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
         self.current_list_item = item
@@ -768,15 +758,6 @@ class ProfileManagePage(QWidget):
                 self._clear_editor()
             self.auto_list.takeItem(self.auto_list.row(item))
             self.profileChanged.emit()
-            InfoBar.success(
-                title="成功",
-                content="档案已删除",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=1500,
-                parent=get_main_container(),
-            )
 
     def scroll_to_automation(self, automation_id: str):
         """跳转并选中指定的自动化档案"""
