@@ -530,7 +530,7 @@ class ProfileManagePage(QWidget):
         """从希沃白板导入当前已登录的账户"""
         from EasiAuto.core.automator.qrcode import fetch_current_login_info
 
-        info = fetch_current_login_info()
+        info = fetch_current_login_info(True)
         if not info or info.get("statusCode") != 202:
             InfoBar.warning(
                 title="导入失败",

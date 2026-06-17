@@ -198,7 +198,7 @@ class TimeoutConfig(ConfigModel):
     LaunchPollingTimeout: float = Field(
         default=15,
         ge=0,
-        le=20,
+        le=30,
         title="等待启动超时时间",
         description="启动希沃白板后，等待其启动完成的最大等待时间",
     )

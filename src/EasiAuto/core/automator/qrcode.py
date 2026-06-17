@@ -18,10 +18,12 @@ PIPE_NAME = r"\\.\pipe\SeewoOpenTokenPipe"
 LOGIN_INFO_PIPE = r"\\.\pipe\SeewoLoginInfoPipe"
 
 
-def fetch_current_login_info() -> dict | None:
+def fetch_current_login_info(add_to_logged_tokens: bool = False) -> dict | None:
     """从 SeewoLoginInfoPipe 获取当前已登录账户信息"""
     try:
-        with open(LOGIN_INFO_PIPE, encoding="utf-8") as pipe:
+        with open(LOGIN_INFO_PIPE, "r+", encoding="utf-8") as pipe:
+            pipe.write(str(add_to_logged_tokens).lower() + "\n")
+            pipe.flush()
             return json.loads(pipe.readline())
     except Exception:
         return None
@@ -156,7 +158,7 @@ class QRCodeAutomator(BaseAutomator):
                 logger.warning("DllPatcher 不可用")
 
     def check_logged_in(self) -> bool:
-        info = fetch_current_login_info()
+        info = fetch_current_login_info(False)
         if info and info.get("statusCode") == 202:
             current_uid = info.get("userId", "")
             return current_uid and current_uid == self._target_user_id
