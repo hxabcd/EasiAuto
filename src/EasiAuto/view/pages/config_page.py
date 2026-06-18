@@ -33,7 +33,7 @@ from EasiAuto.view.helpers import get_main_container, set_enable_by
 
 # 从属关系映射: [!]Condition -> Targets
 ENABLE_MAPPING: dict[str, str | list[str]] = {
-    "Login.EasiNote.AutoPath": "Login.EasiNote.Path",
+    "!Login.EasiNote.AutoPath": "Login.EasiNote.Path",
     "Warning.Enabled": [
         "Warning.Timeout",
         "Warning.MaxDelays",
@@ -225,7 +225,7 @@ class ConfigPage(QWidget):
 
                 case "Login.Timeout":
                     card = cast(ExpandGroupSettingCard, card)
-                    self.add_resetter(card, "Login.Timeout", "超时时长")
+                    self.add_resetter(card, "Login.Timeout", "等待时长")
 
                 case n if n.startswith("Login.Timeout."):
                     card = cast(SettingCard, card)
