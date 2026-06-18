@@ -191,45 +191,45 @@ class TimeoutConfig(ConfigModel):
     Terminate: float = Field(
         default=1,
         ge=0,
-        le=5,
-        title="终止进程超时时间",
-        description="终止希沃进程后，等待其彻底结束的最大等待时间",
+        le=60,
+        title="终止进程等待时间",
+        description="终止进程后，等待其彻底结束的时间",
     )
     LaunchPollingTimeout: float = Field(
-        default=15,
+        default=30,
         ge=0,
-        le=30,
+        le=60,
         title="等待启动超时时间",
-        description="启动希沃白板后，等待其启动完成的最大等待时间",
+        description="启动后，等待其启动完成的最大时间",
     )
     LaunchPollingInterval: float = Field(
         default=0.5,
-        ge=0.5,
-        le=2,
+        ge=0.1,
+        le=60,
         title="等待启动轮询间隔",
         description="轮询检测是否启动完成的时间间隔",
     )
     AfterLaunch: float = Field(
-        default=1.5,
+        default=2,
         ge=0,
-        le=5,
+        le=60,
         title="启动后等待时间",
-        description="启动后等待希沃白板界面加载的等待时间",
+        description="启动后，等待界面加载的时间",
     )
     # 模拟点击
     EnterLoginUI: float = Field(
         default=3,
         ge=0,
-        le=5,
+        le=60,
         title="进入登录界面等待时间",
-        description="点击黑板模式下左下角的“登录”按钮后界面出现的等待时间",
+        description="点击左下角“登录”按钮后，等待界面出现的时间",
     )
     SwitchTab: float = Field(
         default=1,
         ge=0,
-        le=5,
+        le=60,
         title="切换标签等待时间",
-        description="切换到账号登录标签页的等待时间",
+        description="等待切换到账号登录标签页的时间",
     )
 
 
@@ -357,8 +357,7 @@ class WarningConfig(ConfigModel):
         default=60,
         ge=5,
         le=600,
-        title="超时时长",
-        description="要等待的超时时长（秒）",
+        title="超时时长（秒）",
         json_schema_extra={"icon": "RemoveFrom"},
     )
     MaxDelays: int = Field(
@@ -366,15 +365,13 @@ class WarningConfig(ConfigModel):
         ge=0,
         le=3,
         title="最大推迟次数",
-        description="最多可以推迟登录的次数",
         json_schema_extra={"icon": "Pause"},
     )
     DelayTime: int = Field(
         default=150,
         ge=5,
         le=300,
-        title="推迟时长",
-        description="选择推迟时要等待的时长（秒）",
+        title="推迟时长（秒）",
         json_schema_extra={"icon": "History"},
         validation_alias="Delay",
     )
@@ -402,7 +399,7 @@ class BannerStyleConfig(ConfigModel):
     TextColor: qtp.QColor = Field(
         default=QColor("#FFFFDE59"),
         title="文字颜色",
-        description="横幅的文本颜色",
+        description="横幅文本的颜色",
         json_schema_extra={"icon": "Palette", "enable_alpha": True},
     )
     FgColor: qtp.QColor = Field(
@@ -421,16 +418,16 @@ class BannerStyleConfig(ConfigModel):
         default=60,
         ge=1,
         le=120,
-        title="帧率",
-        description="横幅的刷新帧率",
+        title="刷新率",
+        description="横幅的每秒的更新次数",
         json_schema_extra={"icon": "SpeedHigh", "style": "slider"},
     )
     TextSpeed: int = Field(
         default=3,
         ge=-8,
         le=8,
-        title="文字滚动速度",
-        description="横幅文本滚动的速度",
+        title="文字滚动距离",
+        description="横幅文本每次刷新滚动的距离",
         json_schema_extra={"icon": "RightArrow", "style": "slider"},
     )
     YOffset: int = Field(
