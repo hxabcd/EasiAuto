@@ -335,7 +335,7 @@ class CiRunningWarnOverlay(QWidget):
     label_failed_text = "无法终止 ClassIsland"
     label_failed_desc = "<span style='font-size: 15px;'>自动关闭失败，请尝试手动关闭 ClassIsland</span>"
     labelE_failed_text = "诶诶，情况好像不太对？！"
-    lalbelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
+    labelE_failed_desc = "<span style='font-size: 15px;'>没想到 ClassIsland 大姐姐竟然这么强势QAQ</span>"
 
     def __init__(self, parent=None):
         super().__init__(parent)

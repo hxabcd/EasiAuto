@@ -362,12 +362,12 @@ class Launcher:
                     screen_height = get_screen_size_physical()[1]
                     expected_pos = Point(config.Login.Position.AgreementCheckbox)
                     expected_pos.y += 8
-                    login_window_buttom = calc_relative_login_window_position(
+                    login_window_bottom = calc_relative_login_window_position(
                         expected_pos,
                         window_size=config.Login.Position.LoginWindowSize,
                         base_size=config.Login.Position.BaseSize,
                     ).y
-                    available_space = screen_height - (login_window_buttom + 8)
+                    available_space = screen_height - (login_window_bottom + 8)
                 except Exception as e:
                     logger.warning(f"计算状态浮窗位置时出错: {e}")
                     available_space = 0
@@ -375,7 +375,7 @@ class Launcher:
                 self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
                 self.status_overlay.stop_clicked.connect(self._on_stop_automation)
                 automation_manager.started.connect(self.status_overlay.show)
-                automation_manager.successed.connect(self.status_overlay.on_success)
+                automation_manager.succeeded.connect(self.status_overlay.on_success)
                 automation_manager.interrupted.connect(self.status_overlay.on_interrupted)
                 automation_manager.failed.connect(self.status_overlay.on_failed)
                 automation_manager.task_updated.connect(self.status_overlay.set_task_text)

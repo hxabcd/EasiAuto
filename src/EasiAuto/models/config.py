@@ -69,7 +69,7 @@ class UpdateMode(InformativeEnum):
     CHECK_AND_INSTALL = (3, "自动检查更新并安装")
 
 
-class UpdateChannal(InformativeEnum):
+class UpdateChannel(InformativeEnum):
     RELEASE = ("release", "稳定通道")
     DEV = ("dev", "测试通道")
 
@@ -551,8 +551,8 @@ class UpdateConfig(ConfigModel):
         description="登录完成后，尝试按照设置的更新模式检查更新（安装时将会静默）",
         json_schema_extra={"icon": "Megaphone"},
     )
-    TargetUpdateChannel: UpdateChannal = Field(
-        default=UpdateChannal.RELEASE,
+    TargetUpdateChannel: UpdateChannel = Field(
+        default=UpdateChannel.RELEASE,
         title="更新通道",
         description="设置应用的更新目标版本（测试通道可能含有不稳定的功能，谨慎使用）",
         json_schema_extra={"icon": "Tag"},
@@ -674,14 +674,14 @@ class Config(ConfigModel):
         backup_obj = deepcopy(obj)
 
         try:
-            transfered = False
+            transferred = False
             if last_version <= Version("1.1.3"):  # noqa: SIM102
-                transfered = True
+                transferred = True
                 if obj["Login"]["Directly"]:
                     del obj["Login"]["Directly"]
                     obj["Login"]["IsIwb"] = False
 
-            if transfered:
+            if transferred:
                 logger.info(f"已迁移配置 ({last_version} -> {__version__})")
 
             return obj

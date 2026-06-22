@@ -22,7 +22,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from EasiAuto import __version__
 from EasiAuto.consts import CACHE_DIR, EA_BASEDIR, EA_EXECUTABLE, IS_DEV
-from EasiAuto.models.config import DownloadSource, PackageChannel, UpdateChannal, config
+from EasiAuto.models.config import DownloadSource, PackageChannel, UpdateChannel, config
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
@@ -526,7 +526,7 @@ class UpdateChecker(QObject):
         return self._parse_manifest_json(resp)
 
     def _decide(self, manifest: dict[str, Any], force: bool = False) -> UpdateDecision:
-        target_key = "latest_dev" if config.Update.TargetUpdateChannel == UpdateChannal.DEV else "latest"
+        target_key = "latest_dev" if config.Update.TargetUpdateChannel == UpdateChannel.DEV else "latest"
         target_ver_str = manifest.get(target_key)
 
         if not target_ver_str:
@@ -578,7 +578,7 @@ class UpdateChecker(QObject):
         for v in in_range:
             info: dict = versions[v]
             if bool(info.get("is_dev")) != (
-                config.Update.TargetUpdateChannel == UpdateChannal.DEV
+                config.Update.TargetUpdateChannel == UpdateChannel.DEV
             ):  # 不读取不同通道的更新日志
                 continue
 

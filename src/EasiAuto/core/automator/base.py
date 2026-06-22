@@ -35,7 +35,7 @@ class LoginError(Exception):
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
-    successed = Signal()
+    succeeded = Signal()
     interrupted = Signal()
     failed = Signal(str)
     task_updated = Signal(str)
@@ -257,7 +257,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 self.update_progress("登录完成")
 
                 config.Statistics.LoginSuccessCounts += 1
-                self.successed.emit()
+                self.succeeded.emit()
                 break
             except LoginCancelled as e:
                 config.Statistics.LoginInterruptCounts += 1

@@ -233,11 +233,11 @@ class ConfigPage(QWidget):
 
                 case "Login.Position":
                     card = cast(ExpandGroupSettingCard, card)
-                    recoard_card = PushSettingCard(
+                    record_card = PushSettingCard(
                         icon=FluentIcon.CAMERA, title="录制模式", content="进入录制模式获取坐标", text="不可用"
                     )
-                    recoard_card.setEnabled(False)  # TODO: 录制模式
-                    card.addGroupWidget(recoard_card)
+                    record_card.setEnabled(False)  # TODO: 录制模式
+                    card.addGroupWidget(record_card)
                     self.add_resetter(card, "Login.Position", "位置坐标")
                 case "Banner.Style":
                     card = cast(ExpandGroupSettingCard, card)
