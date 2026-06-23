@@ -14,6 +14,7 @@ from qfluentwidgets import (
     FluentStyleSheet,
     IconWidget,
     PushButton,
+    RadioButton,
     SmoothScrollDelegate,
     StrongBodyLabel,
     TableItemDelegate,
@@ -402,3 +403,21 @@ class SettingCardGroup(QWidget):
     def adjustSize(self):
         h = self.cardLayout.heightForWidth(self.width()) + 46
         return self.resize(self.width(), h)
+
+
+class CustomRadioButton(RadioButton):
+    """遮盖鼠标进入时间，手动更新hover状态"""
+
+    def enterEvent(self, e):
+        pass
+
+    def leaveEvent(self, e):
+        pass
+
+    def onMouseEnter(self):
+        self.isHover = True
+        self.update()
+
+    def onMouseLeave(self):
+        self.isHover = False
+        self.update()
