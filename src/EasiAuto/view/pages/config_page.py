@@ -51,8 +51,6 @@ class ConfigPage(QWidget):
         logger.debug("初始化配置页")
 
         self.menu_index: weakref.WeakValueDictionary[str, SettingCardGroup] = weakref.WeakValueDictionary()
-        self._hidden_announcement_ids: set[str] = set()
-
         self.init_ui()
         self._init_announcement_signals()
         announcement_service.fetch_async()
@@ -105,7 +103,8 @@ class ConfigPage(QWidget):
 
     def _on_announcements_fetched(self, announcements: object):
         items = cast(list[Announcement], announcements)
-        visible_items = [item for item in items if item.id not in self._hidden_announcement_ids][:3]
+        hidden_ids = set(config.Internal.HiddenAnnouncementIds)
+        visible_items = [item for item in items if item.id not in hidden_ids][:3]
         self._render_announcements(visible_items)
 
     def _on_announcements_failed(self, error: str):
@@ -135,7 +134,9 @@ class ConfigPage(QWidget):
         self.announcement_container.show()
 
     def _dismiss_announcement(self, announcement_id: str):
-        self._hidden_announcement_ids.add(announcement_id)
+        hidden_ids = set(config.Internal.HiddenAnnouncementIds)
+        hidden_ids.add(announcement_id)
+        config.Internal.HiddenAnnouncementIds = list(hidden_ids)
 
         remaining_cards: list[Announcement] = []
         for index in range(self.announcement_layout.count()):

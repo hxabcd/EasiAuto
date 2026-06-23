@@ -596,7 +596,8 @@ class DebugConfig(ConfigModel):
 
 class InternalConfig(ConfigModel):
     AutomationPageNoticeShown: bool = Field(default=False)
-    LastCheckTime: datetime | None = Field(default=None)
+    LastUpdateCheckTime: datetime | None = Field(default=None)
+    HiddenAnnouncementIds: list[str] = Field(default_factory=list)
 
 
 class StatisticsConfig(ConfigModel):

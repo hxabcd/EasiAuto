@@ -446,7 +446,7 @@ class UpdatePage(QWidget):
     @property
     def _last_check(self) -> str | None:
         """从配置读取上次检查时间（返回格式化字符串）"""
-        val = config.Internal.LastCheckTime
+        val = config.Internal.LastUpdateCheckTime
         if val is None:
             return None
         return val.strftime("%Y-%m-%d %H:%M:%S")
@@ -454,7 +454,7 @@ class UpdatePage(QWidget):
     @_last_check.setter
     def _last_check(self, value: datetime | None) -> None:
         """设置上次检查时间并持久化到配置"""
-        config.Internal.LastCheckTime = value
+        config.Internal.LastUpdateCheckTime = value
 
     @property
     def action(self) -> UpdateStatus:
