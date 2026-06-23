@@ -12,7 +12,7 @@ MANIFEST_FILE_PATH = "public/update.json"
 ANNOUNCEMENT_REPO = "hxabcd/EasiAutoWeb"
 ANNOUNCEMENT_FILE_PATH = "public/announcements.json"
 OWNER_REPO = os.getenv("GITHUB_REPOSITORY", "hxabcd/EasiAuto")
-REQUEST_TIMEOUT = 15
+REQUEST_TIMEOUT = 300
 VALID_SEVERITIES = ("info", "warning", "error")
 
 # ── Shared token (in-memory, not persisted) ────────────────────────────
