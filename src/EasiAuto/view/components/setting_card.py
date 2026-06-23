@@ -10,7 +10,7 @@ from annotated_types import Ge, Gt, Le, Lt
 from loguru import logger
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter
+from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -508,6 +508,24 @@ class SettingCard(QFrame):
         elif field_type in (QColor, qtp.QColor):
             card_type = CardType.COLOR
         elif issubclass(field_type, Enum):
+            if style == "expand_selector":
+                card = ExpandSelectorSettingCard(
+                    icon=icon or QIcon(),
+                    title=config_item.title,
+                    content=config_item.description,
+                    config_item=cast(ConfigItem, config_item),
+                )
+                card.setObjectName(config_item.path)
+                cls.index[config_item.path] = card
+
+                for option in field_type:
+                    name = getattr(option, "display_name", option.name)
+                    desc = getattr(option, "description", None)
+                    card.addOption(title=name, description=desc, value=option)
+
+                card.setValue(config_item.value)
+                card._initialized = True
+                return card
             card_type = CardType.ENUM
         elif field_type is ConfigItem:
             group_container = ExpandGroupSettingCard(
@@ -543,7 +561,7 @@ class SettingCard(QFrame):
     def update_all(cls):
         """更新所有配置卡的值"""
         for card in cls.index.values():
-            if isinstance(card, ExpandGroupSettingCard):
+            if isinstance(card, ExpandGroupSettingCard) and not isinstance(card, ExpandSelectorSettingCard):
                 continue
             card._initialized = False
             card.updateValue()
@@ -553,12 +571,14 @@ class SettingCard(QFrame):
 class ExpandSelectorSettingCardItem(CardWidget):
     def __init__(self, title: str, description: str | None = None):
         super().__init__()
-        # self.setBorderRadius(0)
+        self.setClickEnabled(True)
+        self.setBorderRadius(0)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(48, 12, 4, 12)
+        layout.setContentsMargins(48, 8, 4, 8)
 
         button_layout = QVBoxLayout()
+        button_layout.addSpacing(2)
         self.button = CustomRadioButton()
         self.button.setFixedSize(24, 24)
         button_layout.addWidget(self.button)
@@ -566,7 +586,7 @@ class ExpandSelectorSettingCardItem(CardWidget):
         layout.addLayout(button_layout)
 
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
+        text_layout.setSpacing(1)
         title_label = BodyLabel(title)
         text_layout.addWidget(title_label)
 
@@ -575,32 +595,118 @@ class ExpandSelectorSettingCardItem(CardWidget):
         text_layout.addWidget(description_label)
         layout.addLayout(text_layout)
 
-    def enterEvent(self, e: QMouseEvent):
+    def _normalBackgroundColor(self):
+        return QColor(0, 0, 0, 0)
+
+    def _hoverBackgroundColor(self):
+        return QColor(255, 255, 255, 10) if isDarkTheme() else QColor(0, 0, 0, 8)
+
+    def _pressedBackgroundColor(self):
+        return QColor(255, 255, 255, 18) if isDarkTheme() else QColor(0, 0, 0, 14)
+
+    def paintEvent(self, e):
+        # 只绘制纯色背景，以避免 borderRadius=0 时 CardWidget.paintEvent 产生对角线
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self.backgroundColor)
+        painter.drawRect(self.rect())
+
+    def enterEvent(self, e):
         self.button.onMouseEnter()
         super().enterEvent(e)
 
-    def leaveEvent(self, e: QMouseEvent):
+    def leaveEvent(self, e):
         self.button.onMouseLeave()
         super().leaveEvent(e)
 
-    def mousePressEvent(self, e: QMouseEvent):
-        # 将按下状态传递给按钮，使其显示按下视觉效果
+    def mousePressEvent(self, e):
         self.button.setDown(True)
         super().mousePressEvent(e)
 
-    def mouseReleaseEvent(self, e: QMouseEvent):
-        # 松开时恢复按钮状态并触发点击
+    def mouseReleaseEvent(self, e):
         self.button.setDown(False)
         self.button.click()
         super().mouseReleaseEvent(e)
 
 
 class ExpandSelectorSettingCard(ExpandGroupSettingCard):
-    def __init__(self, icon: str | QIcon | FluentIcon, title: str, content: str = None, parent=None):
-        super().__init__(icon, title, content, parent)
-        self.buttons = QButtonGroup()
+    """基于 ExpandGroupSettingCard 的单选设置卡片，用于替代枚举类型的下拉框"""
 
-    def addOption(self, title: str, description: str | None = None):
+    valueChanged = Signal(object)
+
+    def __init__(
+        self,
+        icon: str | QIcon | FluentIcon,
+        title: str,
+        content: str = None,
+        config_item: ConfigItem | None = None,
+        parent=None,
+    ):
+        super().__init__(icon, title, content, parent)
+        self.config_item: ConfigItem | None = config_item
+        self.buttons = QButtonGroup()
+        self._options: list[tuple[Any, ExpandSelectorSettingCardItem]] = []
+        self._initialized = False
+
+    def addOption(self, title: str, description: str | None = None, value: Any = None):
+        """添加一个选项
+
+        Parameters
+        ----------
+        title: str
+            选项标题
+        description: str | None
+            选项描述
+        value: Any
+            选项对应的值（如枚举成员）
+        """
         item = ExpandSelectorSettingCardItem(title, description)
         self.addGroupWidget(item)
         self.buttons.addButton(item.button)
+        self._options.append((value, item))
+        item.button.toggled.connect(lambda checked, v=value: self._on_toggled(checked, v))
+
+    def _on_toggled(self, checked: bool, value: Any):
+        """单选按钮切换处理"""
+        if checked and self.config_item and self._initialized:
+            logger.debug(f"设置修改: ({self.config_item.path}) {self.config_item.value} -> {value}")
+            self.config_item.value = value
+            self.valueChanged.emit(value)
+
+    def setValue(self, value: Any):
+        """设置当前选中值"""
+        for opt_value, item in self._options:
+            if opt_value == value:
+                item.button.setChecked(True)
+                return
+
+    def getValue(self) -> Any:
+        """获取当前选中值"""
+        for opt_value, item in self._options:
+            if item.button.isChecked():
+                return opt_value
+        return None
+
+    def updateValue(self):
+        """根据 config_item 更新 UI 显示"""
+        if self.config_item:
+            self._initialized = False
+            self.setValue(self.config_item.value)
+            self._initialized = True
+
+    def setOptionEnabled(self, value: Any, enabled: bool):
+        """启用或禁用指定选项
+
+        Parameters
+        ----------
+        value: Any
+            选项对应的值
+        enabled: bool
+            是否启用
+        """
+        for opt_value, item in self._options:
+            if opt_value == value:
+                item.button.setEnabled(enabled)
+                item.setEnabled(enabled)
+                return

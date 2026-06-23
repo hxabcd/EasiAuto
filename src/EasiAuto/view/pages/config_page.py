@@ -27,7 +27,7 @@ from EasiAuto.consts import IS_FULL
 from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services.announcement_service import Announcement, announcement_service
-from EasiAuto.view.components import AnnouncementCard, SettingCard
+from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.helpers import get_main_container, set_enable_by
 
@@ -193,12 +193,9 @@ class ConfigPage(QWidget):
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
-                    card = cast(SettingCard, card)
-                    card.widget.setMinimumWidth(200)
+                    card = cast(ExpandSelectorSettingCard, card)
                     if not IS_FULL:  # LITE 版，禁用进程注入登录
-                        fixed_index = card.widget.findData(LoginMethod.INJECT)  # type: ignore
-                        if fixed_index != -1:
-                            card.widget.setItemEnabled(fixed_index, False)  # type: ignore
+                        card.setOptionEnabled(LoginMethod.INJECT, False)
 
                 case "Login.SkipOnce":
                     card = cast(SettingCard, card)

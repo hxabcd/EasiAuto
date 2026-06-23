@@ -30,8 +30,9 @@ from EasiAuto.consts import CONFIG_PATH, IS_FULL
 class InformativeEnum(Enum):
     """带显示名称的枚举类"""
 
-    def __init__(self, value, display_name):
+    def __init__(self, value, display_name, description=None):
         self.display_name: str = display_name
+        self.description: str | None = description
         self._value_ = value
 
     def __lt__(self, other: InformativeEnum):
@@ -50,10 +51,10 @@ class LogLevelEnum(InformativeEnum):
 
 
 class LoginMethod(InformativeEnum):
-    FIXED = (0, "固定位置（较稳定，极快）")
-    CV = (1, "图像识别（不稳定，较快）")
-    UIA = (2, "自动定位（最稳定，较慢）")
-    INJECT = (3, "进程注入（不稳定，最快）")
+    FIXED = (0, "固定位置", "较稳定，极快（推荐）\n大部分情况下开箱即用，仅在特殊情况需手动设置坐标")
+    CV = (1, "图像识别", "不稳定，较快\n仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率")
+    UIA = (2, "自动定位", "最稳定，较慢\n基于 UI Automation 直接获取页面元素，在部分机器上可能极慢")
+    INJECT = (3, "进程注入", "不稳定，最快（实验性）\n通过 Snoop 注入希沃白板直接调用登录")
 
 
 class ThemeOptions(InformativeEnum):
@@ -281,13 +282,8 @@ class LoginConfig(ConfigModel):
     Method: LoginMethod = Field(
         default=LoginMethod.FIXED,
         title="登录方式",
-        description="""选择用于进行自动登录的方式：
- - 固定位置大部分情况下开箱即用，仅在特殊情况需手动设置坐标；
- - 自动定位基于 UI Automation 直接获取页面元素，在部分机器上可能极慢
- - 图像识别仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率
- - 进程注入通过 Snoop 注入希沃白板直接调用登录，理论上最快，
-   但是稳定性未知，属于实验性选项""",
-        json_schema_extra={"icon": "Application"},
+        description="选择用于进行自动登录的方式",
+        json_schema_extra={"icon": "Application", "style": "expand_selector"},
     )
     SkipOnce: bool = Field(
         default=False,
