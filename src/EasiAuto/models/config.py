@@ -485,7 +485,7 @@ class AppConfig(ConfigModel):
 
 
 class PrivacyMaskConfig(ConfigModel):
-    Enable: bool = Field(
+    Enabled: bool = Field(
         default=True,
         title="启用隐私保护遮罩",
         description="登录时，在输入框上显示一个遮罩，用于遮挡可能的隐私信息。仅在固定位置与自动定位中可用\n下方选项用于控制固定位置下的显示，部分选项继承自位置坐标",

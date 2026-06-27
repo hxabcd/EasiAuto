@@ -53,7 +53,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
             time.sleep(config.Login.Timeout.EnterLoginUI)
 
         # 显示隐私保护遮罩
-        if config.Experimental.PrivacyMask:
+        if config.Experimental.PrivacyMask.Enabled:
             x, y = FixedAutomator.resolve_position(config.Experimental.PrivacyMask.MaskLeftTop)
             w, h = Point(config.Experimental.PrivacyMask.MaskSize).scaled()
             self.privacy_mask_show.emit(x, y, w, h)
@@ -91,5 +91,5 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
 
         self.press("enter")
 
-        if config.Experimental.PrivacyMask:
+        if config.Experimental.PrivacyMask.Enabled:
             self.privacy_mask_hide.emit()

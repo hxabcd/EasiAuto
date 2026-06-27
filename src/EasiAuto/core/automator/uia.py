@@ -36,7 +36,7 @@ class UIAAutomator(BaseAutomator):
             dlg.print_control_identifiers()
 
         # 显示隐私保护遮罩
-        if config.Experimental.PrivacyMask:
+        if config.Experimental.PrivacyMask.Enabled:
             rect = dlg.child_window(auto_id="IwbqrCodeControl").rectangle()
             x, y = rect.left, rect.top
             w, h = rect.right - rect.left, rect.bottom - rect.top
@@ -90,5 +90,5 @@ class UIAAutomator(BaseAutomator):
         login_button = account_login_page.child_window(auto_id="LoginButton", control_type="Button")
         login_button.click()
 
-        if config.Experimental.PrivacyMask:
+        if config.Experimental.PrivacyMask.Enabled:
             self.privacy_mask_hide.emit()
