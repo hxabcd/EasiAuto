@@ -1,6 +1,5 @@
 import subprocess
 import time
-import winreg
 from abc import abstractmethod
 from collections.abc import Iterable
 from contextlib import suppress
@@ -81,23 +80,16 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     @staticmethod
     def get_easinote_path() -> Path | None:
-        if config.Login.EasiNote.AutoPath:
-            try:
-                with winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
-                    r"SOFTWARE\WOW6432Node\Seewo\EasiNote5",
-                ) as key:
-                    path_str = winreg.QueryValueEx(key, "ExePath")[0]
-                    logger.debug(f"自动获取到路径: {path_str}")
-            except Exception:
-                path_str = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
-                logger.warning("自动获取路径失败, 使用默认路径")
-        else:
-            path_str = config.Login.EasiNote.Path
-            logger.debug(f"使用设置的路径: {path_str}")
+        from .utils import resolve_easinote_path
 
-        path = Path(path_str).resolve()
-        return path if path.exists() else None
+        path, source = resolve_easinote_path()
+        if source == "registry":
+            logger.debug(f"自动获取到路径: {path}")
+        elif source == "fallback":
+            logger.warning("自动获取路径失败, 使用默认路径")
+        else:
+            logger.debug(f"使用设置的路径: {config.Login.EasiNote.Path}")
+        return path
 
     def kill_processes(self):
         target_list: list[str] = [config.Login.EasiNote.ProcessName]

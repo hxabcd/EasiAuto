@@ -17,6 +17,7 @@ from qfluentwidgets import (
     MessageBox,
     PushSettingCard,
     SmoothScrollArea,
+    SwitchButton,
     Theme,
     TitleLabel,
     TransparentPushButton,
@@ -29,6 +30,7 @@ from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services.announcement_service import Announcement, announcement_service
 from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
+from EasiAuto.view.components.setting_card import CardType
 from EasiAuto.view.helpers import get_main_container, set_enable_by
 
 # 从属关系映射: [!]Condition -> Targets
@@ -67,30 +69,25 @@ class ConfigPage(QWidget):
         title.setContentsMargins(36, 8, 0, 12)
         layout.addWidget(title)
 
-        self.announcement_container = QWidget(self)
-        self.announcement_container.setContentsMargins(0, 0, 0, 0)
-        self.announcement_layout = QVBoxLayout(self.announcement_container)
-        self.announcement_layout.setContentsMargins(36, 0, 36, 12)
-        self.announcement_layout.setSpacing(8)
-        self.announcement_container.hide()
-        layout.addWidget(self.announcement_container)
+        # 公告组件
+        self.init_announcement_ui(layout)
 
+        # 内容组件
         self.scroll_area = SmoothScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         QScroller.grabGesture(self.scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         layout.addWidget(self.scroll_area)
 
-        # 创建内容容器
         self.content_widget = QWidget(self.scroll_area)
         self.scroll_area.setWidget(self.content_widget)
 
-        # 内容布局
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(40, 0, 40, 20)
         self.content_layout.setSpacing(28)
 
         # 添加设置组
+        self.init_patcher_setting_card(layout)
         for group in config.load_page("SettingsPage"):
             self._add_config_menu(group)  # type: ignore
         self.apply_attachment()
@@ -145,6 +142,57 @@ class ConfigPage(QWidget):
                 remaining_cards.append(widget.announcement)
 
         self._render_announcements(remaining_cards)
+
+    def init_announcement_ui(self, layout: QVBoxLayout):
+        self.announcement_container = QWidget(self)
+        self.announcement_container.setContentsMargins(0, 0, 0, 0)
+        self.announcement_layout = QVBoxLayout(self.announcement_container)
+        self.announcement_layout.setContentsMargins(36, 0, 36, 8)
+        self.announcement_layout.setSpacing(8)
+        self.announcement_container.hide()
+        layout.addWidget(self.announcement_container)
+
+    def init_patcher_setting_card(self, layout: QVBoxLayout):
+        card = SettingCard(
+            card_type=CardType.SWITCH,
+            icon=FluentIcon.CODE,
+            title="修补希沃白板",
+            content="将登录相关的组件修补至希沃白板",
+        )
+        widget = cast(SwitchButton, card.widget)
+        self.content_layout.insertWidget(0, card)
+
+        from EasiAuto.core.automator.utils import resolve_easinote_path
+        from EasiAuto.core.easinote_patcher import is_easinote_patched, patch_easinote, unpatch_easinote
+
+        path, _ = resolve_easinote_path()
+        if path is None:
+            widget.setEnabled(False)
+            t = card.contentLabel.text()
+            card.contentLabel.setText(f"{t}\n未找到希沃白板路径，暂不可用")
+            return
+
+        def on_patch_changed(value: bool):
+            widget.setEnabled(False)
+            ok = patch_easinote(path) if value else unpatch_easinote(path)
+            config.Internal.IsEasiNotePatched = value if ok else not value
+            if not ok:
+                InfoBar.error(
+                    title=f"{'修补' if value else '撤销修补'}失败",
+                    content="权限不足或文件可能被占用，请关闭希沃白板或以管理员身份重启后重试",
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=3000,
+                    parent=self,
+                )
+                widget.blockSignals(True)
+                widget.setChecked(not value)
+                widget.blockSignals(False)
+            widget.setEnabled(True)
+
+        widget.setChecked(is_easinote_patched(path))
+        widget.checkedChanged.connect(on_patch_changed)
 
     def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""

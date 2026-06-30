@@ -90,7 +90,7 @@ class DownloadSource(InformativeEnum):
 class ConfigModel(BaseModel):
     """带自动保存能力的配置模型"""
 
-    model_config = ConfigDict(validate_by_name=True)
+    model_config = ConfigDict(validate_by_name=True, validate_assignment=True)
 
     _parent: ConfigModel | None = PrivateAttr(default=None)
     _initialized: bool = PrivateAttr(default=False)
@@ -150,7 +150,13 @@ class ConfigModel(BaseModel):
         only: list[str] | None = None,
         exclude: list[str] | None = None,
     ) -> list[ConfigItem | ConfigGroup]:
-        return iter_config_items(self, only=only, exclude=exclude)
+        return _iter_config_items(self, only=only, exclude=exclude)
+
+    def get_item(self, item: str) -> ConfigItem | ConfigGroup | None:
+        result = _iter_config_items(self, only=[item])
+        if result is not None:
+            return result[0]
+        return None
 
 
 class EasiNoteConfig(ConfigModel):
@@ -595,7 +601,8 @@ class DebugConfig(ConfigModel):
 
 
 class InternalConfig(ConfigModel):
-    AutomationPageNoticeShown: bool = Field(default=False)
+    IsAutomationPageNoticeShown: bool = Field(default=False)
+    IsEasiNotePatched: bool = Field(default=False)
     LastUpdateCheckTime: datetime | None = Field(default=None)
     HiddenAnnouncementIds: list[str] = Field(default_factory=list)
 
@@ -830,7 +837,7 @@ class ConfigGroup:
     children: list[ConfigGroup | ConfigItem] = field(default_factory=list)
 
 
-def iter_config_items(
+def _iter_config_items(
     obj: ConfigModel,
     prefix: str = "",
     group: str | None = None,
@@ -862,7 +869,7 @@ def iter_config_items(
 
         if isinstance(value, ConfigModel):
             # 递归获取子节点
-            children = iter_config_items(value, prefix=path, group=group, root=root, only=only, exclude=exclude)
+            children = _iter_config_items(value, prefix=path, group=group, root=root, only=only, exclude=exclude)
 
             group_node = ConfigGroup(
                 path=path,

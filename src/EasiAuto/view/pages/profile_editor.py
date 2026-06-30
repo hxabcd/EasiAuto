@@ -43,7 +43,7 @@ from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChang
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
-from EasiAuto.view.components.qrcode_login_dialog import QRCodeLoginDialog, fetch_qrcode_avatar
+from EasiAuto.view.components.qrcode_login_dialog import QrCodeLoginDialog, fetch_qrcode_avatar
 from EasiAuto.view.components.setting_card import CardType
 from EasiAuto.view.helpers import get_main_container, get_main_window
 
@@ -483,7 +483,7 @@ class ProfileManagePage(QWidget):
         return None
 
     def _on_qrcode_add(self) -> None:
-        dialog = QRCodeLoginDialog(self.window())
+        dialog = QrCodeLoginDialog(self.window())
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 

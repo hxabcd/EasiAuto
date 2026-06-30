@@ -39,10 +39,10 @@ class AutomationManager(QObject):
 
         if type == "qrcode":
             # TODO: 考虑将工具函数提取至独立文件
-            from EasiAuto.core.automator.qrcode import QRCodeAutomator
+            from EasiAuto.core.automator.qrcode import QrCodeAutomator
 
             logger.info("检测到二维码档案")
-            self._automator = QRCodeAutomator(credentials)
+            self._automator = QrCodeAutomator(credentials)
         else:
             strategy_class = self._get_strategy_class(config.Login.Method)
             self._automator = strategy_class(*credentials)

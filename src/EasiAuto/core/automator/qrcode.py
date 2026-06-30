@@ -1,16 +1,9 @@
-from __future__ import annotations
-
-import hashlib
 import json
-import shutil
-import subprocess
 import time
-from pathlib import Path
 
-import psutil
 from loguru import logger
 
-from EasiAuto.consts import VENDOR_PATH
+from EasiAuto.models import config
 
 from .base import BaseAutomator, LoginError
 
@@ -29,133 +22,11 @@ def fetch_current_login_info(add_to_logged_tokens: bool = False) -> dict | None:
         return None
 
 
-def _file_sha1(path: Path) -> str:
-    sha1 = hashlib.sha1()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            sha1.update(chunk)
-    return sha1.hexdigest()
-
-
-class QRCodeAutomator(BaseAutomator):
+class QrCodeAutomator(BaseAutomator):
     def __init__(self, token_data: dict) -> None:
         super().__init__(account="", password="")
         self._token_data = token_data
         self._target_user_id = token_data.get("userId", "")
-
-    @staticmethod
-    def _deploy_file(src: Path, dst: Path):
-        if not src.exists():
-            logger.warning(f"源文件不存在: {src}")
-            return
-
-        if dst.exists():
-            if _file_sha1(src) == _file_sha1(dst):
-                logger.debug(f"哈希一致，跳过: {dst.name}")
-                return
-            backup = dst.with_suffix(dst.suffix + ".bak")
-            logger.info(f"创建备份: {backup}")
-            shutil.move(dst, backup)
-
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        logger.success(f"已部署: {dst}")
-
-    @staticmethod
-    def _find_easinote_version_dirs(base_dir: Path) -> list[Path]:
-        dirs = []
-        if not base_dir.exists():
-            return dirs
-        for child in base_dir.iterdir():
-            if child.is_dir() and child.name.startswith("EasiNote5_"):
-                main_dir = child / "Main"
-                if main_dir.exists():
-                    dirs.append(main_dir)
-        return dirs
-
-    def _kill_processes_holding_file(self, file_path: str):
-        killed = set()
-        for proc in psutil.process_iter(["pid", "name"]):
-            try:
-                for f in proc.open_files():
-                    if Path(f.path) == Path(file_path):
-                        proc.kill()
-                        killed.add(proc.info["name"])
-                        break
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        for name in killed:
-            logger.info(f"已终止占用 DLL 的进程: {name}")
-
-        deadline = time.time() + 10
-        while time.time() < deadline:
-            try:
-                self.check_interruption()
-                with open(file_path, "r+b"):
-                    logger.debug("DLL 已解除占用")
-                    return
-            except OSError:
-                time.sleep(0.5)
-        logger.warning(f"DLL 等待解除占用超时: {file_path}")
-
-    @staticmethod
-    def _is_newtonsoft_patched(dll_path: Path) -> bool:
-        """检测 Newtonsoft.Json.dll 是否被注入了 SeewoPipeBridge 引用"""
-        try:
-            data = dll_path.read_bytes()
-            return b"SeewoPipeBridge" in data
-        except Exception:
-            return False
-
-    def deploy_resources(self):
-        dllpatcher_exe = VENDOR_PATH / "DllPatcher" / "DllPatcher.exe"
-
-        easinote_exe = BaseAutomator.get_easinote_path()
-        if easinote_exe is None:
-            logger.warning("找不到希沃白板目录")
-            return
-
-        easinote_base = easinote_exe.parent.parent.resolve()
-        if (target_dirs := self._find_easinote_version_dirs(easinote_base)) is None:
-            logger.warning(f"无法在 {easinote_base} 找到希沃白板版本目录")
-            return
-        logger.info(f"找到 {len(target_dirs)} 个目标目录")
-
-        deploy_dlls = ["Newtonsoft.Json.dll", "SeewoPipeBridge.dll"]
-
-        for main_dir in target_dirs:
-            logger.info(f"处理: {main_dir}")
-
-            # 检测 Newtonsoft.Json.dll 是否被篡改过（注入了 SeewoPipeBridge 引用）
-            newtonsoft_dll = main_dir / "Newtonsoft.Json.dll"
-            newtonsoft_bak = main_dir / "Newtonsoft.Json.dll.bak"
-            if newtonsoft_dll.exists() and newtonsoft_bak.exists():
-                if self._is_newtonsoft_patched(newtonsoft_dll):
-                    logger.warning("检测到 Newtonsoft.Json.dll 已被注入 SeewoPipeBridge，从备份恢复")
-                    shutil.copy2(newtonsoft_bak, newtonsoft_dll)
-
-            for dll_name in deploy_dlls:
-                self._deploy_file(VENDOR_PATH / dll_name, main_dir / dll_name)
-
-            if dllpatcher_exe.exists():
-                target_dll = main_dir / "EasiNote.Account.dll"
-                if target_dll.exists():
-                    # self._kill_processes_holding_file(str(target_dll))
-                    result = subprocess.run(
-                        [str(dllpatcher_exe), str(target_dll)],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                        creationflags=subprocess.CREATE_NO_WINDOW,
-                    )
-                    if result.returncode == 0:
-                        logger.success(f"已修补: {target_dll}")
-                    else:
-                        logger.warning(f"修补失败: {target_dll}\n{result.stderr}")
-                else:
-                    logger.debug(f"跳过不存在的: {target_dll}")
-            else:
-                logger.warning("DllPatcher 不可用")
 
     def check_logged_in(self) -> bool:
         info = fetch_current_login_info(False)
@@ -164,8 +35,10 @@ class QRCodeAutomator(BaseAutomator):
             return current_uid and current_uid == self._target_user_id
         return False
 
-    def _after_easinote_dead(self):
-        self.deploy_resources()
+    def prepare(self):
+        if not config.Internal.IsEasiNotePatched:
+            raise LoginError("希沃白板未修补", retry=False)
+        return super().prepare()
 
     def login(self) -> None:
         token = self._token_data.get("token", "")

@@ -97,7 +97,7 @@ class _PollWorker(QThread):
                 continue
 
 
-class QRCodeLoginDialog(Dialog):
+class QrCodeLoginDialog(Dialog):
     def __init__(self, parent=None):
         super().__init__("二维码登录", "")
         self.setMinimumSize(420, 540)
