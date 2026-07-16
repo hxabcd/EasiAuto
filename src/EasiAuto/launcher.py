@@ -46,6 +46,7 @@ from EasiAuto.view.components import (
     StatusOverlayBase,
     WarningBanner,
 )
+from EasiAuto.view.helpers import get_app
 from EasiAuto.view.main_window import MainWindow
 
 UI_COMMANDS = {None, "settings"}
@@ -54,11 +55,13 @@ FORWARDABLE_COMMANDS = {"login", "skip"}
 init_exception_handler()
 init_exit_signal_handlers()
 
-app = QApplication(sys.argv)
-translator = FluentTranslator()
-app.installTranslator(translator)
-setTheme(Theme(config.App.Theme.value))
-setThemeColor("#00C884")
+
+def _init_qt_app(translator: FluentTranslator) -> QApplication:
+    app = QApplication(sys.argv)
+    app.installTranslator(translator)
+    setTheme(Theme(config.App.Theme.value))
+    setThemeColor("#00C884")
+    return app
 
 
 def shutdown():
@@ -398,14 +401,14 @@ class Launcher:
             return False
 
         if not self._ipc_context:
-            stop(app.exec())
+            stop(get_app().exec())
         return True
 
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
         self._show_settings_window()
         if not self._ipc_context:
-            stop(app.exec())
+            stop(get_app().exec())
 
     def cmd_skip(self, _) -> None:
         """skip 子命令 - 跳过下一次登录"""
@@ -500,6 +503,8 @@ class Launcher:
             return
 
         if command in UI_COMMANDS:
+            translator = FluentTranslator()  # 很玄学的问题，Translator 一旦放在 _init_qt_app 里面初始化就无法正常工作
+            _init_qt_app(translator)
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)
             self.ipc_server.start()
 
