@@ -53,20 +53,41 @@ class _ElevatedPatchThread(QThread):
 
     Attributes:
         enable: True 表示修补，False 表示撤销修补
-        done: 完成信号，参数为操作是否成功
+        done: 完成信号，参数为 (ok, code, launched) —— ok 操作是否成功，code 子进程退出码，launched 子进程是否成功启动
     """
 
-    done = Signal(bool)
+    done = Signal(bool, int, bool)
 
     def __init__(self, enable: bool, parent: QWidget | None = None):
         super().__init__(parent)
         self.enable = enable
 
     def run(self) -> None:
+        from EasiAuto.core.easinote_patcher import PATCH_OK
         from EasiAuto.core.elevation import run_elevated_wait
 
         launched, code = run_elevated_wait(f"patch {'--on' if self.enable else '--off'}")
-        self.done.emit(launched and code == 0)
+        self.done.emit(launched and code == PATCH_OK, code, launched)
+
+
+def _patch_error_message(code: int, launched: bool) -> str:
+    """根据子进程退出码返回用户可读的错误信息"""
+    from EasiAuto.core.easinote_patcher import (
+        PATCH_ERR_EASINOTE_NOT_FOUND,
+        PATCH_ERR_OPERATION_FAILED,
+        PATCH_ERR_UNKNOWN,
+    )
+
+    if not launched:
+        return "未能取得管理员权限"
+    if code == PATCH_ERR_EASINOTE_NOT_FOUND:
+        return "未找到希沃白板安装路径"
+    if code == PATCH_ERR_OPERATION_FAILED:
+        return "文件可能被占用，请关闭希沃白板后重试"
+    if code == PATCH_ERR_UNKNOWN:
+        return "发生未知错误，请查看日志获取详细信息"
+    # 其他非零退出码（如 0/1/2）：程序未能正常执行到 patch 逻辑
+    return f"程序异常退出（退出码：{code}），请查看日志获取详细信息"
 
 
 class ConfigPage(QWidget):
@@ -209,8 +230,11 @@ class ConfigPage(QWidget):
             # 挂到 widget 上持有引用，防止 Python 侧在回调前回收线程对象
             widget._patch_thread = thread  # type: ignore[attr-defined]
 
-            def on_done(ok: bool):
-                content = "未能取得管理员权限" if not ok else None
+            def on_done(ok: bool, code: int, launched: bool):
+                if not ok:
+                    content = _patch_error_message(code, launched)
+                else:
+                    content = None
                 _finish_patch(value, ok, content=content)
 
             def on_finished():

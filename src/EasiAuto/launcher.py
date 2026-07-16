@@ -430,29 +430,37 @@ class Launcher:
     def cmd_patch(self, args: Namespace) -> None:
         """patch 子命令 - 修补/撤销修补希沃白板
 
-        退出码: 0 = 成功, 1 = 操作失败, 2 = 未找到希沃白板路径
+        退出码: 20 = 成功, 21 = 操作失败, 22 = 未找到希沃白板路径, 29 = 未知异常.
+        使用 20–29 区间，与其他退出码完全隔离，避免误判。
         """
         from EasiAuto.core.automator.utils import resolve_easinote_path
-        from EasiAuto.core.easinote_patcher import patch_easinote, unpatch_easinote
+        from EasiAuto.core.easinote_patcher import (
+            PATCH_ERR_EASINOTE_NOT_FOUND,
+            PATCH_ERR_OPERATION_FAILED,
+            PATCH_ERR_UNKNOWN,
+            PATCH_OK,
+            patch_easinote,
+            unpatch_easinote,
+        )
 
         path, _ = resolve_easinote_path()
         if path is None:
             logger.error("未找到希沃白板路径")
-            stop(2)
+            stop(PATCH_ERR_EASINOTE_NOT_FOUND)
 
         action = "修补" if args.on else "撤销修补"
         try:
             ok = patch_easinote(path) if args.on else unpatch_easinote(path)
         except Exception as e:
             logger.error(f"{action}希沃白板时发生异常: {e}")
-            stop(1)
+            stop(PATCH_ERR_UNKNOWN)
 
         if ok:
             logger.success(f"{action}希沃白板成功")
-            stop(0)
+            stop(PATCH_OK)
         else:
             logger.error(f"{action}希沃白板失败")
-            stop(1)
+            stop(PATCH_ERR_OPERATION_FAILED)
 
     def _dispatch_command(self, args: Namespace) -> None:
         command = getattr(args, "command", None)
@@ -536,7 +544,11 @@ class Launcher:
         args = parser.parse_args()
         command = getattr(args, "command", None)
 
-        if not check_singleton(focus_existing=(command == "settings")):
+        if command == "patch":  # patch 需绕过单例检查，提前 dispatch
+            self._dispatch_command(args)
+            return
+
+        if not check_singleton(focus_existing=(command == "settings" or command is None)):
             self._forward_or_exit(command)
             return
 

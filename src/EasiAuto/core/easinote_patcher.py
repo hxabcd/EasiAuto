@@ -10,6 +10,12 @@ from loguru import logger
 
 from EasiAuto.consts import VENDOR_PATH
 
+# cmd_patch 专用退出码，值 20–29 与系统中其他退出码（0/1/2/argparse 的 2）完全隔离
+PATCH_OK = 20
+PATCH_ERR_OPERATION_FAILED = 21
+PATCH_ERR_EASINOTE_NOT_FOUND = 22
+PATCH_ERR_UNKNOWN = 29
+
 
 def _deploy_file(src: Path, dst: Path) -> bool:
     """哈希一致跳过，不一致则 .bak 备份后覆盖。返回 True 表示成功或无需操作。"""
