@@ -535,9 +535,10 @@ class Launcher:
 
         if last_version < Version(__version__):
             cleanup_update_cache()
+            logger.success(f"应用已更新: {config.Update.LastVersion} -> {__version__}")
             ToastNotifier().show(
-                f"已更新至 {__version__}",
-                f"{config.Update.LastVersion} -> {__version__}",
+                f"EasiAuto 已更新至 {__version__}",
+                f"已从 {config.Update.LastVersion} 更新至 {__version__}",
             )
         config.Update.LastVersion = __version__
 
