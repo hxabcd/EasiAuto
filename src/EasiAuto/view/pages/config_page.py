@@ -192,8 +192,8 @@ class ConfigPage(QWidget):
         self.announcement_container = QWidget(self)
         self.announcement_container.setContentsMargins(0, 0, 0, 0)
         self.announcement_layout = QVBoxLayout(self.announcement_container)
-        self.announcement_layout.setContentsMargins(36, 0, 36, 8)
-        self.announcement_layout.setSpacing(8)
+        self.announcement_layout.setContentsMargins(40, 0, 40, 4)
+        self.announcement_layout.setSpacing(4)
         self.announcement_container.hide()
         layout.addWidget(self.announcement_container)
 

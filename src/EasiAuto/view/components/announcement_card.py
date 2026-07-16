@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
 from qfluentwidgets import InfoBar, InfoBarIcon, InfoBarPosition, PushButton, TextWrap
 
 from EasiAuto.services.announcement_service import Announcement
+from EasiAuto.view.helpers import set_tooltip
 
 
 class AnnouncementCard(InfoBar):
@@ -37,16 +38,23 @@ class AnnouncementCard(InfoBar):
 
         self.hBoxLayout.setSizeConstraint(self.hBoxLayout.SizeConstraint.SetDefaultConstraint)
         self.hBoxLayout.setStretch(1, 1)
+        self.hBoxLayout.setContentsMargins(6, 3, 6, 3)
+        self.hBoxLayout.setSpacing(3)
 
         self.titleLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.contentLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.titleLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.contentLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
+        set_tooltip(self.closeButton, "忽略此公告")
+
         if announcement.link:
             detail_button = PushButton("查看详情", self)
             detail_button.clicked.connect(self._open_link)
-            self.addWidget(detail_button)
+            set_tooltip(detail_button, announcement.link)
+            self.widgetLayout.addSpacing(2)
+            self.widgetLayout.addWidget(detail_button, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            self.hBoxLayout.setContentsMargins(6, 3, 6, 0)
 
     def _adjustText(self):
         w = 900 if not self.parent() else (self.parent().width())  # type: ignore
