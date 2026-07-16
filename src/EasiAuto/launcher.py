@@ -20,6 +20,7 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.consts import IPC_SERVER_NAME
+from EasiAuto.core import compatibility_patches
 from EasiAuto.core.automator.manager import automation_manager
 from EasiAuto.core.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
 from EasiAuto.core.utils import (
@@ -557,6 +558,7 @@ class Launcher:
             _init_qt_app(translator)
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)
             self.ipc_server.start()
+            compatibility_patches.apply_all()
 
         self._notify_updated(command)
         self._dispatch_command(args)
