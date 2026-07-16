@@ -50,7 +50,7 @@ from EasiAuto.view.components import (
 from EasiAuto.view.helpers import get_app
 from EasiAuto.view.main_window import MainWindow
 
-UI_COMMANDS = {None, "settings"}
+UI_COMMANDS = {None, "settings", "login"}
 FORWARDABLE_COMMANDS = {"login", "skip"}
 
 init_exception_handler()
@@ -494,7 +494,8 @@ class Launcher:
         except SystemExit:
             logger.warning(f"收到无效参数, 已忽略: {argv!r}")
             return
-        if (command := getattr(args, "command", None)) not in FORWARDABLE_COMMANDS:
+        command = getattr(args, "command", None)
+        if command not in FORWARDABLE_COMMANDS:
             logger.warning(f"忽略不被允许的 IPC 命令: {command!r}")
             return
         with self.from_ipc():
