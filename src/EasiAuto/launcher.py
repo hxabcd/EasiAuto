@@ -158,6 +158,13 @@ class Launcher:
 
         subparsers.add_parser("settings", help="打开设置界面")
         subparsers.add_parser("skip", help="跳过下一次登录")
+
+        # 内部子命令，不面向用户
+        patch_parser = subparsers.add_parser("patch", help="修补/撤销修补希沃白板（内部命令）")
+        patch_group = patch_parser.add_mutually_exclusive_group(required=True)
+        patch_group.add_argument("--on", action="store_true", help="执行修补")
+        patch_group.add_argument("--off", action="store_true", help="撤销修补")
+
         self._parser = parser
         return parser
 
@@ -420,6 +427,33 @@ class Launcher:
         logger.success("已更新配置文件, 正在退出")
         stop()
 
+    def cmd_patch(self, args: Namespace) -> None:
+        """patch 子命令 - 修补/撤销修补希沃白板
+
+        退出码: 0 = 成功, 1 = 操作失败, 2 = 未找到希沃白板路径
+        """
+        from EasiAuto.core.automator.utils import resolve_easinote_path
+        from EasiAuto.core.easinote_patcher import patch_easinote, unpatch_easinote
+
+        path, _ = resolve_easinote_path()
+        if path is None:
+            logger.error("未找到希沃白板路径")
+            stop(2)
+
+        action = "修补" if args.on else "撤销修补"
+        try:
+            ok = patch_easinote(path) if args.on else unpatch_easinote(path)
+        except Exception as e:
+            logger.error(f"{action}希沃白板时发生异常: {e}")
+            stop(1)
+
+        if ok:
+            logger.success(f"{action}希沃白板成功")
+            stop(0)
+        else:
+            logger.error(f"{action}希沃白板失败")
+            stop(1)
+
     def _dispatch_command(self, args: Namespace) -> None:
         command = getattr(args, "command", None)
         match command:
@@ -427,8 +461,12 @@ class Launcher:
                 self.cmd_login(args)
             case "skip":
                 self.cmd_skip(args)
-            case _:
+            case "patch":
+                self.cmd_patch(args)
+            case "settings" | None:
                 self.cmd_settings(args)
+            case _:
+                logger.debug(f"未知命令: {command!r}")
 
     @contextmanager
     def from_ipc(self):

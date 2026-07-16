@@ -96,7 +96,8 @@ def patch_easinote(easinote_exe_path: Path) -> bool:
     logger.info(f"找到 {len(target_dirs)} 个目标目录")
     all_patched = True
 
-    deploy_dlls = ["Newtonsoft.Json.dll", "SeewoPipeBridge.dll"]
+    # 仅需部署 SeewoPipeBridge.dll；Newtonsoft.Json.dll 由 DllPatcher 直接处理
+    deploy_dlls = ["SeewoPipeBridge.dll"]
 
     for main_dir in target_dirs:
         logger.info(f"处理: {main_dir}")

@@ -3,7 +3,7 @@ from typing import cast
 
 from loguru import logger
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QScroller,
     QVBoxLayout,
@@ -24,7 +24,7 @@ from qfluentwidgets import (
     setTheme,
 )
 
-from EasiAuto.consts import IS_FULL
+from EasiAuto.consts import IS_DEV, IS_FULL
 from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services.announcement_service import Announcement, announcement_service
@@ -43,6 +43,30 @@ ENABLE_MAPPING: dict[str, str | list[str]] = {
     ],
     "Banner.Enabled": "Banner.Style",
 }
+
+
+class _ElevatedPatchThread(QThread):
+    """通过 UAC 提权执行修补/撤销修补的工作线程。
+
+    在非管理员运行的实例中，修补需写入系统目录，必须请求 UAC 提权。
+    在工作线程中调用 run_elevated_wait 以避免阻塞 UI 线程（DllPatcher 可能耗时数十秒）。
+
+    Attributes:
+        enable: True 表示修补，False 表示撤销修补
+        done: 完成信号，参数为操作是否成功
+    """
+
+    done = Signal(bool)
+
+    def __init__(self, enable: bool, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.enable = enable
+
+    def run(self) -> None:
+        from EasiAuto.core.elevation import run_elevated_wait
+
+        launched, code = run_elevated_wait(f"patch {'--on' if self.enable else '--off'}")
+        self.done.emit(launched and code == 0)
 
 
 class ConfigPage(QWidget):
@@ -164,6 +188,7 @@ class ConfigPage(QWidget):
 
         from EasiAuto.core.automator.utils import resolve_easinote_path
         from EasiAuto.core.easinote_patcher import is_easinote_patched, patch_easinote, unpatch_easinote
+        from EasiAuto.core.elevation import is_admin
 
         path, _ = resolve_easinote_path()
         if path is None:
@@ -174,12 +199,35 @@ class ConfigPage(QWidget):
 
         def on_patch_changed(value: bool):
             widget.setEnabled(False)
-            ok = patch_easinote(path) if value else unpatch_easinote(path)
+
+            if is_admin() or IS_DEV:  # 开发环境无打包 exe 可提权
+                ok = patch_easinote(path) if value else unpatch_easinote(path)
+                _finish_patch(value, ok, content=None)
+                return
+
+            thread = _ElevatedPatchThread(value, parent=self)
+            # 挂到 widget 上持有引用，防止 Python 侧在回调前回收线程对象
+            widget._patch_thread = thread  # type: ignore[attr-defined]
+
+            def on_done(ok: bool):
+                content = "未能取得管理员权限" if not ok else None
+                _finish_patch(value, ok, content=content)
+
+            def on_finished():
+                widget._patch_thread = None  # type: ignore[attr-defined]
+                thread.deleteLater()
+
+            thread.done.connect(on_done)
+            thread.finished.connect(on_finished)
+            thread.start()
+
+        def _finish_patch(value: bool, ok: bool, content: str | None):
+            """统一处理修补结果：更新配置、失败时回弹开关、恢复可用状态"""
             config.Internal.IsEasiNotePatched = value if ok else not value
             if not ok:
                 InfoBar.error(
                     title=f"{'修补' if value else '撤销修补'}失败",
-                    content="权限不足或文件可能被占用，请关闭希沃白板或以管理员身份重启后重试",
+                    content=content or "文件可能被占用，请关闭希沃白板后重试",
                     orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.TOP,
