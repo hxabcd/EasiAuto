@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Literal
+from typing import Literal, cast
 
 from loguru import logger
 
@@ -40,9 +40,9 @@ from qfluentwidgets import (
 
 from EasiAuto.consts import CACHE_DIR
 from EasiAuto.core import utils
-from EasiAuto.models.config import DownloadSource, UpdateMode, config
+from EasiAuto.models.config import ConfigGroup, DownloadSource, UpdateMode, config
 from EasiAuto.services.toast_service import ToastNotifier
-from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_checker
+from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_service
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.helpers import get_app, get_main_container, get_main_window, set_tooltip
 
@@ -129,21 +129,21 @@ class UpdateContentView(QWidget):
 
     def _attach_settings(self, layout: QVBoxLayout):
         # 手动检测延迟按钮
-        download_source_card = SettingCard.index["Update.TargetDownloadSource"]
+        download_source_card = cast(SettingCard, SettingCard.index["Update.TargetDownloadSource"])
         download_source_card.widget.setMinimumWidth(180)
         self.check_latency_button = TransparentPushButton(icon=FluentIcon.WIFI, text="检测延迟")
         set_tooltip(self.check_latency_button, "重新检测各下载源的连接延迟，并显示结果")
-        self.check_latency_button.clicked.connect(update_checker.test_source_latency_async)
+        self.check_latency_button.clicked.connect(update_service.test_source_latency_async)
 
         download_source_card.valueChanged.connect(self._handle_source_change)
         download_source_card.hBoxLayout.insertWidget(5, self.check_latency_button)
         download_source_card.hBoxLayout.insertSpacing(6, 12)
 
-        self.download_source_combo: ComboBox = download_source_card.widget
+        self.download_source_combo = cast(ComboBox, download_source_card.widget)
         self._auto_source_index = download_source_card.options_index.index(DownloadSource.AUTO)
-        update_checker.latency_test_started.connect(self._on_latency_test_started)
-        update_checker.latency_test_finished.connect(self._on_latency_test_finished)
-        update_checker.latency_test_failed.connect(self._on_latency_test_failed)
+        update_service.latency_test_started.connect(self._on_latency_test_started)
+        update_service.latency_test_finished.connect(self._on_latency_test_finished)
+        update_service.latency_test_failed.connect(self._on_latency_test_failed)
 
         self._update_latency_test_ui()
 
@@ -154,7 +154,7 @@ class UpdateContentView(QWidget):
             title="强制检查更新",
             content="强制将应用更新到当前通道及分支上的最新版本，可以通过这种方式切换分支",
         )
-        force_check_card.clicked.connect(lambda: update_checker.check_async(force=True))
+        force_check_card.clicked.connect(lambda: update_service.check_async(force=True))
         layout.addWidget(force_check_card)
 
         layout.addStretch(1)
@@ -164,7 +164,8 @@ class UpdateContentView(QWidget):
         scroll_layout = QVBoxLayout(container)
         scroll_layout.setSpacing(2)
 
-        for item in config.load_page("UpdatePage")[0].children:
+        page = cast(ConfigGroup, config.load_page("UpdatePage")[0])
+        for item in page.children:
             scroll_layout.addWidget(SettingCard.from_config(item))
 
         self._attach_settings(scroll_layout)
@@ -182,7 +183,7 @@ class UpdateContentView(QWidget):
         self.description_label.setText("")
         self.highlights_layout.takeAllWidgets()
         while self.others_layout.count():
-            w = self.others_layout.takeAt(0).widget()
+            w = self.others_layout.takeAt(0).widget()  # type: ignore
             if w:
                 w.deleteLater()
 
@@ -223,12 +224,12 @@ class UpdateContentView(QWidget):
 
     def onCurrentIndexChanged(self, index):
         widget = self.stacked_widget.widget(index)
-        self.pivot.setCurrentItem(widget.objectName())
+        self.pivot.setCurrentItem(widget.objectName())  # type: ignore
 
     def _handle_source_change(self, value):
         self._update_latency_test_ui()
         if value == DownloadSource.AUTO:
-            update_checker.init_latency()
+            update_service.init_latency()
 
     def _on_latency_test_started(self):
         self._update_latency_test_ui()
@@ -238,7 +239,7 @@ class UpdateContentView(QWidget):
         if not manual or not result:
             return
 
-        selected = update_checker.auto_selected_source
+        selected = update_service.auto_selected_source
         lines = []
         for source, latency in result.items():
             if latency is None:
@@ -275,12 +276,12 @@ class UpdateContentView(QWidget):
             self.check_latency_button.setDisabled(True)
             return
 
-        self.check_latency_button.setDisabled(update_checker._latency_probe_running)
+        self.check_latency_button.setDisabled(update_service._latency_probe_running)
         text = DownloadSource.AUTO.display_name
         if detail is None:
-            if update_checker._latency_probe_running:
+            if update_service._latency_probe_running:
                 detail = "检测中"
-            elif (selected := update_checker.auto_selected_source) is not None:
+            elif (selected := update_service.auto_selected_source) is not None:
                 detail = selected.display_name
         self.download_source_combo.setItemText(self._auto_source_index, f"{text} ({detail})" if detail else text)
 
@@ -318,9 +319,9 @@ UPDATE_STATUS_MAP: dict[UpdateStatus, StateConfig] = {
     ),
     UpdateStatus.DOWNLOAD: StateConfig(
         title=lambda s: (
-            f"更新可用：{s._decision.target_version}"
-            if not s._decision.confirm_required
-            else f"需要确认的更新：{s._decision.target_version}"
+            f"更新可用：{s._decision.target_version}"  # type: ignore
+            if not s._decision.confirm_required  # type: ignore
+            else f"需要确认的更新：{s._decision.target_version}"  # type: ignore
         ),
         detail=lambda s: f"上次检查时间：{s._last_check or '暂未检查'}",
         button_text="下载",
@@ -332,9 +333,9 @@ UPDATE_STATUS_MAP: dict[UpdateStatus, StateConfig] = {
     ),
     UpdateStatus.DOWNLOAD_CANCELED: StateConfig(
         title=lambda s: (
-            f"更新可用：{s._decision.target_version}"
-            if not s._decision.confirm_required
-            else f"需要确认的更新：{s._decision.target_version}"
+            f"更新可用：{s._decision.target_version}"  # type: ignore
+            if not s._decision.confirm_required  # type: ignore
+            else f"需要确认的更新：{s._decision.target_version}"  # type: ignore
         ),
         detail=lambda s: (
             f"上次检查时间：{s._last_check or '暂未检查'}"
@@ -369,14 +370,14 @@ class UpdatePage(QWidget):
         self.setObjectName("UpdatePage")
         self.setStyleSheet("border: none; background-color: transparent;")
 
-        update_checker.check_started.connect(self.check_started)
-        update_checker.check_finished.connect(self.check_finished)
-        update_checker.check_failed.connect(self.check_failed)
+        update_service.check_started.connect(self.check_started)
+        update_service.check_finished.connect(self.check_finished)
+        update_service.check_failed.connect(self.check_failed)
 
-        update_checker.download_started.connect(self.download_started)
-        update_checker.download_progress.connect(self.download_progress)
-        update_checker.download_finished.connect(self.download_finished)
-        update_checker.download_failed.connect(self.download_failed)
+        update_service.download_started.connect(self.download_started)
+        update_service.download_progress.connect(self.download_progress)
+        update_service.download_finished.connect(self.download_finished)
+        update_service.download_failed.connect(self.download_failed)
 
         self._action: UpdateStatus
         self._decision: UpdateDecision | None = None
@@ -393,7 +394,7 @@ class UpdatePage(QWidget):
         super().showEvent(event)
         if self._first_show and config.Update.Mode > UpdateMode.NEVER:
             self._first_show = False
-            update_checker.check_async()
+            update_service.check_async()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -490,7 +491,7 @@ class UpdatePage(QWidget):
                 handle.activated.connect(self._on_toast_activated)
                 self.content_widget.set_change_log(self._decision.change_log)
                 if config.Update.Mode >= UpdateMode.CHECK_AND_DOWNLOAD and not self._decision.confirm_required:
-                    update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
+                    update_service.download_async(self._decision.downloads[0], filename=self._update_file)
                     # 状态在 download_started() 中通过事件响应更新
             case UpdateStatus.DOWNLOADING:
                 logger.info("正在下载更新")
@@ -503,7 +504,7 @@ class UpdatePage(QWidget):
                 logger.success("更新已就绪")
                 if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
                     get_app().aboutToQuit.connect(
-                        lambda: update_checker.apply_script(zip_path=CACHE_DIR / self._update_file),
+                        lambda: update_service.apply_script(zip_path=CACHE_DIR / self._update_file),
                     )
                     self._signal_connected = True
 
@@ -547,19 +548,19 @@ class UpdatePage(QWidget):
         """响应更新各步骤的操作（按钮点击）"""
         match self.action:
             case UpdateStatus.CHECK | UpdateStatus.FAILED:
-                update_checker.check_async()
+                update_service.check_async()
             case UpdateStatus.DOWNLOAD | UpdateStatus.DOWNLOAD_CANCELED:
                 if not self._decision:
                     self._last_error = "无可用更新"
                     self.action = UpdateStatus.FAILED
                     return
-                update_checker.download_async(self._decision.downloads[0], filename=self._update_file)
+                update_service.download_async(self._decision.downloads[0], filename=self._update_file)
             case UpdateStatus.DOWNLOADING:  # 取消下载
-                update_checker.cancel_download()
+                update_service.cancel_download()
             case UpdateStatus.INSTALL:
                 if not self._signal_connected:
                     get_app().aboutToQuit.connect(
-                        lambda: update_checker.apply_script(zip_path=CACHE_DIR / self._update_file, reopen=True),
+                        lambda: update_service.apply_script(zip_path=CACHE_DIR / self._update_file, reopen=True),
                     )
                 utils.stop()
 

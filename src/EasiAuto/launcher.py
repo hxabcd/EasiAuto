@@ -10,13 +10,6 @@ from loguru import logger
 from packaging.version import Version
 
 from PySide6.QtCore import Qt, QThread, QTimer
-from PySide6.QtWidgets import QApplication
-from qfluentwidgets import (
-    FluentTranslator,
-    Theme,
-    setTheme,
-    setThemeColor,
-)
 
 from EasiAuto import __version__
 from EasiAuto.automation.manager import automation_manager
@@ -36,9 +29,9 @@ from EasiAuto.core.utils import (
 )
 from EasiAuto.models.config import UpdateMode, config
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, QrCodeAutomation, profile
-from EasiAuto.services.announcement_service import announcement_service
+from EasiAuto.services import announcement_service, update_service
 from EasiAuto.services.toast_service import ToastNotifier
-from EasiAuto.services.update_service import UpdateError, cleanup_update_cache, update_checker
+from EasiAuto.services.update_service import UpdateError, cleanup_update_cache
 from EasiAuto.view.components import (
     DialogResponse,
     PreRunPopup,
@@ -58,18 +51,10 @@ init_exception_handler()
 init_exit_signal_handlers()
 
 
-def _init_qt_app(translator: FluentTranslator) -> QApplication:
-    app = QApplication(sys.argv)
-    app.installTranslator(translator)
-    setTheme(Theme(config.App.Theme.value))
-    setThemeColor("#00C884")
-    return app
-
-
 def shutdown():
     for action in (
         announcement_service.shutdown,
-        update_checker.shutdown,
+        update_service.shutdown,
         lambda: setattr(
             config.Statistics,
             "TotalRunTime",
@@ -87,16 +72,13 @@ atexit.register(shutdown)
 class PostLoginUpdateThread(QThread):
     def run(self) -> None:
         try:
-            decision = update_checker.check()
+            decision = update_service.check()
             if decision.available and decision.downloads:
                 if config.Update.Mode >= UpdateMode.CHECK_AND_INSTALL:
-                    file = update_checker.download_update(decision.downloads[0], allow_latency_check=True)
-                    update_checker.apply_script(file, reopen=False)
+                    file = update_service.download_update(decision.downloads[0], allow_latency_check=True)
+                    update_service.apply_script(file, reopen=False)
                 else:
-                    ToastNotifier().show(
-                        "更新可用",
-                        f"新版本：{decision.target_version}",
-                    )
+                    ToastNotifier().show("更新可用", f"新版本：{decision.target_version}")
         except UpdateError as e:
             logger.warning(f"检查更新时发生异常, 已跳过: {e}")
         except Exception as e:
@@ -306,10 +288,10 @@ class Launcher:
         """开始登录任务
 
         args:
-            id: str | None - 档案 ID
-            account: str | None - 账号（当使用 --account 时必填）
-            password: str | None - 密码（当使用 --account 时必填）
-            manual: bool - 是否为手动执行（不显示确认弹窗）
+            id: str | None - 档案 ID (与 --account 互斥)
+            account: str | None - 账号 (当使用 --account 时必填)
+            password: str | None - 密码 (当使用 --account 时必填)
+            manual: bool - 是否为手动执行 (不显示确认弹窗)
         """
 
         from_ipc = self._ipc_context
@@ -426,9 +408,10 @@ class Launcher:
 
     def cmd_login(self, args: Namespace) -> bool:
         """login 子命令 - 执行自动登录"""
-        if not self._start_login(args):
-            return False
+        ok = self._start_login(args)
 
+        if not ok:
+            return False
         if not self._ipc_context:
             stop(get_app().exec())
         return True
@@ -436,18 +419,17 @@ class Launcher:
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
         self._show_settings_window()
+
         if not self._ipc_context:
             stop(get_app().exec())
 
     def cmd_skip(self, _) -> None:
         """skip 子命令 - 跳过下一次登录"""
         config.Login.SkipOnce = True
-        if self._ipc_context:
-            logger.success("已更新配置文件")
-            return
+        logger.success("已更新配置文件，下次登录将跳过")
 
-        logger.success("已更新配置文件, 正在退出")
-        stop()
+        if not self._ipc_context:
+            stop()
 
     def cmd_patch(self, args: Namespace) -> None:
         """patch 子命令 - 修补/撤销修补希沃白板
@@ -526,8 +508,8 @@ class Launcher:
     def _forward_or_exit(self, command: str | None) -> None:
         """转发参数至主实例或退出"""
         if command in FORWARDABLE_COMMANDS:
-            forwarded = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
-            if forwarded:
+            ok = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
+            if ok:
                 logger.info(f"已将参数转发到主实例: {command}")
                 stop(0)
             logger.warning("检测到已有实例, 但参数转发失败")
@@ -573,13 +555,25 @@ class Launcher:
             self._dispatch_command(args)
             return
 
-        if not check_singleton(focus_existing=(command == "settings" or command is None)):
+        if not self.is_unique_instance():
             self._forward_or_exit(command)
             return
 
         if command in UI_COMMANDS:
-            translator = FluentTranslator()  # 很玄学的问题，Translator 一旦放在 _init_qt_app 里面初始化就无法正常工作
-            _init_qt_app(translator)
+            from PySide6.QtWidgets import QApplication
+            from qfluentwidgets import (
+                FluentTranslator,
+                Theme,
+                setTheme,
+                setThemeColor,
+            )
+
+            app = QApplication(sys.argv)
+            translator = FluentTranslator()  # 很玄学的问题，必须先存储为变量再传入，否则无法生效
+            app.installTranslator(translator)
+            setTheme(Theme(config.App.Theme.value))
+            setThemeColor("#00C884")
+
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)
             self.ipc_server.start()
             compatibility_patches.apply_all()

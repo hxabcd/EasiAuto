@@ -27,7 +27,8 @@ from qfluentwidgets import (
 from EasiAuto.consts import IS_DEV, IS_FULL
 from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
-from EasiAuto.services.announcement_service import Announcement, announcement_service
+from EasiAuto.services import announcement_service
+from EasiAuto.services.announcement_service import Announcement
 from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard, SettingCardType
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.helpers import get_main_container, set_enable_by

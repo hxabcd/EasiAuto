@@ -639,11 +639,12 @@ class ExpandSelectorSettingCard(ExpandGroupSettingCard):
         self,
         icon: str | QIcon | FluentIcon,
         title: str,
-        content: str = None,
+        content: str | None = None,
         config_item: ConfigItem | None = None,
         parent=None,
     ):
-        super().__init__(icon, title, content, parent)
+        super().__init__(icon, title, cast(str, content), parent)
+        # 为什么 cast? qfw 的类型注解写出了 content: str = None
         self.config_item: ConfigItem | None = config_item
         self.buttons = QButtonGroup()
         self._options: list[tuple[Any, ExpandSelectorSettingCardItem]] = []

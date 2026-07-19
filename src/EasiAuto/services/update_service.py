@@ -85,7 +85,7 @@ class CheckWorker(QObject):
     finished = Signal(object)  # UpdateDecision
     failed = Signal(str)
 
-    def __init__(self, checker: UpdateChecker, force: bool):
+    def __init__(self, checker: UpdateService, force: bool):
         super().__init__()
         self._checker = checker
         self._force = force
@@ -111,7 +111,7 @@ class DownloadWorker(QObject):
 
     def __init__(
         self,
-        checker: UpdateChecker,
+        checker: UpdateService,
         item: DownloadItem,
         filename: str | None,
         chunk_size: int,
@@ -155,7 +155,7 @@ class LatencyWorker(QObject):
     finished = Signal(object)  # dict[DownloadSource, float | None] | None
     failed = Signal(str)
 
-    def __init__(self, checker: UpdateChecker):
+    def __init__(self, checker: UpdateService):
         super().__init__()
         self._checker = checker
 
@@ -171,7 +171,7 @@ class LatencyWorker(QObject):
 # -------------------- 主逻辑类 --------------------
 
 
-class UpdateChecker(QObject):
+class UpdateService(QObject):
     # ================== 外部信号 ==================
     # 异步检查信号
     check_started = Signal()
@@ -846,7 +846,7 @@ class UpdateChecker(QObject):
             raise UpdateError(f"更新清单 JSON 解析失败: {e!s}") from e
 
 
-update_checker = UpdateChecker()
+update_service = UpdateService()
 
 
 def cleanup_update_cache() -> None:

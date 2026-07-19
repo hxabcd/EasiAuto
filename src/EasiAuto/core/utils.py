@@ -195,11 +195,6 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             )
 
 
-def _normalize_windows_path(path: str | Path) -> str:
-    """标准化 Windows 路径字符串，用于路径比较。"""
-    return os.path.normcase(os.path.normpath(str(path)))
-
-
 def migrate_desktop_shortcut_icon() -> int:
     """迁移桌面 EasiAuto 快捷方式图标路径到新位置。"""
     try:
@@ -214,9 +209,6 @@ def migrate_desktop_shortcut_icon() -> int:
     assert new_icon_path.exists()
 
     migrated_count = 0
-    executable_path = _normalize_windows_path(EA_EXECUTABLE)
-    old_icon_norm = _normalize_windows_path(old_icon_path)
-    new_icon_norm = _normalize_windows_path(new_icon_path)
 
     # 扫描桌面所有快捷方式，仅处理目标程序为 EasiAuto 的项。
     for lnk_path in desktop_path.glob("*.lnk"):
@@ -224,20 +216,19 @@ def migrate_desktop_shortcut_icon() -> int:
             shortcut = shell.CreateShortcut(str(lnk_path))
 
             target_path = (shortcut.TargetPath or "").strip()
-            if _normalize_windows_path(target_path) != executable_path:
+            if Path(target_path) != EA_EXECUTABLE:
                 continue
 
             icon_location = (shortcut.IconLocation or "").strip()
             if not icon_location:
                 continue
             current_icon_path = icon_location.split(",", 1)[0].strip().strip('"')
-            current_icon_norm = _normalize_windows_path(current_icon_path)
 
-            if current_icon_norm == old_icon_norm:
+            if Path(current_icon_path) == old_icon_path:
                 shortcut.IconLocation = f"{new_icon_path},0"
                 shortcut.Save()
                 migrated_count += 1
-            elif current_icon_norm == new_icon_norm:
+            elif Path(current_icon_path) == new_icon_path:
                 continue
 
     if migrated_count > 0:
@@ -245,25 +236,30 @@ def migrate_desktop_shortcut_icon() -> int:
     return migrated_count
 
 
-def switch_window(hwnd: int, press_key: bool = True):
-    """通过句柄切换焦点"""
+def switch_window(hwnd: int, press_key: bool = False) -> bool:
+    """将窗口切到前台并激活"""
     try:
+        if not win32gui.IsWindow(hwnd) or not win32gui.IsWindowVisible(hwnd):
+            return False
         if win32gui.GetForegroundWindow() == hwnd:
             return True
 
-        # 强制恢复并显示
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        else:
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+        win32gui.SetForegroundWindow(hwnd)
+
         if win32gui.GetForegroundWindow() == hwnd:
             return True
-
         if press_key:  # 模拟 Alt 键以确保系统标记当前为交互状态
             win32api.keybd_event(win32con.VK_MENU, 0, 0, 0)
             win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
-        win32gui.SetForegroundWindow(hwnd)
-
-        return True
+            win32gui.SetForegroundWindow(hwnd)
+            return win32gui.GetForegroundWindow() == hwnd
+        return False
     except pywintypes.error as e:
-        logger.warning(f"切换窗口焦点失败: {e}")
+        logger.error(f"切换窗口焦点时发生异常: {e}")
         return False
 
 
