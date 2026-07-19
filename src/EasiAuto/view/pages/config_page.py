@@ -28,9 +28,8 @@ from EasiAuto.consts import IS_DEV, IS_FULL
 from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services.announcement_service import Announcement, announcement_service
-from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard
+from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard, SettingCardType
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
-from EasiAuto.view.components.setting_card import CardType
 from EasiAuto.view.helpers import get_main_container, set_enable_by
 
 # 从属关系映射: [!]Condition -> Targets
@@ -63,7 +62,7 @@ class _ElevatedPatchThread(QThread):
         self.enable = enable
 
     def run(self) -> None:
-        from EasiAuto.core.easinote_patcher import PATCH_OK
+        from EasiAuto.automation.easinote_patcher import PATCH_OK
         from EasiAuto.core.elevation import run_elevated_wait
 
         launched, code = run_elevated_wait(f"patch {'--on' if self.enable else '--off'}")
@@ -72,7 +71,7 @@ class _ElevatedPatchThread(QThread):
 
 def _patch_error_message(code: int, launched: bool) -> str:
     """根据子进程退出码返回用户可读的错误信息"""
-    from EasiAuto.core.easinote_patcher import (
+    from EasiAuto.automation.easinote_patcher import (
         PATCH_ERR_EASINOTE_NOT_FOUND,
         PATCH_ERR_OPERATION_FAILED,
         PATCH_ERR_UNKNOWN,
@@ -199,7 +198,7 @@ class ConfigPage(QWidget):
 
     def init_patcher_setting_card(self, layout: QVBoxLayout):
         card = SettingCard(
-            card_type=CardType.SWITCH,
+            card_type=SettingCardType.SWITCH,
             icon=FluentIcon.CODE,
             title="修补希沃白板",
             content="将登录相关的组件修补至希沃白板",
@@ -207,8 +206,8 @@ class ConfigPage(QWidget):
         widget = cast(SwitchButton, card.widget)
         self.content_layout.insertWidget(0, card)
 
-        from EasiAuto.core.automator.utils import resolve_easinote_path
-        from EasiAuto.core.easinote_patcher import is_easinote_patched, patch_easinote, unpatch_easinote
+        from EasiAuto.automation.easinote_patcher import is_easinote_patched, patch_easinote, unpatch_easinote
+        from EasiAuto.automation.utils import resolve_easinote_path
         from EasiAuto.core.elevation import is_admin
 
         path, _ = resolve_easinote_path()

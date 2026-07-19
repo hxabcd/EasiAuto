@@ -1,12 +1,34 @@
+"""主实例与次实例之间的本地 IPC 通信模块
+
+通过 QLocalServer/QLocalSocket 实现单实例应用中次实例向主实例传递命令行参数。
+"""
+
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from loguru import logger
 
 from PySide6.QtCore import QObject
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+
+
+def send_argv_to_primary(server_name: str, argv: Sequence[str], timeout_ms: int = 1200) -> bool:
+    """次实例向主实例发送 argv"""
+    socket = QLocalSocket()
+    socket.connectToServer(server_name)
+    if not socket.waitForConnected(timeout_ms):
+        return False
+
+    payload = json.dumps({"argv": list(argv)}, ensure_ascii=False).encode("utf-8")
+    socket.write(payload)
+    socket.flush()
+
+    ok = socket.waitForBytesWritten(timeout_ms)
+    socket.disconnectFromServer()
+    socket.close()
+    return bool(ok)
 
 
 class ArgvIpcServer(QObject):

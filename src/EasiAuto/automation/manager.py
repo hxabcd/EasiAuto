@@ -4,7 +4,7 @@ from loguru import logger
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.core.automator import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
+from EasiAuto.automation.automator import BaseAutomator, CVAutomator, FixedAutomator, InjectAutomator, UIAAutomator
 from EasiAuto.models.config import LoginMethod, config
 
 
@@ -39,7 +39,7 @@ class AutomationManager(QObject):
 
         if type == "qrcode":
             # TODO: 考虑将工具函数提取至独立文件
-            from EasiAuto.core.automator.qrcode import QrCodeAutomator
+            from EasiAuto.automation.automator.qrcode import QrCodeAutomator
 
             logger.info("检测到二维码档案")
             self._automator = QrCodeAutomator(credentials)

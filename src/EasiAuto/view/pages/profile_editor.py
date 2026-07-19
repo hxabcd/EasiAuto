@@ -41,10 +41,8 @@ from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, QrCodeAutomation, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
-from EasiAuto.view.components import SettingCard
+from EasiAuto.view.components import QrCodeLoginDialog, SettingCard, SettingCardType, fetch_qrcode_avatar
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
-from EasiAuto.view.components.qrcode_login_dialog import QrCodeLoginDialog, fetch_qrcode_avatar
-from EasiAuto.view.components.setting_card import CardType
 from EasiAuto.view.helpers import get_main_container, get_main_window
 
 
@@ -74,7 +72,7 @@ class AdvancedOptionsDialog(MessageBoxBase):
     def _init_settings(self):
         """初始化设置项"""
         self.encrypt_card = SettingCard(
-            card_type=CardType.SWITCH,
+            card_type=SettingCardType.SWITCH,
             icon=FluentIcon.VPN,
             title="启用档案密码加密",
             content="保存档案时对密码加密",
@@ -528,7 +526,7 @@ class ProfileManagePage(QWidget):
 
     def _on_import_current(self) -> None:
         """从希沃白板导入当前已登录的账户"""
-        from EasiAuto.core.automator.qrcode import fetch_current_login_info
+        from EasiAuto.automation.automator.qrcode import fetch_current_login_info
 
         info = fetch_current_login_info(True)
         if not info or info.get("statusCode") != 202:

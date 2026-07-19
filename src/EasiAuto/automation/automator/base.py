@@ -11,7 +11,7 @@ from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
-from EasiAuto.core.runtime import capture_handled_exception
+from EasiAuto.core.exception_handler import capture_handled_exception
 from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 from EasiAuto.models.config import config
 
@@ -80,7 +80,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     @staticmethod
     def get_easinote_path() -> Path | None:
-        from .utils import resolve_easinote_path
+        from ..utils import resolve_easinote_path
 
         path, source = resolve_easinote_path()
         if source == "registry":
@@ -215,7 +215,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             self.update_progress("希沃白板已启动")
             time.sleep(config.Login.Timeout.AfterLaunch)
             with suppress(Exception):
-                switch_window(self.easinote_hwnd)
+                switch_window(self.easinote_hwnd, press_key=True)
         else:
             raise TimeoutError(f"{window_title}窗口在{timeout}秒内未打开")
 

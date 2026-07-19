@@ -19,10 +19,11 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
+from EasiAuto.automation.manager import automation_manager
 from EasiAuto.consts import IPC_SERVER_NAME
 from EasiAuto.core import compatibility_patches
-from EasiAuto.core.automator.manager import automation_manager
-from EasiAuto.core.runtime import ArgvIpcServer, check_singleton, init_exception_handler, send_argv_to_primary
+from EasiAuto.core.exception_handler import init_exception_handler
+from EasiAuto.core.ipc import ArgvIpcServer, send_argv_to_primary
 from EasiAuto.core.utils import (
     Point,
     calc_relative_login_window_position,
@@ -51,7 +52,7 @@ from EasiAuto.view.helpers import get_app
 from EasiAuto.view.main_window import MainWindow
 
 UI_COMMANDS = {None, "settings", "login"}
-FORWARDABLE_COMMANDS = {"login", "skip"}
+FORWARDABLE_COMMANDS = {None, "settings", "login", "skip"}
 
 init_exception_handler()
 init_exit_signal_handlers()
@@ -109,6 +110,8 @@ class Launcher:
         self.status_overlay: StatusOverlayBase | None = None
         self.privacy_mask: PrivacyMask | None = None
 
+        self._singleton_mutex: int | None = None
+
         self.login_running: bool = False
         self.stop_requested: bool = False
 
@@ -121,6 +124,24 @@ class Launcher:
         automation_manager.failed.connect(self._on_login_failed)
         automation_manager.privacy_mask_show.connect(self._on_privacy_mask_show)
         automation_manager.privacy_mask_hide.connect(self._on_privacy_mask_hide)
+
+    def is_unique_instance(self) -> bool:
+        """检查程序是否可作为唯一实例继续运行"""
+        import win32api
+        import win32event
+        import winerror
+
+        try:
+            self._singleton_mutex = win32event.CreateMutex(None, False, "EasiAutoMutex")  # type: ignore[arg-type]
+        except Exception as e:
+            logger.error(f"创建互斥锁失败: {e}")
+            return False
+
+        if win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS:
+            return True
+        logger.warning("检测到另一个正在运行的 EasiAuto 实例")
+
+        return False
 
     def _show_settings_window(self) -> None:
         if self.main_window is None:
@@ -434,8 +455,7 @@ class Launcher:
         退出码: 20 = 成功, 21 = 操作失败, 22 = 未找到希沃白板路径, 29 = 未知异常.
         使用 20–29 区间，与其他退出码完全隔离，避免误判。
         """
-        from EasiAuto.core.automator.utils import resolve_easinote_path
-        from EasiAuto.core.easinote_patcher import (
+        from EasiAuto.automation.easinote_patcher import (
             PATCH_ERR_EASINOTE_NOT_FOUND,
             PATCH_ERR_OPERATION_FAILED,
             PATCH_ERR_UNKNOWN,
@@ -443,6 +463,7 @@ class Launcher:
             patch_easinote,
             unpatch_easinote,
         )
+        from EasiAuto.automation.utils import resolve_easinote_path
 
         path, _ = resolve_easinote_path()
         if path is None:
@@ -498,6 +519,7 @@ class Launcher:
         if command not in FORWARDABLE_COMMANDS:
             logger.warning(f"忽略不被允许的 IPC 命令: {command!r}")
             return
+
         with self.from_ipc():
             self._dispatch_command(args)
 
