@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv
+
+# Development environments
+.env
+.ruff_cache/
+.idea/
+.vscode/settings.json
+/_ReSharper.Caches/
+
+# EasiAuto-generated files
+data/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# C#
+bin/
+obj/
+/packages/
+riderModule.iml
