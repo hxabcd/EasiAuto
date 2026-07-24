@@ -23,4 +23,8 @@
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1"/>
     </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\EasiAuto.Core\EasiAuto.Core.csproj"/>
+    </ItemGroup>
 </Project>
