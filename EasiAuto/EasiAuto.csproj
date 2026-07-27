@@ -28,4 +28,11 @@
     <ItemGroup>
         <ProjectReference Include="..\EasiAuto.Core\EasiAuto.Core.csproj"/>
     </ItemGroup>
+
+    <!-- 将 vendor 资源复制到输出目录，供 EasiNotePatcher 运行时使用 -->
+    <ItemGroup>
+        <Content Include="..\vendors\SeewoPipeBridge.dll"
+                 Link="vendors\SeewoPipeBridge.dll"
+                 CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
 </Project>
