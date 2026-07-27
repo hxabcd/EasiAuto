@@ -11,7 +11,15 @@ public partial class LoginConfig : ObservableObject
     /// <summary>登录方式</summary>
     [ObservableProperty]
     public partial LoginMethod Method { get; set; } = LoginMethod.Fixed;
-
+    
+    /// <summary>最大重试次数</summary>
+    [ObservableProperty]
+    public partial int MaxRetries { get; set; } = 2;
+    
+    /// <summary>重试间隔</summary>
+    [ObservableProperty]
+    public partial double RetryInterval { get; set; } = 2;
+    
     /// <summary>下次运行时跳过自动登录</summary>
     [ObservableProperty]
     public partial bool IsSkipOnceEnabled { get; set; } = false;
