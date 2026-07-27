@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -8,9 +8,11 @@
 
     <ItemGroup>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
+        <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
+        <PackageReference Include="Pastel" Version="8.0.0" />
         <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
     </ItemGroup>
 
