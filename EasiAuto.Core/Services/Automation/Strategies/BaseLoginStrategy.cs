@@ -99,7 +99,7 @@ public abstract class BaseLoginStrategy(ILogger<BaseLoginStrategy> logger, Login
         {
             if (value == _currentProgress) return;
             _currentProgress = value;
-            logger.LogInformation("[进度更新] {message}", value);
+            logger.LogDebug("[进度更新] {message}", value);
             OnLoginStatusUpdated(new LoginStatusEventArgs(_currentTask, _currentProgress));
         }
     }

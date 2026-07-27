@@ -85,6 +85,7 @@ public class SeewoLoginResult
 /// <summary>GET /api/v2/user/info 返回的用户详情</summary>
 public class SeewoUserProfile
 {
+    public string UserId { get; init; } = "";
     public string PhotoUrl { get; init; } = "";
     /// <summary>userInfoExtendVo.picUrl — 高清头像，通常比 photoUrl 尺寸更大</summary>
     public string PicUrl { get; init; } = "";
@@ -108,6 +109,7 @@ public class SeewoUserProfile
 
         return new SeewoUserProfile
         {
+            UserId = S(userData, "uid") is { Length: > 0 } uid ? uid : S(userData, "userId"),
             PhotoUrl = S(userData, "photoUrl"),
             PicUrl = ext.HasValue ? S(ext.Value, "picUrl") : "",
             Phone = S(userData, "phone"),
