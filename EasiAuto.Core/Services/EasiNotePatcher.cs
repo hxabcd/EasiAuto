@@ -9,45 +9,38 @@ namespace EasiAuto.Core.Services;
 /// 部署 SeewoPipeBridge.dll 并直接修补 EasiNote.Account.dll，
 /// 使 EasiNote 在登录流程中加载 PipeBridge 以支持命名管道注入登录。
 /// </summary>
-public class EasiNotePatcher
+public class EasiNotePatcher(ILogger<EasiNotePatcher> logger)
 {
     // ═══════════════════════════════════════════════════════════
     // EasiNote 目标常量
     // ═══════════════════════════════════════════════════════════
 
-    private const string CloudNamespace = "Cvte.EasiNote.Account.Auth.Login.Cloud";
-    private const string CloudClass = "CloudLoginProvider";
-    private const string CloudMethod = "WebLogoutAsync";
+    private const string CLOUD_NAMESPACE = "Cvte.EasiNote.Account.Auth.Login.Cloud";
+    private const string CLOUD_CLASS = "CloudLoginProvider";
+    private const string CLOUD_METHOD = "WebLogoutAsync";
 
-    private const string AuthNamespace = "Cvte.EasiNote.Account.Auth.LoginToken";
-    private const string TokenFactoryClass = "TokenFactory";
-    private const string TokenFactoryBuildMethod = "Build";
-    private const string TokenProviderClass = "TokenProvider";
-    private const string AuthTokenProviderInterface = "IAuthTokenProvider";
+    private const string AUTH_NAMESPACE = "Cvte.EasiNote.Account.Auth.LoginToken";
+    private const string TOKEN_FACTORY_CLASS = "TokenFactory";
+    private const string TOKEN_FACTORY_BUILD_METHOD = "Build";
+    private const string TOKEN_PROVIDER_CLASS = "TokenProvider";
+    private const string AUTH_TOKEN_PROVIDER_INTERFACE = "IAuthTokenProvider";
 
     /// <summary>SeewoPipeBridge 类型全名</summary>
-    private const string BridgeFullName = "SeewoPipeBridge.SeewoPipeBridge";
+    private const string BRIDGE_FULL_NAME = "SeewoPipeBridge.SeewoPipeBridge";
 
-    private const string IsTokenLoggedByProcessMethod = "IsTokenLoggedByProcess";
-    private const string StartBridgeMethod = "StartBridge";
+    private const string IS_TOKEN_LOGGED_BY_PROCESS_METHOD = "IsTokenLoggedByProcess";
+    private const string START_BRIDGE_METHOD = "StartBridge";
 
     // ── 目录 / 文件常量 ──
 
-    private const string EasiNoteDirPrefix = "EasiNote5_";
-    private const string PipeBridgeDll = "SeewoPipeBridge.dll";
-    private const string NewtonsoftDll = "Newtonsoft.Json.dll";
-    private const string AccountDll = "EasiNote.Account.dll";
-
-    private readonly ILogger<EasiNotePatcher> _logger;
+    private const string EASI_NOTE_DIR_PREFIX = "EasiNote5_";
+    private const string PIPE_BRIDGE_DLL = "SeewoPipeBridge.dll";
+    private const string NEWTONSOFT_DLL = "Newtonsoft.Json.dll";
+    private const string ACCOUNT_DLL = "EasiNote.Account.dll";
 
     /// <summary>vendor 资源目录（相对于应用程序基目录）</summary>
     private static readonly string VendorPath =
         Path.Combine(AppContext.BaseDirectory, "vendors");
-
-    public EasiNotePatcher(ILogger<EasiNotePatcher> logger)
-    {
-        _logger = logger;
-    }
 
     // ═══════════════════════════════════════════════════════════
     // 公共 API
@@ -64,7 +57,7 @@ public class EasiNotePatcher
         if (targetDirs.Count == 0)
             return false;
 
-        return targetDirs.All(dir => File.Exists(Path.Combine(dir, PipeBridgeDll)));
+        return targetDirs.All(dir => File.Exists(Path.Combine(dir, PIPE_BRIDGE_DLL)));
     }
 
     /// <summary>
@@ -76,7 +69,7 @@ public class EasiNotePatcher
     {
         if (IsEasiNotePatched(easiNoteExePath))
         {
-            _logger.LogInformation("希沃白板已修补");
+            logger.LogInformation("希沃白板已修补");
             return true;
         }
 
@@ -85,29 +78,29 @@ public class EasiNotePatcher
 
         if (targetDirs.Count == 0)
         {
-            _logger.LogWarning("无法在 {Base} 找到希沃白板版本目录", easiNoteBase);
+            logger.LogWarning("无法在 {Base} 找到希沃白板版本目录", easiNoteBase);
             return false;
         }
 
-        _logger.LogInformation("找到 {Count} 个目标目录", targetDirs.Count);
+        logger.LogInformation("找到 {Count} 个目标目录", targetDirs.Count);
         var allPatched = true;
 
-        var srcBridgeDll = Path.Combine(VendorPath, PipeBridgeDll);
+        var srcBridgeDll = Path.Combine(VendorPath, PIPE_BRIDGE_DLL);
 
         foreach (var mainDir in targetDirs)
         {
-            _logger.LogInformation("处理: {MainDir}", mainDir);
+            logger.LogInformation("处理: {MainDir}", mainDir);
 
             // ── 部署 SeewoPipeBridge.dll ──
-            var dstBridgeDll = Path.Combine(mainDir, PipeBridgeDll);
+            var dstBridgeDll = Path.Combine(mainDir, PIPE_BRIDGE_DLL);
             if (!DeployFile(srcBridgeDll, dstBridgeDll))
                 allPatched = false;
 
             // ── 修补 EasiNote.Account.dll ──
-            var targetDll = Path.Combine(mainDir, AccountDll);
+            var targetDll = Path.Combine(mainDir, ACCOUNT_DLL);
             if (!File.Exists(targetDll))
             {
-                _logger.LogDebug("跳过不存在的: {Path}", targetDll);
+                logger.LogDebug("跳过不存在的: {Path}", targetDll);
                 continue;
             }
 
@@ -128,7 +121,7 @@ public class EasiNotePatcher
     {
         if (!IsEasiNotePatched(easiNoteExePath))
         {
-            _logger.LogInformation("希沃白板未修补");
+            logger.LogInformation("希沃白板未修补");
             return true;
         }
 
@@ -137,53 +130,53 @@ public class EasiNotePatcher
 
         if (targetDirs.Count == 0)
         {
-            _logger.LogWarning("无法在 {Base} 找到希沃白板版本目录", easiNoteBase);
+            logger.LogWarning("无法在 {Base} 找到希沃白板版本目录", easiNoteBase);
             return false;
         }
 
-        _logger.LogInformation("找到 {Count} 个目标目录", targetDirs.Count);
+        logger.LogInformation("找到 {Count} 个目标目录", targetDirs.Count);
         var allUnpatched = true;
 
         foreach (var mainDir in targetDirs)
         {
-            _logger.LogInformation("处理: {MainDir}", mainDir);
+            logger.LogInformation("处理: {MainDir}", mainDir);
 
             // ── 移除 SeewoPipeBridge.dll ──
-            var pipeBridge = Path.Combine(mainDir, PipeBridgeDll);
+            var pipeBridge = Path.Combine(mainDir, PIPE_BRIDGE_DLL);
             if (File.Exists(pipeBridge))
             {
-                _logger.LogInformation("移除: {Name}", PipeBridgeDll);
+                logger.LogInformation("移除: {Name}", PIPE_BRIDGE_DLL);
                 try
                 {
                     File.Delete(pipeBridge);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "移除失败: {Path}", pipeBridge);
+                    logger.LogError(ex, "移除失败: {Path}", pipeBridge);
                     allUnpatched = false;
                     continue;
                 }
             }
 
             // ── 恢复 Newtonsoft.Json.dll ──
-            var newtonsoftDll = Path.Combine(mainDir, NewtonsoftDll);
+            var newtonsoftDll = Path.Combine(mainDir, NEWTONSOFT_DLL);
             if (File.Exists(newtonsoftDll) && IsNewtonsoftPatched(newtonsoftDll))
             {
                 if (!RestoreFromBak(newtonsoftDll))
                 {
-                    _logger.LogWarning("{Name} 已被修改但无备份可用", NewtonsoftDll);
+                    logger.LogWarning("{Name} 已被修改但无备份可用", NEWTONSOFT_DLL);
                     allUnpatched = false;
                 }
             }
 
             // ── 恢复 EasiNote.Account.dll ──
-            var accountDll = Path.Combine(mainDir, AccountDll);
+            var accountDll = Path.Combine(mainDir, ACCOUNT_DLL);
             var accountBak = accountDll + ".bak";
             if (File.Exists(accountDll) && File.Exists(accountBak))
             {
                 if (!RestoreFromBak(accountDll))
                 {
-                    _logger.LogWarning("恢复 {Name} 失败", AccountDll);
+                    logger.LogWarning("恢复 {Name} 失败", ACCOUNT_DLL);
                     allUnpatched = false;
                 }
             }
@@ -204,7 +197,7 @@ public class EasiNotePatcher
     {
         if (!File.Exists(srcPath))
         {
-            _logger.LogWarning("源文件不存在: {Src}", srcPath);
+            logger.LogWarning("源文件不存在: {Src}", srcPath);
             return false;
         }
 
@@ -214,25 +207,25 @@ public class EasiNotePatcher
             {
                 if (File.ReadAllBytes(srcPath).SequenceEqual(File.ReadAllBytes(dstPath)))
                 {
-                    _logger.LogDebug("文件内容一致，跳过: {Name}", Path.GetFileName(dstPath));
+                    logger.LogDebug("文件内容一致，跳过: {Name}", Path.GetFileName(dstPath));
                     return true;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "读取文件失败");
+                logger.LogError(ex, "读取文件失败");
                 return false;
             }
 
             var bakPath = dstPath + ".bak";
-            _logger.LogInformation("创建备份: {Bak}", bakPath);
+            logger.LogInformation("创建备份: {Bak}", bakPath);
             try
             {
                 File.Move(dstPath, bakPath);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "备份失败: {Src} -> {Dst}", dstPath, bakPath);
+                logger.LogError(ex, "备份失败: {Src} -> {Dst}", dstPath, bakPath);
                 return false;
             }
         }
@@ -247,11 +240,11 @@ public class EasiNotePatcher
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "写入失败: {Dst}", dstPath);
+            logger.LogError(ex, "写入失败: {Dst}", dstPath);
             return false;
         }
 
-        _logger.LogInformation("已部署: {Dst}", dstPath);
+        logger.LogInformation("已部署: {Dst}", dstPath);
         return true;
     }
 
@@ -264,7 +257,7 @@ public class EasiNotePatcher
         if (!File.Exists(bakPath))
             return false;
 
-        _logger.LogInformation("从备份恢复: {Path}", filePath);
+        logger.LogInformation("从备份恢复: {Path}", filePath);
         try
         {
             File.Copy(bakPath, filePath, overwrite: true);
@@ -273,7 +266,7 @@ public class EasiNotePatcher
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "恢复失败: {Path}", filePath);
+            logger.LogError(ex, "恢复失败: {Path}", filePath);
             return false;
         }
     }
@@ -292,7 +285,7 @@ public class EasiNotePatcher
         foreach (var child in Directory.GetDirectories(baseDir))
         {
             var childName = Path.GetFileName(child);
-            if (childName.StartsWith(EasiNoteDirPrefix, StringComparison.OrdinalIgnoreCase))
+            if (childName.StartsWith(EASI_NOTE_DIR_PREFIX, StringComparison.OrdinalIgnoreCase))
             {
                 var mainDir = Path.Combine(child, "Main");
                 if (Directory.Exists(mainDir))
@@ -363,20 +356,20 @@ public class EasiNotePatcher
         var mod = ModuleDefMD.Load(dllBytes);
         try
         {
-            var (cloudType, cloudMethod) = FindMethod(mod, CloudNamespace, CloudClass, CloudMethod);
+            var (cloudType, cloudMethod) = FindMethod(mod, CLOUD_NAMESPACE, CLOUD_CLASS, CLOUD_METHOD);
             if (cloudMethod == null)
             {
-                _logger.LogError("未找到目标方法 {Class}.{Method}", CloudClass, CloudMethod);
+                logger.LogError("未找到目标方法 {Class}.{Method}", CLOUD_CLASS, CLOUD_METHOD);
                 return false;
             }
 
             // ── Step 1: 检测并处理旧版无条件补丁 ──
             if (IsOldUnconditionalPatch(cloudMethod.Body))
             {
-                _logger.LogInformation("检测到旧版无条件补丁，从备份恢复");
+                logger.LogInformation("检测到旧版无条件补丁，从备份恢复");
                 if (!File.Exists(backupPath))
                 {
-                    _logger.LogError("没有可用的备份文件，无法恢复");
+                    logger.LogError("没有可用的备份文件，无法恢复");
                     return false;
                 }
 
@@ -386,17 +379,17 @@ public class EasiNotePatcher
                 mod.Dispose();
                 var restoredBytes = File.ReadAllBytes(dllPath);
                 mod = ModuleDefMD.Load(restoredBytes);
-                (cloudType, cloudMethod) = FindMethod(mod, CloudNamespace, CloudClass, CloudMethod);
+                (cloudType, cloudMethod) = FindMethod(mod, CLOUD_NAMESPACE, CLOUD_CLASS, CLOUD_METHOD);
                 if (cloudMethod == null)
                     return false;
 
                 if (IsOldUnconditionalPatch(cloudMethod.Body))
                 {
-                    _logger.LogError("恢复后仍检测到旧版补丁，中止");
+                    logger.LogError("恢复后仍检测到旧版补丁，中止");
                     return false;
                 }
 
-                _logger.LogInformation("已从备份恢复");
+                logger.LogInformation("已从备份恢复");
             }
 
             var anyChanges = false;
@@ -404,7 +397,7 @@ public class EasiNotePatcher
             // ── Step 2: 应用 CloudLoginProvider.WebLogoutAsync 补丁 ──
             if (IsNewPatch(cloudMethod.Body))
             {
-                _logger.LogInformation("{Class}.{Method} 已修补，跳过", CloudClass, CloudMethod);
+                logger.LogInformation("{Class}.{Method} 已修补，跳过", CLOUD_CLASS, CLOUD_METHOD);
             }
             else
             {
@@ -421,7 +414,7 @@ public class EasiNotePatcher
                 if (!File.Exists(backupPath))
                 {
                     File.Copy(dllPath, backupPath);
-                    _logger.LogInformation("已创建备份: {Backup}", backupPath);
+                    logger.LogInformation("已创建备份: {Backup}", backupPath);
                 }
 
                 // 原子写入：先写临时文件，再替换
@@ -438,11 +431,11 @@ public class EasiNotePatcher
                     File.Move(tmpPath, dllPath, overwrite: true);
                 }
 
-                _logger.LogInformation("已修补: {Path}", dllPath);
+                logger.LogInformation("已修补: {Path}", dllPath);
             }
             else
             {
-                _logger.LogInformation("无需修改: {Path}", dllPath);
+                logger.LogInformation("无需修改: {Path}", dllPath);
             }
 
             return true;
@@ -458,7 +451,7 @@ public class EasiNotePatcher
     /// </summary>
     private void RestoreNewtonsoftIfPatched(string dllDir)
     {
-        var newtonsoftPath = Path.Combine(dllDir, NewtonsoftDll);
+        var newtonsoftPath = Path.Combine(dllDir, NEWTONSOFT_DLL);
         var newtonsoftBakPath = newtonsoftPath + ".bak";
 
         if (!File.Exists(newtonsoftPath) || !File.Exists(newtonsoftBakPath))
@@ -466,9 +459,9 @@ public class EasiNotePatcher
 
         if (IsNewtonsoftPatched(newtonsoftPath))
         {
-            _logger.LogInformation("Newtonsoft.Json.dll 已被注入（检测到 StartBridge），从备份恢复");
+            logger.LogInformation("Newtonsoft.Json.dll 已被注入（检测到 StartBridge），从备份恢复");
             File.Copy(newtonsoftBakPath, newtonsoftPath, overwrite: true);
-            _logger.LogInformation("已从备份恢复 Newtonsoft.Json.dll");
+            logger.LogInformation("已从备份恢复 Newtonsoft.Json.dll");
         }
     }
 
@@ -520,7 +513,7 @@ public class EasiNotePatcher
         foreach (var instr in body.Instructions)
         {
             if (instr.OpCode == OpCodes.Call && instr.Operand is IMethodDefOrRef m
-                                               && m.Name == IsTokenLoggedByProcessMethod)
+                                               && m.Name == IS_TOKEN_LOGGED_BY_PROCESS_METHOD)
                 return true;
         }
 
@@ -536,13 +529,13 @@ public class EasiNotePatcher
         var originalVariables = body.Variables.ToArray();
         var originalHandlers = body.ExceptionHandlers.ToArray();
 
-        _logger.LogDebug("CloudLoginProvider 原始方法体: {Count} 条指令", originalInstructions.Length);
+        logger.LogDebug("CloudLoginProvider 原始方法体: {Count} 条指令", originalInstructions.Length);
 
         // ── 导入 SeewoPipeBridge.IsTokenLoggedByProcess ──
-        var bridgePath = Path.Combine(dllDir, PipeBridgeDll);
+        var bridgePath = Path.Combine(dllDir, PIPE_BRIDGE_DLL);
         if (!File.Exists(bridgePath))
         {
-            _logger.LogError("未找到 SeewoPipeBridge.dll: {Path}", bridgePath);
+            logger.LogError("未找到 SeewoPipeBridge.dll: {Path}", bridgePath);
             return false;
         }
 
@@ -552,11 +545,11 @@ public class EasiNotePatcher
             MethodDef? bridgeMethod = null;
             foreach (var type in bridgeMod.GetTypes())
             {
-                if (type.FullName == BridgeFullName)
+                if (type.FullName == BRIDGE_FULL_NAME)
                 {
                     foreach (var m in type.Methods)
                     {
-                        if (m.Name == IsTokenLoggedByProcessMethod)
+                        if (m.Name == IS_TOKEN_LOGGED_BY_PROCESS_METHOD)
                         {
                             bridgeMethod = m;
                             break;
@@ -569,20 +562,20 @@ public class EasiNotePatcher
 
             if (bridgeMethod == null)
             {
-                _logger.LogError("在 SeewoPipeBridge 中未找到 IsTokenLoggedByProcess");
+                logger.LogError("在 SeewoPipeBridge 中未找到 IsTokenLoggedByProcess");
                 return false;
             }
 
             bridgeMethodRef = mod.Import(bridgeMethod);
         }
 
-        _logger.LogDebug("已导入: {Method}", bridgeMethodRef.FullName);
+        logger.LogDebug("已导入: {Method}", bridgeMethodRef.FullName);
 
         // ── 找到 TokenFactory.AuthTokenProvider.CurrentToken 调用链 ──
         var getCurrentToken = FindCurrentTokenGetter(mod);
         if (getCurrentToken == null)
         {
-            _logger.LogError("未找到 CurrentToken 属性");
+            logger.LogError("未找到 CurrentToken 属性");
             return false;
         }
 
@@ -590,7 +583,7 @@ public class EasiNotePatcher
         MethodDef? getAuthTokenProvider = null;
         foreach (var type in mod.GetTypes())
         {
-            if (type.Namespace == AuthNamespace && type.Name == TokenFactoryClass)
+            if (type.Namespace == AUTH_NAMESPACE && type.Name == TOKEN_FACTORY_CLASS)
             {
                 foreach (var m in type.Methods)
                 {
@@ -607,13 +600,13 @@ public class EasiNotePatcher
 
         if (getAuthTokenProvider == null)
         {
-            _logger.LogError("未找到 TokenFactory.get_AuthTokenProvider");
+            logger.LogError("未找到 TokenFactory.get_AuthTokenProvider");
             return false;
         }
 
         var importedGetAuthTokenProvider = mod.Import(getAuthTokenProvider);
         var importedGetCurrentToken = mod.Import(getCurrentToken);
-        _logger.LogDebug("Token 调用链: {AuthProvider} -> {CurrentToken}",
+        logger.LogDebug("Token 调用链: {AuthProvider} -> {CurrentToken}",
             importedGetAuthTokenProvider.FullName, importedGetCurrentToken.FullName);
 
         // Task.CompletedTask
@@ -679,8 +672,8 @@ public class EasiNotePatcher
         body.SimplifyBranches();
         body.OptimizeBranches();
 
-        _logger.LogDebug("CloudLoginProvider 新方法体: {Count} 条指令", body.Instructions.Count);
-        _logger.LogDebug("逻辑: if IsTokenLoggedByProcess(token) -> CompletedTask; else -> 原始逻辑");
+        logger.LogDebug("CloudLoginProvider 新方法体: {Count} 条指令", body.Instructions.Count);
+        logger.LogDebug("逻辑: if IsTokenLoggedByProcess(token) -> CompletedTask; else -> 原始逻辑");
         return true;
     }
 
@@ -691,8 +684,8 @@ public class EasiNotePatcher
         // 优先从 IAuthTokenProvider 接口查找
         foreach (var type in mod.GetTypes())
         {
-            if (type.Namespace == AuthNamespace &&
-                type.Name == AuthTokenProviderInterface &&
+            if (type.Namespace == AUTH_NAMESPACE &&
+                type.Name == AUTH_TOKEN_PROVIDER_INTERFACE &&
                 type.IsInterface)
             {
                 foreach (var m in type.Methods)
@@ -706,7 +699,7 @@ public class EasiNotePatcher
         // 回退：从 TokenProvider 类查找
         foreach (var type in mod.GetTypes())
         {
-            if (type.Namespace == AuthNamespace && type.Name == TokenProviderClass)
+            if (type.Namespace == AUTH_NAMESPACE && type.Name == TOKEN_PROVIDER_CLASS)
             {
                 foreach (var m in type.Methods)
                 {
@@ -728,12 +721,12 @@ public class EasiNotePatcher
         MethodDef? buildMethod = null;
         foreach (var type in mod.GetTypes())
         {
-            if (type.Namespace == AuthNamespace && type.Name == TokenFactoryClass)
+            if (type.Namespace == AUTH_NAMESPACE && type.Name == TOKEN_FACTORY_CLASS)
             {
                 tokenFactoryType = type;
                 foreach (var m in type.Methods)
                 {
-                    if (m.Name == TokenFactoryBuildMethod && m.HasBody && m.Body != null)
+                    if (m.Name == TOKEN_FACTORY_BUILD_METHOD && m.HasBody && m.Body != null)
                     {
                         buildMethod = m;
                         break;
@@ -746,13 +739,13 @@ public class EasiNotePatcher
 
         if (tokenFactoryType == null)
         {
-            _logger.LogError("未找到 TokenFactory 类型");
+            logger.LogError("未找到 TokenFactory 类型");
             return false;
         }
 
         if (buildMethod == null)
         {
-            _logger.LogError("未找到 TokenFactory.Build 方法");
+            logger.LogError("未找到 TokenFactory.Build 方法");
             return false;
         }
 
@@ -760,18 +753,18 @@ public class EasiNotePatcher
         foreach (var instr in buildMethod.Body.Instructions)
         {
             if (instr.OpCode == OpCodes.Call && instr.Operand is IMethodDefOrRef m
-                                             && m.Name == StartBridgeMethod)
+                                             && m.Name == START_BRIDGE_METHOD)
             {
-                _logger.LogInformation("TokenFactory.Build 已包含 StartBridge 调用，跳过");
+                logger.LogInformation("TokenFactory.Build 已包含 StartBridge 调用，跳过");
                 return false;
             }
         }
 
         // ── 导入 SeewoPipeBridge.StartBridge ──
-        var bridgePath = Path.Combine(dllDir, PipeBridgeDll);
+        var bridgePath = Path.Combine(dllDir, PIPE_BRIDGE_DLL);
         if (!File.Exists(bridgePath))
         {
-            _logger.LogError("未找到 SeewoPipeBridge.dll: {Path}", bridgePath);
+            logger.LogError("未找到 SeewoPipeBridge.dll: {Path}", bridgePath);
             return false;
         }
 
@@ -781,11 +774,11 @@ public class EasiNotePatcher
             MethodDef? startBridgeMethod = null;
             foreach (var type in bridgeMod.GetTypes())
             {
-                if (type.FullName == BridgeFullName)
+                if (type.FullName == BRIDGE_FULL_NAME)
                 {
                     foreach (var m in type.Methods)
                     {
-                        if (m.Name == StartBridgeMethod)
+                        if (m.Name == START_BRIDGE_METHOD)
                         {
                             startBridgeMethod = m;
                             break;
@@ -798,14 +791,14 @@ public class EasiNotePatcher
 
             if (startBridgeMethod == null)
             {
-                _logger.LogError("在 SeewoPipeBridge 中未找到 StartBridge");
+                logger.LogError("在 SeewoPipeBridge 中未找到 StartBridge");
                 return false;
             }
 
             startBridgeRef = mod.Import(startBridgeMethod);
         }
 
-        _logger.LogDebug("已导入: {Method}", startBridgeRef.FullName);
+        logger.LogDebug("已导入: {Method}", startBridgeRef.FullName);
 
         // ── 在 Build 方法的最后一个 ret 之前插入 StartBridge 调用 ──
         var body = buildMethod.Body;
@@ -825,7 +818,7 @@ public class EasiNotePatcher
 
         if (lastRet == null)
         {
-            _logger.LogError("TokenFactory.Build 中未找到 ret 指令");
+            logger.LogError("TokenFactory.Build 中未找到 ret 指令");
             return false;
         }
 
@@ -836,7 +829,7 @@ public class EasiNotePatcher
         body.SimplifyBranches();
         body.OptimizeBranches();
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "已修补 TokenFactory.Build: 在 final ret 前插入了 StartBridge() 调用（共 {Count} 条指令）",
             instructions.Count);
         return true;
