@@ -5,6 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using EasiAuto.Core.Enums;
 using EasiAuto.Core.Services;
 using EasiAuto.Core.Services.Seewo;
 using EasiAuto.Core.Services.Automation.Strategies;
@@ -37,7 +38,19 @@ public partial class App : Application
         services.AddTransient(sp =>
             sp.GetRequiredService<ConfigService>().Config.Login);
         services.AddSingleton<SeewoClient>();
-        services.AddTransient<BaseLoginStrategy>();
+        services.AddSingleton<EasiNotePatcher>();
+        services.AddTransient<InjectLogin>();
+        services.AddTransient<UiaLogin>();
+        services.AddTransient<BaseLoginStrategy>(sp =>
+        {
+            var config = sp.GetRequiredService<ConfigService>().Config.Login;
+            return config.Method switch
+            {
+                LoginMethod.Inject => sp.GetRequiredService<InjectLogin>(),
+                LoginMethod.Uia => sp.GetRequiredService<UiaLogin>(),
+                _ => sp.GetRequiredService<InjectLogin>(),
+            };
+        });
 
         Services = services.BuildServiceProvider();
 
