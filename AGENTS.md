@@ -5,7 +5,6 @@
 - 项目名为 EasiAuto
 - Windows 桌面应用，使用 `PySide6` + `qfluentwidgets` (Fluent Design)
 - 为**希沃白板 (EasiNote)**提供自动登录，及通过 ClassIsland 自动触发登录任务
-- 深度架构分析 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## 项目主要结构速览
 

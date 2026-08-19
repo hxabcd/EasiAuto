@@ -29,7 +29,7 @@ cache
 config.json
 
 # Claude Code
-.claude/settings.local.json
+.claude
 CLAUDE.md
 
 # C# Injector Extension
