@@ -79,10 +79,11 @@ class Program
                 return 1;
             }
 
-            // ── Step 2: Handle old CloudLoginProvider patch restoration ──
-            if (IsOldUnconditionalPatch(cloudMethod.Body))
+            // ── Step 2: Restore any previous logout interception ──
+            bool restoredCloudPatch = false;
+            if (IsOldUnconditionalPatch(cloudMethod.Body) || IsNewPatch(cloudMethod.Body))
             {
-                Console.WriteLine("Detected OLD unconditional patch. Restoring from backup...");
+                Console.WriteLine("Detected logout interception patch. Restoring from backup...");
                 if (!File.Exists(backupPath))
                 {
                     Console.Error.WriteLine("No backup file found, cannot restore.");
@@ -97,26 +98,30 @@ class Program
                 (cloudType, cloudMethod) = FindMethod(mod, CloudNamespace, CloudClass, CloudMethod);
                 if (cloudMethod == null) return 1;
 
-                if (IsOldUnconditionalPatch(cloudMethod.Body))
+                if (IsOldUnconditionalPatch(cloudMethod.Body) || IsNewPatch(cloudMethod.Body))
                 {
-                    Console.Error.WriteLine("After restore, still old patch. Aborting.");
+                    Console.Error.WriteLine("After restore, logout interception still exists. Aborting.");
                     return 1;
                 }
                 Console.WriteLine("Restored.");
+                restoredCloudPatch = true;
             }
 
-            // ── Step 3: Apply CloudLoginProvider.WebLogoutAsync patch ────
-            if (IsNewPatch(cloudMethod.Body))
-            {
-                Console.WriteLine("CloudLoginProvider.WebLogoutAsync already patched, skipping.");
-            }
-            else
-            {
-                anyChanges |= ApplyCloudLoginPatch(mod, cloudMethod, dllDir);
-            }
+            // ── Step 3: Keep CloudLoginProvider.WebLogoutAsync original ──
+            bool patchFailed = false;
 
             // ── Step 4: Apply TokenFactory.Build StartBridge patch ───
-            anyChanges |= PatchTokenFactoryBuild(mod, dllDir);
+            if (!PatchTokenFactoryBuild(mod, dllDir, out var tokenFactoryChanged))
+            {
+                patchFailed = true;
+            }
+            anyChanges = restoredCloudPatch || tokenFactoryChanged;
+
+            if (patchFailed)
+            {
+                Console.Error.WriteLine("Patch failed; output was not written.");
+                return 1;
+            }
 
             // ── Step 5: Write output ─────────────────────────────────
             if (anyChanges)
@@ -383,8 +388,9 @@ class Program
     }
 
     // ── 修补 TokenFactory.Build：在结尾添加 StartBridge 调用 ─────
-    static bool PatchTokenFactoryBuild(ModuleDefMD mod, string dllDir)
+    static bool PatchTokenFactoryBuild(ModuleDefMD mod, string dllDir, out bool changed)
     {
+        changed = false;
         // 找到 TokenFactory.Build
         TypeDef tokenFactoryType = null;
         MethodDef buildMethod = null;
@@ -420,7 +426,7 @@ class Program
                 && m.Name == "StartBridge")
             {
                 Console.WriteLine("TokenFactory.Build already patched with StartBridge, skipping.");
-                return false;
+                return true;
             }
         }
 
@@ -482,6 +488,7 @@ class Program
         // 在最后一个 ret 之前插入 call StartBridge()
         var callInstr = OpCodes.Call.ToInstruction(startBridgeRef);
         instructions.Insert(lastRetIndex, callInstr);
+        changed = true;
 
         body.SimplifyBranches();
         body.OptimizeBranches();

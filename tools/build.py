@@ -79,7 +79,7 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
         vendors_dir = ROOT / "vendors"
 
         # DllPatcher 编译产物先放入 vendors，再随 vendors 整体复制
-        dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net6.0"
+        dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net8.0"
         if dllpatcher_dir.exists():
             dest_patcher = vendors_dir / "DllPatcher"
             if dest_patcher.exists():

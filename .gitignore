@@ -33,9 +33,8 @@ config.json
 CLAUDE.md
 
 # C# Injector Extension
-tools/develop/ENLoginInjector/.vs
-tools/develop/ENLoginInjector/ENLoginInjector/bin
-tools/develop/ENLoginInjector/ENLoginInjector/obj
+tools/develop/ENLoginInjector/bin
+tools/develop/ENLoginInjector/obj
 
 # C# DllPatcher
 tools/DllPatcher/bin

@@ -271,6 +271,7 @@ class Launcher:
                     return auto.type, (auto.account, auto.password)
                 case QrCodeAutomation():
                     return auto.type, {
+                        "profileId": auto.id,
                         "token": auto.token,
                         "userId": auto.user_id or "",
                         "nickName": auto.nick_name or "",

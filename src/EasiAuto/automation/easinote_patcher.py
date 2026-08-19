@@ -78,19 +78,27 @@ def _is_newtonsoft_patched(dll_path: Path) -> bool:
         return False
 
 
+def _is_account_patched(dll_path: Path) -> bool:
+    try:
+        data = dll_path.read_bytes()
+        return b"IsTokenLoggedByProcess" in data and b"StartBridge" in data
+    except OSError:
+        return False
+
+
 def is_easinote_patched(easinote_exe_path: Path) -> bool:
     easinote_base = easinote_exe_path.parent.parent.resolve()
     target_dirs = _find_easinote_version_dirs(easinote_base)
     if not target_dirs:
         return False
-    return all((main_dir / "SeewoPipeBridge.dll").exists() for main_dir in target_dirs)
+    return all(
+        (main_dir / "SeewoPipeBridge.dll").exists()
+        and _is_account_patched(main_dir / "EasiNote.Account.dll")
+        for main_dir in target_dirs
+    )
 
 
 def patch_easinote(easinote_exe_path: Path) -> bool:
-    if is_easinote_patched(easinote_exe_path):
-        logger.info("希沃白板已修补")
-        return True
-
     dllpatcher_exe = VENDOR_PATH / "DllPatcher" / "DllPatcher.exe"
 
     easinote_base = easinote_exe_path.parent.parent.resolve()
@@ -175,10 +183,6 @@ def _restore_from_bak(file_path: Path) -> bool:
 
 
 def unpatch_easinote(easinote_exe_path: Path) -> bool:
-    if not is_easinote_patched(easinote_exe_path):
-        logger.info("希沃白板未修补")
-        return True
-
     easinote_base = easinote_exe_path.parent.parent.resolve()
     target_dirs = _find_easinote_version_dirs(easinote_base)
     if not target_dirs:

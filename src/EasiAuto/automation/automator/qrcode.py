@@ -26,7 +26,18 @@ class QrCodeAutomator(BaseAutomator):
     def __init__(self, token_data: dict) -> None:
         super().__init__(account="", password="")
         self._token_data = token_data
+        self._profile_id = token_data.get("profileId", "")
         self._target_user_id = token_data.get("userId", "")
+
+    def _invalidate_profile(self) -> None:
+        if not self._profile_id:
+            return
+
+        from EasiAuto.models import profile
+
+        if profile.delete_automation(self._profile_id):
+            profile.save(reason="automation_deleted")
+            logger.warning(f"二维码令牌已失效，已删除档案: {self._profile_id}")
 
     def check_logged_in(self) -> bool:
         info = fetch_current_login_info(False)
@@ -81,6 +92,10 @@ class QrCodeAutomator(BaseAutomator):
                             return
                         err_msg = response.get("Message", "未知错误")
                         err_detail = response.get("ErrorDetail", "")
+                        error_code = response.get("Code") or response.get("ErrorCode") or response.get("errorCode")
+                        if str(error_code) == "4000" or "4000" in str(err_detail) or "4000" in str(err_msg):
+                            self._invalidate_profile()
+                            raise LoginError("二维码登录令牌已失效，请重新扫码", retry=False)
                         logger.error(f"[IPC] 登录失败: {err_msg} ({err_detail})")
                         raise LoginError(f"管道登录失败: {err_msg}")
                 logger.warning("[IPC] 未收到响应，重试...")
