@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from loguru import logger
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QDialog,
     QFormLayout,
     QHBoxLayout,
     QListWidgetItem,
@@ -36,12 +33,11 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.consts import IS_FULL
 from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
-from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, QrCodeAutomation, profile
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
-from EasiAuto.view.components import QrCodeLoginDialog, SettingCard, SettingCardType, fetch_qrcode_avatar
+from EasiAuto.view.components import SettingCard, SettingCardType
 from EasiAuto.view.components.qfw_widgets import ListWidget, PillOverflowBar, PillPushButton
 from EasiAuto.view.helpers import get_main_container, get_main_window
 
@@ -293,12 +289,6 @@ class ProfileManagePage(QWidget):
         self.action_bar = CommandBar()
         self.action_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.action_bar.addAction(Action(FluentIcon.ADD, "添加", triggered=self._add_automation))
-        self.action_import_current = Action(FluentIcon.LINK, "导入当前账户", triggered=self._on_import_current)
-        self.action_import_current.setEnabled(IS_FULL)
-        self.action_bar.addAction(self.action_import_current)
-        self.action_qrcode_add = Action(FluentIcon.QRCODE, "扫码添加", triggered=self._on_qrcode_add)
-        self.action_qrcode_add.setEnabled(IS_FULL)
-        self.action_bar.addAction(self.action_qrcode_add)
         self.action_bar.addAction(Action(FluentIcon.SYNC, "刷新", triggered=self._init_selector))
 
         self.auto_list = ListWidget()
@@ -358,40 +348,6 @@ class ProfileManagePage(QWidget):
 
         self._init_selector()
         profile.notifier.changed.connect(self._on_profile_model_changed)
-        self._refresh_qrcode_avatars()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._refresh_qrcode_avatars()
-
-    def _refresh_qrcode_avatars(self):
-        """比对缓存头像与网络头像，仅更新有变化的"""
-        changed = False
-        for auto in profile.list_automation():
-            if not isinstance(auto, QrCodeAutomation) or not auto.token or not auto.user_id:
-                continue
-
-            avatar_url = fetch_qrcode_avatar(auto.token)
-            if not avatar_url:
-                continue
-
-            cached = str(auto.avatar) if auto.avatar else ""
-            if cached:
-                cache_path = Path(cached)
-                if not cache_path.exists():
-                    new_path = self._cache_qrcode_avatar(auto.user_id, avatar_url)
-                    if new_path and new_path != cached:
-                        auto.avatar = new_path
-                        changed = True
-            else:
-                new_path = self._cache_qrcode_avatar(auto.user_id, avatar_url)
-                if new_path:
-                    auto.avatar = new_path
-                    changed = True
-
-        if changed:
-            profile.save(reason="automation_saved")
-            self._init_selector()
 
     def _sync_bindings(self):
         if not ci_manager:
@@ -448,155 +404,6 @@ class ProfileManagePage(QWidget):
         self._update_editor(self.current_automation)
         self.editor_widget.setEnabled(True)
 
-    @staticmethod
-    def _find_existing_qrcode(user_id: str) -> QrCodeAutomation | None:
-        for item in profile.list_automation():
-            if isinstance(item, QrCodeAutomation) and item.user_id == user_id:
-                return item
-        return None
-
-    @staticmethod
-    def _cache_qrcode_avatar(user_id: str, avatar_url: str) -> str | None:
-        """下载头像到本地缓存，返回缓存路径"""
-        from EasiAuto.consts import CACHE_DIR
-
-        cache_dir = CACHE_DIR / "avatars"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{user_id}.png"
-
-        # 已缓存则直接返回
-        if cache_file.exists():
-            return str(cache_file)
-
-        try:
-            import requests
-
-            resp = requests.get(avatar_url, timeout=1)
-            if resp.status_code == 200:
-                cache_file.write_bytes(resp.content)
-                logger.debug(f"头像已缓存: {cache_file}")
-                return str(cache_file)
-        except Exception as e:
-            logger.warning(f"头像下载失败: {e}")
-        return None
-
-    def _on_qrcode_add(self) -> None:
-        dialog = QrCodeLoginDialog(self.window())
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        data = dialog.login_data
-        if not data:
-            return
-
-        nick_name = data.get("nickName", "")
-        user_id = data.get("userId", "")
-        token = data.get("token", "")
-
-        # 获取并缓存头像
-        avatar_path = None
-        if token:
-            avatar_url = fetch_qrcode_avatar(token)
-            if avatar_url:
-                avatar_path = self._cache_qrcode_avatar(user_id, avatar_url)
-
-        automation = QrCodeAutomation(
-            name=nick_name,
-            token=token,
-            user_id=user_id,
-            nick_name=nick_name,
-            phone=data.get("phone", ""),
-            avatar=avatar_path,
-        )
-        existing = self._find_existing_qrcode(user_id)
-        if existing:
-            existing.token = automation.token
-            existing.user_id = automation.user_id
-            existing.nick_name = automation.nick_name
-            existing.phone = automation.phone
-            existing.avatar = avatar_path or existing.avatar
-            existing.name = existing.name or nick_name
-            profile.upsert_automation(existing)
-        else:
-            profile.upsert_automation(automation)
-
-        profile.save(reason="automation_saved")
-        self._init_selector()
-        self.profileChanged.emit()
-
-    def _on_import_current(self) -> None:
-        """从希沃白板导入当前已登录的账户"""
-        from EasiAuto.automation.automator.qrcode import fetch_current_login_info
-
-        info = fetch_current_login_info(True)
-        if not info or info.get("statusCode") != 202:
-            InfoBar.warning(
-                title="导入失败",
-                content="未登录希沃白板或管道不可用",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=get_main_container(),
-            )
-            return
-
-        token = info.get("token", "")
-        user_id = info.get("userId", "")
-        nick_name = info.get("nickName", "") or info.get("userName", "")
-        phone = info.get("phone", "")
-
-        if not token or not user_id:
-            InfoBar.warning(
-                title="导入失败",
-                content="获取到的登录信息不完整",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=get_main_container(),
-            )
-            return
-
-        avatar_path = None
-        if token:
-            avatar_url = fetch_qrcode_avatar(token)
-            if avatar_url:
-                avatar_path = self._cache_qrcode_avatar(user_id, avatar_url)
-
-        automation = QrCodeAutomation(
-            name=nick_name,
-            token=token,
-            user_id=user_id,
-            nick_name=nick_name,
-            phone=phone,
-            avatar=avatar_path,
-        )
-
-        existing = self._find_existing_qrcode(user_id)
-        if existing:
-            existing.token = automation.token
-            existing.nick_name = automation.nick_name
-            existing.phone = automation.phone
-            existing.avatar = avatar_path or existing.avatar
-            existing.name = existing.name or nick_name
-            profile.upsert_automation(existing)
-        else:
-            profile.upsert_automation(automation)
-
-        profile.save(reason="automation_saved")
-        self._init_selector()
-        self.profileChanged.emit()
-        InfoBar.success(
-            title="导入成功",
-            content=f"已导入账户 {nick_name}",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=3000,
-            parent=get_main_container(),
-        )
-
     def _display_name(self, automation: BaseAutomation) -> str:
         return automation.name or "未命名档案"
 
@@ -613,13 +420,6 @@ class ProfileManagePage(QWidget):
                 self.account_name_edit.setText(automation.account_name or "")
                 self.account_edit.setDisabled(False)
                 self.password_edit.setDisabled(False)
-                self.account_name_edit.setDisabled(True)
-            case QrCodeAutomation():
-                self.account_edit.setText("")
-                self.password_edit.setText("")
-                self.account_name_edit.setText("")
-                self.account_edit.setDisabled(True)
-                self.password_edit.setDisabled(True)
                 self.account_name_edit.setDisabled(True)
 
         self.editor_widget.setEnabled(True)

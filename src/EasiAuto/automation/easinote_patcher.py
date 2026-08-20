@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -219,3 +220,18 @@ def unpatch_easinote(easinote_exe_path: Path) -> bool:
                 all_unpatched = False
 
     return all_unpatched
+
+
+PIPE_NAME = r"\\.\pipe\SeewoOpenTokenPipe"
+LOGIN_INFO_PIPE = r"\\.\pipe\SeewoLoginInfoPipe"
+
+
+def fetch_current_login_info(add_to_logged_tokens: bool = False) -> dict | None:
+    """从 SeewoLoginInfoPipe 获取当前已登录账户信息"""
+    try:
+        with open(LOGIN_INFO_PIPE, "r+", encoding="utf-8") as pipe:
+            pipe.write(str(add_to_logged_tokens).lower() + "\n")
+            pipe.flush()
+            return json.loads(pipe.readline())
+    except Exception:
+        return None

@@ -28,7 +28,7 @@ from EasiAuto.core.utils import (
     stop,
 )
 from EasiAuto.models.config import UpdateMode, config
-from EasiAuto.models.profile import BaseAutomation, EasiAutomation, QrCodeAutomation, profile
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
 from EasiAuto.services import announcement_service, update_service
 from EasiAuto.services.toast_service import ToastNotifier
 from EasiAuto.services.update_service import UpdateError, cleanup_update_cache
@@ -269,14 +269,6 @@ class Launcher:
                         logger.error(f"档案 {args.id} 的密码为空")
                         return None
                     return auto.type, (auto.account, auto.password)
-                case QrCodeAutomation():
-                    return auto.type, {
-                        "profileId": auto.id,
-                        "token": auto.token,
-                        "userId": auto.user_id or "",
-                        "nickName": auto.nick_name or "",
-                        "phone": auto.phone or "",
-                    }
             return None
 
         if args.account and args.password:

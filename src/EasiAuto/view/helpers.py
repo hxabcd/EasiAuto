@@ -47,7 +47,7 @@ def get_main_window() -> "MainWindow":
     if app is None:
         raise RuntimeError("QApplication 尚未初始化")
 
-    for widget in app.topLevelWidgets():
+    for widget in cast(QApplication, app).topLevelWidgets():
         if widget.objectName() == "MainWindow":
             return widget  # type: ignore[return-value]
 

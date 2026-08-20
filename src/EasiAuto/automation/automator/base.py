@@ -11,6 +11,8 @@ from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
+from EasiAuto.automation import easinote_api
+from EasiAuto.automation.easinote_patcher import fetch_current_login_info
 from EasiAuto.core.exception_handler import capture_handled_exception
 from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 from EasiAuto.models.config import config
@@ -187,7 +189,27 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def check_logged_in(self) -> bool:
         """目标账号是否已登录"""
-        return False
+        if not config.Internal.IsEasiNotePatched:
+            return False
+
+        info = fetch_current_login_info(False)
+        if not info or info.get("statusCode") != 202:
+            return False
+
+        current_uid = info.get("userId")
+        if not current_uid:
+            return False
+
+        try:
+            result = easinote_api.login(self.account, self.password)
+        except Exception:
+            return False
+
+        target_uid = result.user.uid
+        if not target_uid:
+            return False
+
+        return current_uid == target_uid
 
     def prepare(self):
         """准备登录"""
