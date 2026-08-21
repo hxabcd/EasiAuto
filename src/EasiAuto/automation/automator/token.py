@@ -18,22 +18,10 @@ from .base import BaseAutomator, LoginError
 
 
 class TokenAutomator(BaseAutomator):
-    def __init__(self, account: str, password: str) -> None:
-        super().__init__(account, password)
-
-        self.seewo_client = SeewoClient()
-        try:
-            self.login_info = self.seewo_client.login(account, password)
-        except SeewoNetworkError as e:
-            raise LoginError("网络异常", retry=True) from e
-        except SeewoAuthError as e:
-            raise LoginError("账号或密码错误", retry=False) from e
-        except SeewoNeedCaptcha as e:
-            raise LoginError("账号被风控", retry=False) from e
-        except SeewoLoginError as e:
-            raise LoginError("未知登录异常", retry=False) from e
-
     def check_logged_in(self) -> bool:
+        if not config.Internal.IsEasiNotePatched:
+            return False
+
         info = fetch_current_login_info(False)
         if info and info.get("statusCode") == 202:
             current_uid = info.get("userId", "")
@@ -43,6 +31,19 @@ class TokenAutomator(BaseAutomator):
     def prepare(self):
         if not config.Internal.IsEasiNotePatched:
             raise LoginError("希沃白板未修补", retry=False)
+
+        self.seewo_client = SeewoClient()
+        try:
+            self.login_info = self.seewo_client.login(self.account, self.password)
+        except SeewoNetworkError as e:
+            raise LoginError("网络异常", retry=True) from e
+        except SeewoAuthError as e:
+            raise LoginError("账号或密码错误", retry=False) from e
+        except SeewoNeedCaptcha as e:
+            raise LoginError("账号被风控", retry=False) from e
+        except SeewoLoginError as e:
+            raise LoginError("未知登录异常", retry=False) from e
+
         return super().prepare()
 
     def login(self) -> None:
