@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from loguru import logger
+import hashlib
+from io import BytesIO
 
-from PySide6.QtCore import QSize, Qt, Signal
+import requests
+from loguru import logger
+from PIL import Image
+
+from PySide6.QtCore import QSize, Qt, QThread, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -33,6 +38,14 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
+from EasiAuto.automation.easinote_api import (
+    SeewoAuthError,
+    SeewoClient,
+    SeewoLoginError,
+    SeewoNeedCaptcha,
+    SeewoNetworkError,
+)
+from EasiAuto.consts import AVATAR_DIR
 from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, profile
@@ -105,6 +118,61 @@ class ProfileStatusBar(QWidget):
     def _show_advanced_options(self):
         dialog = AdvancedOptionsDialog(self.window())
         dialog.exec()
+
+
+class _UserAuthVerificationThread(QThread):
+    """后台线程：校验希沃账号密码，并缓存头像。"""
+
+    succeeded = Signal(str, str)  # account_name, avatar_path
+    failed = Signal(str)  # 认证失败原因
+    offline = Signal(str)  # 网络异常（跳过校验）
+
+    def __init__(self, account: str, password: str, parent=None):
+        super().__init__(parent)
+        self._account = account
+        self._password = password
+
+    def run(self) -> None:
+        try:
+            with SeewoClient() as client:
+                result = client.login(self._account, self._password)
+        except SeewoNetworkError as e:
+            self.offline.emit(str(e))
+            return
+        except SeewoNeedCaptcha as e:
+            self.failed.emit(str(e))
+            return
+        except (SeewoAuthError, SeewoLoginError) as e:
+            self.failed.emit(str(e))
+            return
+
+        avatar_path = self._download_avatar(result.user.photo_url or None)
+        account_name = result.user.nick_name or result.user.real_name
+        self.succeeded.emit(account_name, avatar_path or "")
+
+    @staticmethod
+    def _download_avatar(url: str | None) -> str | None:
+        """下载头像到本地缓存并返回文件路径，失败或不存在返回 None"""
+        if not url:
+            return None
+        try:
+            response = requests.get(url, timeout=15)
+            if response.status_code != 200:
+                return None
+            image = Image.open(BytesIO(response.content))
+            image.load()
+        except Exception as e:
+            logger.warning(f"头像下载失败: {e}")
+            return None
+
+        AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+        cache_path = AVATAR_DIR / f"{hashlib.md5(url.encode('utf-8')).hexdigest()}.png"
+        try:
+            image.save(cache_path, format="PNG")
+        except OSError as e:
+            logger.warning(f"头像保存失败: {e}")
+            return None
+        return str(cache_path)
 
 
 class ProfileCard(CardWidget):
@@ -248,6 +316,16 @@ class ProfileCard(CardWidget):
         self.enabled_switch.setChecked(automation.enabled)
         self.detail_label.setText(self.automation.detail_name or "")
 
+        if img := getattr(self.automation, "avatar", None):
+            try:
+                self.avatar_label.setImage(str(img))
+            except Exception:
+                self.avatar_label.setText(self.automation.display_name[:1] if self.automation.display_name else "?")
+        elif name := self.automation.display_name:
+            self.avatar_label.setText(name[0].upper())
+        else:
+            self.avatar_label.setText("?")
+
     def set_subject_tags(self, tags: list[str]):
         self._update_subjects(tags)
 
@@ -272,6 +350,7 @@ class ProfileManagePage(QWidget):
         self.current_automation: BaseAutomation | None = None
         self.current_list_item: QListWidgetItem | None = None
         self.is_new_automation = False
+        self._pending_save_automation: BaseAutomation | None = None
         self.binding_backend = ClassIslandBindingBackend()
 
         layout = QVBoxLayout(self)
@@ -322,12 +401,10 @@ class ProfileManagePage(QWidget):
         self.name_edit = LineEdit()
         self.account_edit = LineEdit()
         self.password_edit = PasswordLineEdit()
-        self.account_name_edit = LineEdit()
 
         form_layout.addRow(BodyLabel("名称 (可选)"), self.name_edit)
         form_layout.addRow(BodyLabel("账号"), self.account_edit)
         form_layout.addRow(BodyLabel("密码"), self.password_edit)
-        form_layout.addRow(BodyLabel("希沃用户名 (可选)"), self.account_name_edit)
 
         self.save_button = PrimaryPushButton("保存")
         self.save_button.clicked.connect(self._handle_save_automation)
@@ -417,10 +494,8 @@ class ProfileManagePage(QWidget):
             case EasiAutomation():
                 self.account_edit.setText(automation.account)
                 self.password_edit.setText(automation.password)
-                self.account_name_edit.setText(automation.account_name or "")
                 self.account_edit.setDisabled(False)
                 self.password_edit.setDisabled(False)
-                self.account_name_edit.setDisabled(True)
 
         self.editor_widget.setEnabled(True)
 
@@ -430,13 +505,12 @@ class ProfileManagePage(QWidget):
         self.name_edit.clear()
         self.account_edit.clear()
         self.password_edit.clear()
-        self.account_name_edit.clear()
         self.account_edit.setEnabled(True)
         self.password_edit.setEnabled(True)
-        self.account_name_edit.setEnabled(True)
         self.editor_widget.setDisabled(True)
 
-    def _save_form(self):
+    def _save_form(self) -> tuple[str, str]:
+        """收集表单并校验，返回 (账号, 密码)"""
         if not self.current_automation:
             raise ValueError("未选择档案")
 
@@ -464,14 +538,35 @@ class ProfileManagePage(QWidget):
 
             self.current_automation.account = account
             self.current_automation.password = password
-            self.current_automation.account_name = self.account_name_edit.text().strip() or None
 
-        profile.upsert_automation(self.current_automation)
+            return account, password
+        return "", ""
+
+    def _commit_save(self):
+        """将当前档案写入 profile 并刷新界面"""
+        automation = self.current_automation
+        if automation is None:
+            return
+        profile.upsert_automation(automation)
         profile.save(reason="automation_saved")
+
+        self.is_new_automation = False
+        self._init_selector()
+
+        for i in range(self.auto_list.count()):
+            item = self.auto_list.item(i)
+            current = item.data(Qt.ItemDataRole.UserRole)
+            if current.id == automation.id:
+                self.auto_list.setCurrentItem(item)
+                self.current_list_item = item
+                self._update_editor(current)
+                break
+
+        self.profileChanged.emit()
 
     def _handle_save_automation(self):
         try:
-            self._save_form()
+            account, password = self._save_form()
         except ValueError as e:
             InfoBar.error(
                 title="保存失败",
@@ -496,19 +591,72 @@ class ProfileManagePage(QWidget):
             )
             return
 
-        self.is_new_automation = False
-        self._init_selector()
+        # 无账号密码（非账密档案）直接保存
+        if not account:
+            self._commit_save()
+            return
 
-        for i in range(self.auto_list.count()):
-            item = self.auto_list.item(i)
-            automation = item.data(Qt.ItemDataRole.UserRole)
-            if self.current_automation and automation.id == self.current_automation.id:
-                self.auto_list.setCurrentItem(item)
-                self.current_list_item = item
-                self._update_editor(automation)
-                break
+        # 后台校验账号密码，成功或离线时再保存
+        self._pending_save_automation = self.current_automation
+        self.save_button.setEnabled(False)
+        self.save_button.setText("校验中…")
 
-        self.profileChanged.emit()
+        worker = _UserAuthVerificationThread(account, password, parent=self)
+        worker.succeeded.connect(self._on_auth_succeeded)
+        worker.failed.connect(self._on_auth_failed)
+        worker.offline.connect(self._on_auth_offline)
+        worker.finished.connect(self._on_auth_thread_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _resolve_pending_save(self) -> EasiAutomation | None:
+        """校验期间用户切换了编辑对象则放弃保存，返回待保存档案"""
+        if self.current_automation is not self._pending_save_automation:
+            logger.warning("校验期间编辑对象已切换，放弃本次保存")
+            InfoBar.error(
+                title="保存已取消",
+                content="账号校验期间已切换档案，请重新保存",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=get_main_container(),
+            )
+            self._pending_save_automation = None
+            return None
+
+        automation = self.current_automation
+        assert isinstance(automation, EasiAutomation)
+        self._pending_save_automation = None
+        return automation
+
+    def _on_auth_succeeded(self, account_name: str, avatar_path: str):
+        automation = self._resolve_pending_save()
+        if automation is None:
+            return
+        automation.account_name = account_name or None
+        automation.avatar = avatar_path or None
+        self._commit_save()
+
+    def _on_auth_failed(self, message: str):
+        InfoBar.error(
+            title="账号校验失败",
+            content=f"未保存档案：{message}",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=4000,
+            parent=get_main_container(),
+        )
+
+    def _on_auth_offline(self, message: str):
+        logger.warning(f"离线环境，跳过账号校验: {message}")
+        if self._resolve_pending_save() is not None:
+            self._commit_save()
+
+    def _on_auth_thread_finished(self):
+        self.save_button.setEnabled(True)
+        self.save_button.setText("保存")
 
     def _on_item_clicked(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)

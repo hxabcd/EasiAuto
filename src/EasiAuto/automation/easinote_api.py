@@ -208,7 +208,8 @@ class SeewoClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         url = f"{self.base_url}{path}"
         headers = kwargs.pop("headers", {})
-        headers["Cookie"] = self._build_cookie()
+        # 保留调用方指定的 Cookie（如带 token 的），否则使用默认应用标识
+        headers.setdefault("Cookie", self._build_cookie())
         kwargs.setdefault("timeout", self.timeout)
         return self._session.request(method, url, headers=headers, **kwargs)
 

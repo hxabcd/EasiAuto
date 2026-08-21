@@ -18,6 +18,7 @@ CONFIG_PATH = EA_DATADIR / "config.json"
 PROFILE_PATH = EA_DATADIR / "profile.json"
 LOG_DIR = EA_DATADIR / "logs"
 CACHE_DIR = EA_DATADIR / "cache"
+AVATAR_DIR = EA_DATADIR / "avatars"
 
 # 资源目录
 EA_RESDIR = EA_BASEDIR / "resources"
