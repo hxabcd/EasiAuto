@@ -16,7 +16,7 @@ src/EasiAuto/
   core/
     security.py          # 密码加密
     utils.py             # 工具函数
-    automator/           # 四种登录方案 (FIXED/CV/UIA/INJECT) + AutomationManager
+    automator/           # 四种登录方案 (FIXED/CV/UIA/TOKEN) + AutomationManager
     ipc/                 # IPC client / server
     runtime/             # 异常处理、单例互斥锁
   models/                # 配置、档案的模型及单例

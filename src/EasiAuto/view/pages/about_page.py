@@ -124,7 +124,6 @@ class AboutPage(QWidget):
                         "pywinauto",
                         "pyautogui",
                         "opencv-python",
-                        "Snoop",
                         "loguru",
                         "sentry-sdk",
                         "windows11toast",

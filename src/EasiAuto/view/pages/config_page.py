@@ -315,8 +315,8 @@ class ConfigPage(QWidget):
             match name:
                 case "Login.Method":
                     card = cast(ExpandSelectorSettingCard, card)
-                    if not IS_FULL:  # LITE 版，禁用进程注入登录
-                        card.setOptionEnabled(LoginMethod.INJECT, False)
+                    if not IS_FULL:  # LITE 版，禁用令牌登录
+                        card.setOptionEnabled(LoginMethod.TOKEN, False)
 
                 case "Login.SkipOnce":
                     card = cast(SettingCard, card)

@@ -32,10 +32,6 @@ config.json
 .claude
 CLAUDE.md
 
-# C# Injector Extension
-tools/develop/ENLoginInjector/bin
-tools/develop/ENLoginInjector/obj
-
 # C# DllPatcher
 tools/DllPatcher/bin
 tools/DllPatcher/obj

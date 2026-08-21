@@ -54,7 +54,7 @@ class LoginMethod(InformativeEnum):
     FIXED = (0, "固定位置", "较稳定，极快（推荐）\n大部分情况下开箱即用，仅在特殊情况需手动设置坐标")
     CV = (1, "图像识别", "不稳定，较快\n仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率")
     UIA = (2, "自动定位", "最稳定，较慢\n基于 UI Automation 直接获取页面元素，在部分机器上可能极慢")
-    INJECT = (3, "进程注入", "不稳定，最快（实验性）\n通过 Snoop 注入希沃白板直接调用登录")
+    TOKEN = (3, "令牌登录", "稳定，最快\n通过希沃接口获取登录令牌，投递至已修补的希沃白板")
 
 
 class ThemeOptions(InformativeEnum):

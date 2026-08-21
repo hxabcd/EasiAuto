@@ -3,13 +3,13 @@
 from .base import BaseAutomator
 from .cv import CVAutomator
 from .fixed import FixedAutomator
-from .inject import InjectAutomator
+from .token import TokenAutomator
 from .uia import UIAAutomator
 
 __all__ = [
     "BaseAutomator",
     "CVAutomator",
     "FixedAutomator",
-    "InjectAutomator",
+    "TokenAutomator",
     "UIAAutomator",
 ]
