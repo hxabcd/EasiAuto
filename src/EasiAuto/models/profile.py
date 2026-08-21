@@ -4,7 +4,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Annotated, Any, Literal, cast
+from typing import Any, Literal, cast
 
 from cryptography.fernet import InvalidToken
 from loguru import logger
@@ -24,7 +24,7 @@ from EasiAuto.consts import EA_PREFIX, PROFILE_PATH
 from EasiAuto.core.security import get_profile_cipher
 from EasiAuto.models.config import config
 
-_PROFILE_SCHEMA_VERSION = 3
+_PROFILE_SCHEMA_VERSION = 4
 _SECRET_TOKEN_PREFIX = "ea$"
 
 ProfileChangeReason = Literal[
@@ -141,56 +141,7 @@ class EasiAutomation(BaseAutomation):
             return ""
 
 
-class QrCodeAutomation(BaseAutomation):
-    """二维码登录档案"""
-
-    type: Literal["qrcode"] = Field(default="qrcode")
-
-    token: str = Field(default="", description="二维码登录令牌")
-    user_id: str | None = Field(default=None, description="希沃用户 ID")
-    nick_name: str | None = Field(default=None, description="希沃用户昵称")
-    phone: str | None = Field(default=None, description="希沃用户手机号")
-    avatar: Any | None = Field(default=None, description="希沃用户头像")
-
-    @model_serializer(mode="wrap")
-    def check_on_dump(self, serializer):
-        if not self.token.strip():
-            raise ValueError("令牌不能为空")
-        return serializer(self)
-
-    @property
-    def display_name(self) -> str | None:
-        return self.name or self.nick_name
-
-    @property
-    def detail_name(self) -> str | None:
-        return "二维码档案"
-
-    @property
-    def export_name(self) -> str:
-        label = self.name or self.nick_name or self.user_id or "未命名"
-        return f"希沃自动登录（{label}）"
-
-    @field_serializer("token")
-    def _ser_token(self, value: str, _info: SerializationInfo) -> str:
-        if _info.context and _info.context.get("encryption_enabled"):
-            return encrypt_secret(value)
-        return value
-
-    @field_validator("token", mode="after")
-    @classmethod
-    def _deser_token(cls, value: str) -> str:
-        try:
-            return decrypt_secret(value)
-        except Exception as e:
-            logger.error(f"解密令牌失败: {e}")
-            return ""
-
-
-Automation = Annotated[
-    EasiAutomation | QrCodeAutomation,
-    Field(discriminator="type"),
-]
+Automation = EasiAutomation
 
 
 class Profile(BaseModel):
@@ -246,6 +197,16 @@ class Profile(BaseModel):
                     raw["automations"][i]["type"] = "password"
                     raw["automations"][i]["password"] = raw["automations"][i]["password"].replace("ea2$", "ea$", 1)
                 raw["schema_version"] = 3
+
+                upgraded = cls(**raw)
+                upgraded.save()
+                return upgraded
+            if schema_version < 4:
+                logger.warning("从 v3 档案升级到 v4: 移除已废弃的二维码登录档案")
+                raw["automations"] = [
+                    a for a in raw.get("automations", []) if a.get("type") != "qrcode"
+                ]
+                raw["schema_version"] = 4
 
                 upgraded = cls(**raw)
                 upgraded.save()
