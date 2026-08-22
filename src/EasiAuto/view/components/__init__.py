@@ -1,4 +1,6 @@
 from .announcement_card import AnnouncementCard
+from .auth_verification import UserAuthVerificationThread
+from .patch import PatchThread, patch_error_message
 from .pre_run_popup import DialogResponse, PreRunPopup
 from .privacy_mask import PrivacyMask
 from .setting_card import CardType as SettingCardType
@@ -9,6 +11,7 @@ from .warning_banner import WarningBanner
 __all__ = [
     "AnnouncementCard",
     "DialogResponse",
+    "PatchThread",
     "PreRunPopup",
     "PrivacyMask",
     "ExpandSelectorSettingCard",
@@ -17,5 +20,7 @@ __all__ = [
     "SmallStatusOverlay",
     "StatusOverlay",
     "StatusOverlayBase",
+    "UserAuthVerificationThread",
     "WarningBanner",
+    "patch_error_message",
 ]

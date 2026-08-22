@@ -30,9 +30,10 @@ from EasiAuto.consts import CONFIG_PATH, IS_FULL
 class InformativeEnum(Enum):
     """带显示名称的枚举类"""
 
-    def __init__(self, value, display_name, description=None):
+    def __init__(self, value, display_name, description=None, extra=None):
         self.display_name: str = display_name
         self.description: str | None = description
+        self.extra: dict[str, Any] = extra or {}
         self._value_ = value
 
     def __lt__(self, other: InformativeEnum):
@@ -49,13 +50,13 @@ class LogLevelEnum(InformativeEnum):
     ERROR = (40, "错误")
     CRITICAL = (50, "灾难")
 
-
+# fmt: off
 class LoginMethod(InformativeEnum):
-    FIXED = (0, "固定位置", "较稳定，极快（推荐）\n大部分情况下开箱即用，仅在特殊情况需手动设置坐标")
-    CV = (1, "图像识别", "不稳定，较快\n仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率")
-    UIA = (2, "自动定位", "最稳定，较慢\n基于 UI Automation 直接获取页面元素，在部分机器上可能极慢")
-    TOKEN = (3, "令牌登录", "稳定，最快\n通过希沃接口获取登录令牌，投递至已修补的希沃白板")
-
+    FIXED = (0, "固定位置", "大部分情况下开箱即用，仅在特殊情况需手动设置坐标", {"tags": ["较快", "较稳定", "默认"]})
+    CV = (1, "图像识别", "仅支持常规分辨率与缩放，使用 OpenCV 可一定程度提高识别率", {"tags": ["较慢", "不稳定"]})
+    UIA = (2, "自动定位", "基于 UI Automation 直接获取页面元素，在部分机器上可能极慢", {"tags": ["较慢", "最稳定"]})
+    TOKEN = (3, "令牌投递", "通过希沃接口获取登录令牌并投递至希沃白板，免密极速登录", {"tags": ["最快", "较稳定", "需要修补"]})
+# fmt: on
 
 class ThemeOptions(InformativeEnum):
     AUTO = ("Auto", "跟随系统")
@@ -152,11 +153,49 @@ class ConfigModel(BaseModel):
     ) -> list[ConfigItem | ConfigGroup]:
         return _iter_config_items(self, only=only, exclude=exclude)
 
-    def get_item(self, item: str) -> ConfigItem | ConfigGroup | None:
-        result = _iter_config_items(self, only=[item])
-        if result is not None:
-            return result[0]
-        return None
+    def get_item(self, item: str) -> ConfigItem:
+        """通过点分路径获取叶子配置项，如 "Login.Timeout.Terminate"
+
+        路径相对 self 解析，返回的 ConfigItem 始终携带完整路径并绑定根模型。
+        路径指向子模型、计算属性或不存在的字段时抛出异常。（不存在的字段应在开发阶段就被发现并修正）
+        """
+        parts = tuple(p for p in item.split(".") if p)
+        if not parts:
+            raise ValueError(f"无效的配置项路径: {item}")
+
+        obj: Any = self
+        for key in parts[:-1]:
+            if key.startswith("_") or not isinstance(getattr(obj, key, None), ConfigModel):
+                raise ValueError(f"配置项路径不存在: {item}")
+
+            obj = getattr(obj, key)
+
+        name = parts[-1]
+        field_info = type(obj).model_fields.get(name)
+        if field_info is None:
+            raise ValueError(f"配置项路径不存在: {item}")
+
+        # 回溯父链，将相对路径补全为从根模型出发的完整路径
+        full_parts = parts
+        node, parent = self, self._parent
+        while parent is not None:
+            owner_name = next((n for n, v in parent.__dict__.items() if v is node), None)
+            if owner_name is None:
+                raise ValueError(f"配置项路径不存在: {item}")
+            full_parts = (owner_name, *full_parts)
+            node, parent = parent, parent._parent
+
+        return ConfigItem(
+            path=".".join(full_parts),
+            name=name,
+            group=".".join(full_parts[:-1]) or None,
+            type_=field_info.annotation or type(getattr(obj, name)),
+            field_info=field_info,
+            title=field_info.title or name,
+            description=field_info.description,
+            json_schema_extra=field_info.json_schema_extra,
+            _root=node,
+        )
 
 
 class EasiNoteConfig(ConfigModel):
@@ -352,7 +391,7 @@ class WarningConfig(ConfigModel):
     Enabled: bool = Field(
         default=True,
         title="启用警告弹窗",
-        description="在运行自动登录前显示警告弹窗，在超时时长内可手动取消登录",
+        description="在运行自动登录前显示警告弹窗，在超时时长内可手动取消或推迟登录",
         json_schema_extra={"icon": "Completed"},
     )
     Timeout: int = Field(
@@ -360,6 +399,7 @@ class WarningConfig(ConfigModel):
         ge=5,
         le=600,
         title="超时时长（秒）",
+        description="等待用户确认的最大时长",
         json_schema_extra={"icon": "RemoveFrom"},
     )
     MaxDelays: int = Field(
@@ -367,6 +407,7 @@ class WarningConfig(ConfigModel):
         ge=0,
         le=3,
         title="最大推迟次数",
+        description="最大允许推迟登录的次数",
         json_schema_extra={"icon": "Pause"},
     )
     DelayTime: int = Field(
@@ -374,6 +415,7 @@ class WarningConfig(ConfigModel):
         ge=5,
         le=300,
         title="推迟时长（秒）",
+        description="每次推迟登录后等待的时长",
         json_schema_extra={"icon": "History"},
         validation_alias="Delay",
     )
@@ -474,7 +516,7 @@ class AppConfig(ConfigModel):
         default=ThemeOptions.AUTO,
         title="应用主题",
         description="控制应用的明暗主题",
-        json_schema_extra={"icon": "Constract"},
+        json_schema_extra={"icon": "Constract", "style": "expand_selector"},
     )
     LogEnabled: bool = Field(
         default=True,
@@ -484,7 +526,7 @@ class AppConfig(ConfigModel):
     )
     TelemetryEnabled: bool = Field(
         default=True,
-        title="启用遥测",
+        title="参与匿名使用情况分析",
         description="通过 Sentry SDK 收集此应用的错误信息以帮助我们改进此应用\n你的信息会匿名上传，且不会包含任何你的个人信息。你随时可以手动关闭该选项",
         json_schema_extra={"icon": "Feedback"},
     )
@@ -601,6 +643,7 @@ class DebugConfig(ConfigModel):
 
 
 class InternalConfig(ConfigModel):
+    IsOobeCompleted: bool = Field(default=False)
     IsAutomationPageNoticeShown: bool = Field(default=False)
     IsEasiNotePatched: bool = Field(default=False)
     LastUpdateCheckTime: datetime | None = Field(default=None)

@@ -166,7 +166,11 @@ class UpdateContentView(QWidget):
 
         page = cast(ConfigGroup, config.load_page("UpdatePage")[0])
         for item in page.children:
-            scroll_layout.addWidget(SettingCard.from_config(item))
+            scroll_layout.addWidget(
+                SettingCard.from_config_group(item)
+                if isinstance(item, ConfigGroup)
+                else SettingCard.from_config_item(item)
+            )
 
         self._attach_settings(scroll_layout)
 

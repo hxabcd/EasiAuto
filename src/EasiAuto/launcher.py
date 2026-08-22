@@ -44,8 +44,8 @@ from EasiAuto.view.components import (
 from EasiAuto.view.helpers import get_app
 from EasiAuto.view.main_window import MainWindow
 
-UI_COMMANDS = {None, "settings", "login"}
-FORWARDABLE_COMMANDS = {None, "settings", "login", "skip"}
+UI_COMMANDS = {None, "settings", "login", "oobe"}
+FORWARDABLE_COMMANDS = {None, "settings", "login", "skip", "oobe"}
 
 init_exception_handler()
 init_exit_signal_handlers()
@@ -161,6 +161,7 @@ class Launcher:
         login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
 
         subparsers.add_parser("settings", help="打开设置界面")
+        subparsers.add_parser("oobe", help="重新运行首次设置向导（调试用）")
         subparsers.add_parser("skip", help="跳过下一次登录")
 
         # 内部子命令，不面向用户
@@ -411,10 +412,26 @@ class Launcher:
 
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
+        if not config.Internal.IsOobeCompleted:
+            self._run_oobe()
+
         self._show_settings_window()
 
         if not self._ipc_context:
             stop(get_app().exec())
+
+    def _run_oobe(self) -> None:
+        """首次运行时启动设置向导"""
+        from EasiAuto.view.oobe import OobeWindow
+
+        logger.info("首次运行，启动设置向导")
+        OobeWindow().exec()
+
+    def cmd_oobe(self, _) -> None:
+        """oobe 子命令 - 重新运行首次设置向导"""
+        logger.info("手动触发首次设置向导")
+        config.Internal.IsOobeCompleted = False
+        self.cmd_settings(_)
 
     def cmd_skip(self, _) -> None:
         """skip 子命令 - 跳过下一次登录"""
@@ -468,6 +485,8 @@ class Launcher:
                 self.cmd_skip(args)
             case "patch":
                 self.cmd_patch(args)
+            case "oobe":
+                self.cmd_oobe(args)
             case "settings" | None:
                 self.cmd_settings(args)
             case _:

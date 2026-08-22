@@ -3,7 +3,7 @@ from typing import cast
 
 from loguru import logger
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QScroller,
     QVBoxLayout,
@@ -17,19 +17,21 @@ from qfluentwidgets import (
     MessageBox,
     PushSettingCard,
     SmoothScrollArea,
-    SwitchButton,
     Theme,
     TitleLabel,
     TransparentPushButton,
     setTheme,
 )
 
-from EasiAuto.consts import IS_DEV, IS_FULL
 from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services import announcement_service
 from EasiAuto.services.announcement_service import Announcement
-from EasiAuto.view.components import AnnouncementCard, ExpandSelectorSettingCard, SettingCard, SettingCardType
+from EasiAuto.view.components import (
+    AnnouncementCard,
+    ExpandSelectorSettingCard,
+    SettingCard,
+)
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.helpers import get_main_container, set_enable_by
 
@@ -43,51 +45,6 @@ ENABLE_MAPPING: dict[str, str | list[str]] = {
     ],
     "Banner.Enabled": "Banner.Style",
 }
-
-
-class _ElevatedPatchThread(QThread):
-    """通过 UAC 提权执行修补/撤销修补的工作线程。
-
-    在非管理员运行的实例中，修补需写入系统目录，必须请求 UAC 提权。
-    在工作线程中调用 run_elevated_wait 以避免阻塞 UI 线程（DllPatcher 可能耗时数十秒）。
-
-    Attributes:
-        enable: True 表示修补，False 表示撤销修补
-        done: 完成信号，参数为 (ok, code, launched) —— ok 操作是否成功，code 子进程退出码，launched 子进程是否成功启动
-    """
-
-    done = Signal(bool, int, bool)
-
-    def __init__(self, enable: bool, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.enable = enable
-
-    def run(self) -> None:
-        from EasiAuto.automation.easinote_patcher import PATCH_OK
-        from EasiAuto.core.elevation import run_elevated_wait
-
-        launched, code = run_elevated_wait(f"patch {'--on' if self.enable else '--off'}")
-        self.done.emit(launched and code == PATCH_OK, code, launched)
-
-
-def _patch_error_message(code: int, launched: bool) -> str:
-    """根据子进程退出码返回用户可读的错误信息"""
-    from EasiAuto.automation.easinote_patcher import (
-        PATCH_ERR_EASINOTE_NOT_FOUND,
-        PATCH_ERR_OPERATION_FAILED,
-        PATCH_ERR_UNKNOWN,
-    )
-
-    if not launched:
-        return "未能取得管理员权限"
-    if code == PATCH_ERR_EASINOTE_NOT_FOUND:
-        return "未找到希沃白板安装路径"
-    if code == PATCH_ERR_OPERATION_FAILED:
-        return "文件可能被占用，请关闭希沃白板后重试"
-    if code == PATCH_ERR_UNKNOWN:
-        return "发生未知错误，请查看日志获取详细信息"
-    # 其他非零退出码（如 0/1/2）：程序未能正常执行到 patch 逻辑
-    return f"程序异常退出（退出码：{code}），请查看日志获取详细信息"
 
 
 class ConfigPage(QWidget):
@@ -198,73 +155,10 @@ class ConfigPage(QWidget):
         layout.addWidget(self.announcement_container)
 
     def init_patcher_setting_card(self, layout: QVBoxLayout):
-        card = SettingCard(
-            card_type=SettingCardType.SWITCH,
-            icon=FluentIcon.CODE,
-            title="修补希沃白板",
-            content="将登录相关的组件修补至希沃白板",
-        )
-        widget = cast(SwitchButton, card.widget)
-        self.content_layout.insertWidget(0, card)
+        """创建"修补希沃白板"开关卡片（与设置向导共用）"""
+        from EasiAuto.view.components.patch import PatcherSettingCard
 
-        from EasiAuto.automation.easinote_patcher import is_easinote_patched, patch_easinote, unpatch_easinote
-        from EasiAuto.automation.utils import resolve_easinote_path
-        from EasiAuto.core.elevation import is_admin
-
-        path, _ = resolve_easinote_path()
-        if path is None:
-            widget.setEnabled(False)
-            t = card.contentLabel.text()
-            card.contentLabel.setText(f"{t}\n未找到希沃白板路径，暂不可用")
-            return
-
-        def on_patch_changed(value: bool):
-            widget.setEnabled(False)
-
-            if is_admin() or IS_DEV:  # 开发环境无打包 exe 可提权
-                ok = patch_easinote(path) if value else unpatch_easinote(path)
-                _finish_patch(value, ok, content=None)
-                return
-
-            thread = _ElevatedPatchThread(value, parent=self)
-            # 挂到 widget 上持有引用，防止 Python 侧在回调前回收线程对象
-            widget._patch_thread = thread  # type: ignore[attr-defined]
-
-            def on_done(ok: bool, code: int, launched: bool):
-                if not ok:
-                    content = _patch_error_message(code, launched)
-                else:
-                    content = None
-                _finish_patch(value, ok, content=content)
-
-            def on_finished():
-                widget._patch_thread = None  # type: ignore[attr-defined]
-                thread.deleteLater()
-
-            thread.done.connect(on_done)
-            thread.finished.connect(on_finished)
-            thread.start()
-
-        def _finish_patch(value: bool, ok: bool, content: str | None):
-            """统一处理修补结果：更新配置、失败时回弹开关、恢复可用状态"""
-            config.Internal.IsEasiNotePatched = value if ok else not value
-            if not ok:
-                InfoBar.error(
-                    title=f"{'修补' if value else '撤销修补'}失败",
-                    content=content or "文件可能被占用，请关闭希沃白板后重试",
-                    orient=Qt.Orientation.Horizontal,
-                    isClosable=True,
-                    position=InfoBarPosition.TOP,
-                    duration=3000,
-                    parent=self,
-                )
-                widget.blockSignals(True)
-                widget.setChecked(not value)
-                widget.blockSignals(False)
-            widget.setEnabled(True)
-
-        widget.setChecked(is_easinote_patched(path))
-        widget.checkedChanged.connect(on_patch_changed)
+        self.content_layout.insertWidget(0, PatcherSettingCard())
 
     def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""
@@ -273,7 +167,10 @@ class ConfigPage(QWidget):
         self.menu_index[config.name] = card_group
 
         for item in config.children:
-            card = SettingCard.from_config(item)
+            if isinstance(item, ConfigGroup):
+                card = SettingCard.from_config_group(item)
+            else:
+                card = SettingCard.from_config_item(item)
 
             card_group.addSettingCard(card)
 
@@ -310,12 +207,22 @@ class ConfigPage(QWidget):
         self.content_layout.addWidget(collapse_card)
         collapse_card.setVisible(config.Debug.DebugMode)
 
+        oobe_card = PushSettingCard(
+            icon=FluentIcon.EDUCATION,
+            title="首次设置向导",
+            content="重新打开首次运行的设置向导",
+            text="重新运行",
+        )
+        oobe_card.clicked.connect(self.reopen_oobe)
+        self.content_layout.addWidget(oobe_card)
+        oobe_card.setVisible(config.Debug.DebugMode)
+
         # 额外属性
         for name, card in SettingCard.index.items():
             match name:
                 case "Login.Method":
                     card = cast(ExpandSelectorSettingCard, card)
-                    if not IS_FULL:  # LITE 版，禁用令牌登录
+                    if not config.Internal.IsEasiNotePatched:
                         card.setOptionEnabled(LoginMethod.TOKEN, False)
 
                 case "Login.SkipOnce":
@@ -386,6 +293,13 @@ class ConfigPage(QWidget):
                 widgets=[SettingCard.index[t] for t in targets],
                 reverse=condition.startswith("!"),
             )
+
+    def reopen_oobe(self):
+        """重新运行首次设置向导（调试用）"""
+        from EasiAuto.view.oobe import OobeWindow
+
+        config.Internal.IsOobeCompleted = False
+        OobeWindow(self.window()).exec()
 
     def add_resetter(self, parent: ExpandGroupSettingCard, path: str, display_name: str = "设置"):
         reset_card = PushSettingCard(

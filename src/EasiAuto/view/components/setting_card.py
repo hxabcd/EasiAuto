@@ -38,6 +38,7 @@ from qfluentwidgets import (
 
 from EasiAuto.models.config import ConfigGroup, ConfigItem
 from EasiAuto.view.components.qfw_widgets import CustomRadioButton, SettingIconWidget
+from EasiAuto.view.components.tag import TagLabel
 
 
 class CardType(Enum):
@@ -451,18 +452,38 @@ class SettingCard(QFrame):
         if not self.is_item:
             painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
 
+    @staticmethod
+    def _load_icon(extra: dict[str, Any]) -> FluentIcon | QIcon | None:
+        """根据附加信息加载图标"""
+        icon: FluentIcon | QIcon | None = None
+        if icon_name := extra.get("icon"):
+            try:
+                icon = FluentIcon(icon_name)
+            except ValueError:
+                logger.warning(f"无法加载图标: {icon_name}")
+                icon = None
+        return icon
+
     @classmethod
-    def from_config(
-        cls, config_item: ConfigItem | ConfigGroup, is_item=False, item_margin=True, parent: QWidget | None = None
-    ) -> SettingCard | ExpandGroupSettingCard:
+    def from_config_item(
+        cls,
+        config_item: ConfigItem,
+        is_item: bool = False,
+        item_margin: bool = True,
+        parent: QWidget | None = None,
+    ) -> SettingCard | ExpandSelectorSettingCard:
         """
-        根据 ConfigItem 或 ConfigGroup 的类型和元数据创建对应的 SettingCard
+        根据 ConfigItem 的类型和元数据创建对应的 SettingCard
 
         Parameters
         ----------
-        config_item: ConfigItem | ConfigGroup
+        config_item: ConfigItem
             配置项
-        parent: QWidget
+        is_item: bool
+            是否为列表项（去除边框）
+        item_margin: bool
+            列表项是否启用缩进
+        parent: QWidget | None
             父组件
 
         Return
@@ -472,25 +493,12 @@ class SettingCard(QFrame):
 
         # 获取附加信息
         extra = config_item.json_schema_extra or {}
-
-        icon: FluentIcon | QIcon | None = None
-        if icon_name := extra.get("icon"):
-            try:
-                icon = FluentIcon(icon_name)
-            except ValueError:
-                logger.warning(f"无法加载图标: {icon_name}")
-                icon = None
-
-        kwargs: dict[str, Any] = {}
-        supported_args = []  # 暂时弃用，已被动态注入（应该算吧？）取代
-        for arg in supported_args:
-            if arg in extra:
-                kwargs[arg] = extra[arg]
+        icon = cls._load_icon(extra)
+        style = extra.get("style")
+        field_type = config_item.type_
 
         # 判断卡片类型
         card_type: CardType | None = None
-        field_type = config_item.type_
-        style = extra.get("style")
 
         if field_type is bool:
             card_type = CardType.SWITCH
@@ -513,7 +521,7 @@ class SettingCard(QFrame):
                     icon=icon or QIcon(),
                     title=config_item.title,
                     content=config_item.description,
-                    config_item=cast(ConfigItem, config_item),
+                    config_item=config_item,
                 )
                 card.setObjectName(config_item.path)
                 cls.index[config_item.path] = card
@@ -521,26 +529,13 @@ class SettingCard(QFrame):
                 for option in field_type:
                     name = getattr(option, "display_name", option.name)
                     desc = getattr(option, "description", None)
-                    card.addOption(title=name, description=desc, value=option)
+                    tags = getattr(option, "extra", {}).get("tags")
+                    card.addOption(title=name, description=desc, value=option, tags=tags)
 
                 card.setValue(config_item.value)
                 card._initialized = True
                 return card
             card_type = CardType.ENUM
-        elif field_type is ConfigItem:
-            group_container = ExpandGroupSettingCard(
-                icon=icon or QIcon(),
-                title=config_item.title,
-                content=config_item.description,  # type: ignore
-            )
-
-            group_container.setObjectName(config_item.path)
-            cls.index[config_item.path] = group_container
-
-            for item in config_item.children:
-                group_container.addGroupWidget(cls.from_config(item, is_item=True))
-
-            return group_container
         else:
             raise TypeError(f"无法推断 {config_item.path} 的数据类型")
 
@@ -550,12 +545,55 @@ class SettingCard(QFrame):
             icon=icon,
             title=config_item.title,
             content=config_item.description,
-            config_item=cast(ConfigItem, config_item),
+            config_item=config_item,
             is_item=is_item,
             item_margin=item_margin,
             parent=parent,
-            **kwargs,
         )
+
+    @classmethod
+    def from_config_group(
+        cls,
+        config_group: ConfigGroup,
+        parent: QWidget | None = None,
+    ) -> ExpandGroupSettingCard:
+        """
+        根据 ConfigGroup 创建展开组设置卡片
+
+        Parameters
+        ----------
+        config_group: ConfigGroup
+            配置组
+        parent: QWidget | None
+            父组件
+
+        Return
+        ----------
+        创建的展开组卡片
+        """
+
+        # 获取附加信息
+        extra = config_group.json_schema_extra or {}
+        icon = cls._load_icon(extra)
+
+        group_container = ExpandGroupSettingCard(
+            icon=icon or QIcon(),
+            title=config_group.title,
+            content=config_group.description,  # type: ignore
+            parent=parent,
+        )
+        group_container.setObjectName(config_group.path)
+        cls.index[config_group.path] = group_container
+
+        for item in config_group.children:
+            child = (
+                cls.from_config_group(item)
+                if isinstance(item, ConfigGroup)
+                else cls.from_config_item(item, is_item=True)
+            )
+            group_container.addGroupWidget(child)
+
+        return group_container
 
     @classmethod
     def update_all(cls):
@@ -569,7 +607,7 @@ class SettingCard(QFrame):
 
 
 class ExpandSelectorSettingCardItem(CardWidget):
-    def __init__(self, title: str, description: str | None = None):
+    def __init__(self, title: str, description: str | None = None, tags: list[str] | None = None):
         super().__init__()
         self.setClickEnabled(True)
         self.setBorderRadius(0)
@@ -587,12 +625,25 @@ class ExpandSelectorSettingCardItem(CardWidget):
 
         text_layout = QVBoxLayout()
         text_layout.setSpacing(1)
-        title_label = BodyLabel(title)
-        text_layout.addWidget(title_label)
 
-        description_label = CaptionLabel(description)
-        description_label.setTextColor("#626262", "#A4A4A4")  # type: ignore
-        text_layout.addWidget(description_label)
+        title_layout = QHBoxLayout()
+        title_label = BodyLabel(title)
+        title_layout.addWidget(title_label)
+        if tags:
+            title_layout.addSpacing(3)
+            title_layout.setSpacing(3)
+            for tag in tags:
+                tag_label = TagLabel(tag)
+                title_layout.addWidget(tag_label)
+            title_layout.addStretch(1)
+
+        text_layout.addLayout(title_layout)
+
+        if description:
+            description_label = CaptionLabel(description)
+            description_label.setTextColor("#626262", "#A4A4A4")  # type: ignore
+            text_layout.addWidget(description_label)
+
         layout.addLayout(text_layout)
 
     def _normalBackgroundColor(self):
@@ -650,7 +701,7 @@ class ExpandSelectorSettingCard(ExpandGroupSettingCard):
         self._options: list[tuple[Any, ExpandSelectorSettingCardItem]] = []
         self._initialized = False
 
-    def addOption(self, title: str, description: str | None = None, value: Any = None):
+    def addOption(self, title: str, value: Any = None, description: str | None = None, tags: list[str] | None = None):
         """添加一个选项
 
         Parameters
@@ -662,7 +713,7 @@ class ExpandSelectorSettingCard(ExpandGroupSettingCard):
         value: Any
             选项对应的值（如枚举成员）
         """
-        item = ExpandSelectorSettingCardItem(title, description)
+        item = ExpandSelectorSettingCardItem(title, description, tags=tags)
         self.addGroupWidget(item)
         self.buttons.addButton(item.button)
         self._options.append((value, item))
@@ -711,3 +762,10 @@ class ExpandSelectorSettingCard(ExpandGroupSettingCard):
                 item.button.setEnabled(enabled)
                 item.setEnabled(enabled)
                 return
+
+    def setAlwaysExpand(self, value: bool = True):
+        """设置是否始终展开"""
+        if value:
+            self.setExpand(True)
+        self.card.expandButton.blockSignals(value)
+        self.card.expandButton.setVisible(not value)

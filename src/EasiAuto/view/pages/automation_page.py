@@ -1,7 +1,7 @@
 import contextlib
 from enum import Enum
 from pathlib import Path
-from typing import assert_never
+from typing import assert_never, cast
 
 from loguru import logger
 
@@ -34,7 +34,7 @@ from qfluentwidgets import (
 
 from EasiAuto.core.utils import get_ci_executable
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
-from EasiAuto.models.config import config
+from EasiAuto.models.config import ConfigGroup, config
 from EasiAuto.models.profile import ProfileChangeReason, profile
 from EasiAuto.view.components import SettingCard
 from EasiAuto.view.helpers import Icons, get_main_container, set_enable_by
@@ -69,8 +69,12 @@ class AdvancedOptionsDialog(MessageBoxBase):
 
     def _init_settings(self):
         """初始化设置项"""
-        for item in config.load_page("AutomationPage")[0].children:
-            card = SettingCard.from_config(item, is_item=True, item_margin=False)
+        for item in cast(ConfigGroup, config.load_page("AutomationPage")[0]).children:
+            card = (
+                SettingCard.from_config_group(item)
+                if isinstance(item, ConfigGroup)
+                else SettingCard.from_config_item(item, is_item=True, item_margin=False)
+            )
             self.vBoxLayout.addWidget(card)
             if isinstance(card.widget, LineEdit):
                 card.widget.setMinimumWidth(200)
@@ -228,20 +232,7 @@ class PathSelectSubpage(QWidget):
 
         logger.info(f"选择 ClassIsland 路径: {exe_path}")
         exe_path = Path(exe_path)
-        if exe_path.exists():
-            InfoBar.info(
-                title="信息",
-                content="已关闭自动路径获取",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=get_main_container(),
-            )
-            config.ClassIsland.AutoPath = False
-            config.ClassIsland.Path = str(exe_path)
-            self.pathChanged.emit(exe_path)
-        else:
+        if not exe_path.exists():
             logger.error("选择的路径不存在")
             InfoBar.error(
                 title="错误",
@@ -252,6 +243,20 @@ class PathSelectSubpage(QWidget):
                 duration=3000,
                 parent=get_main_container(),
             )
+
+        InfoBar.info(
+            title="信息",
+            content="已关闭自动路径获取",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=get_main_container(),
+        )
+        config.ClassIsland.AutoPath = False
+        config.ClassIsland.Path = str(exe_path)
+        self.pathChanged.emit(exe_path)
+
 
 
 class ImportLegacySubpage(QWidget):
