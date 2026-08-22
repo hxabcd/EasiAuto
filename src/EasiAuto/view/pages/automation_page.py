@@ -32,7 +32,7 @@ from qfluentwidgets import (
     TransparentPushButton,
 )
 
-from EasiAuto.core.utils import get_ci_executable
+from EasiAuto.core.utils import probe_ci_executable
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.models.config import ConfigGroup, config
 from EasiAuto.models.profile import ProfileChangeReason, profile
@@ -416,7 +416,7 @@ class AutomationPage(QWidget):
         # TODO: 使用新版统一接口
         try:
             if config.ClassIsland.AutoPath:
-                exe_path = get_ci_executable()
+                exe_path = probe_ci_executable()
             elif config.ClassIsland.Path:
                 exe_path = Path(config.ClassIsland.Path)
             else:

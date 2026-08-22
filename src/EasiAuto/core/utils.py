@@ -17,6 +17,10 @@ import win32gui
 import win32process
 from loguru import logger
 
+# win32com.shell 为运行时虚拟包，直接从物理路径 win32comext.shell 导入
+from win32comext.shell import shell as win32shell
+from win32comext.shell import shellcon as win32shellcon
+
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition
@@ -391,28 +395,43 @@ def kill_process(name: str, force: bool = False, wait: bool = False, timeout: fl
                     os.system(f'taskkill /im "{name}.exe" >nul 2>&1')
 
 
-def get_ci_executable() -> Path | None:
-    """获取 ClassIsland 可执行文件位置"""
+def probe_ci_executable() -> Path | None:
+    """探测 ClassIsland 可执行文件位置
+
+    依次探测启动目录、用户开始菜单、桌面（用户与公共）中的快捷方式。
+    """
+    folders = [
+        ("启动目录", win32shellcon.CSIDL_STARTUP),
+        ("开始菜单程序", win32shellcon.CSIDL_PROGRAMS),
+        ("开始菜单", win32shellcon.CSIDL_STARTMENU),
+        ("桌面", win32shellcon.CSIDL_DESKTOPDIRECTORY),
+        ("公共桌面", win32shellcon.CSIDL_COMMON_DESKTOPDIRECTORY),
+    ]
+
     try:
-        lnk_path = Path(
-            os.path.expandvars(
-                r"%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ClassIsland.lnk"
-            )
-        ).resolve()
-
-        if not lnk_path.exists():
-            return None
-
-        # 解析快捷方式
         shell = win32com.client.Dispatch("WScript.Shell")
-        shortcut = shell.CreateShortcut(str(lnk_path))
-        target = shortcut.TargetPath
-
-        return Path(target).resolve()
-
     except Exception as e:
-        logger.error(f"获取 ClassIsland 路径时出错: {e}")
+        logger.error(f"初始化 WScript.Shell 时出错: {e}")
         return None
+
+    for label, csidl in folders:
+        lnk_path = Path(win32shell.SHGetFolderPath(0, csidl, 0, 0)) / "ClassIsland.lnk"
+        if not lnk_path.exists():
+            continue
+
+        try:
+            # 解析快捷方式
+            target = Path(shell.CreateShortcut(str(lnk_path)).TargetPath).resolve()
+        except Exception as e:
+            logger.warning(f"解析 {label} 快捷方式失败 {lnk_path}: {e}")
+            continue
+
+        if target.exists():
+            logger.info(f"通过快捷方式 {lnk_path} 定位到 ClassIsland: {target}")
+            return target
+
+    logger.warning("未能在常用位置找到 ClassIsland")
+    return None
 
 
 def init_exit_signal_handlers() -> None:

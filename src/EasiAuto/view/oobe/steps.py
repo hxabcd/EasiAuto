@@ -28,9 +28,9 @@ from EasiAuto import __version__
 from EasiAuto.automation.utils import resolve_easinote_path
 from EasiAuto.core.utils import (
     create_shortcut,
-    get_ci_executable,
     get_resource,
     get_start_menu_programs,
+    probe_ci_executable,
 )
 from EasiAuto.models.config import LoginMethod, config
 from EasiAuto.view.components import SettingCard, SettingCardType
@@ -297,7 +297,7 @@ class ClassIslandStep(OobeStep):
     def _detect(self) -> None:
         """自动检测 ClassIsland 路径，检测到时写入自动路径模式"""
         if config.ClassIsland.AutoPath:
-            if (path := get_ci_executable()) and path.exists():
+            if (path := probe_ci_executable()) and path.exists():
                 self._detected_path = path
                 self.status_icon.setIcon(FluentIcon.COMPLETED)
                 self._apply_status(f"自动获取: {path}")
