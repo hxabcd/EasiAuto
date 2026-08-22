@@ -44,6 +44,30 @@ def get_scale() -> float:
     return screen.devicePixelRatio()
 
 
+def get_main_display_refresh_rate() -> int:
+    """获取主显示器刷新率（Hz），限制在 [30, 240] 内；不可得时回退 60。
+
+    动画帧率应跟随显示器，而不是使用固定值；异常/虚拟显示器可能出现
+    离谱数值，因此做上下限约束。
+    """
+    app = cast(QApplication, QApplication.instance())
+    if not app:
+        return 60
+    screen = app.primaryScreen()
+    if screen is None:
+        return 60
+    try:
+        rate = round(screen.refreshRate())
+    except Exception:
+        return 60
+    return max(30, min(rate, 240))
+
+
+def get_animation_frame_interval() -> int:
+    """按主显示器刷新率计算动画帧间隔（毫秒），下限 1ms"""
+    return max(1, int(1000 / get_main_display_refresh_rate()))
+
+
 def get_screen_size() -> tuple[int, int]:
     """获取屏幕尺寸（逻辑坐标）"""
     app = cast(QApplication, QApplication.instance())

@@ -21,6 +21,7 @@ from qfluentwidgets import (
 
 from EasiAuto.core.utils import get_resource
 from EasiAuto.models.config import config
+from EasiAuto.view.components import PopupStackedWidget
 
 
 class OobeStep(QWidget):
@@ -130,7 +131,7 @@ class OobeWindow(FramelessDialog):
         layout.addLayout(header)
 
         # 步骤内容
-        self.stackedWidget = QStackedWidget()
+        self.stackedWidget = PopupStackedWidget()
         self.stackedWidget.setContentsMargins(36, 0, 36, 0)
         layout.addWidget(self.stackedWidget, 1)
 
@@ -193,6 +194,8 @@ class OobeWindow(FramelessDialog):
 
         供异步提交的步骤（修补、档案校验）在完成后回调。
         """
+        if self.stackedWidget.is_animating:
+            return
         if self.current_index >= len(self.steps) - 1:
             self.accept()
         else:
@@ -218,10 +221,14 @@ class OobeWindow(FramelessDialog):
             self.nextButton.setText("开始使用" if self.current_index == len(self.steps) - 1 else "下一步")
 
     def _prev(self):
+        if self.stackedWidget.is_animating:
+            return
         if self.current_index > 0:
             self._switch_to(self.current_index - 1)
 
     def _next(self):
+        if self.stackedWidget.is_animating:
+            return
         step = self.current_step()
         if self.current_index < len(self.steps) - 1:
             error = step.validate()
@@ -241,7 +248,8 @@ class OobeWindow(FramelessDialog):
 
     def _skip_step(self):
         """跳过当前步骤（不提交）"""
-        self.advance()
+        if not self.stackedWidget.is_animating:
+            self.advance()
 
     def _skip_wizard(self):
         """跳过整个向导，直接进入主界面"""

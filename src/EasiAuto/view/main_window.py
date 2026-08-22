@@ -15,6 +15,7 @@ from qfluentwidgets import (
 
 from EasiAuto.core.utils import get_resource
 from EasiAuto.models.profile import BaseAutomation
+from EasiAuto.view.components import PopupStackedWidget
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
 
 
@@ -24,6 +25,7 @@ class MainWindow(MSFluentWindow):
     def __init__(self):
         logger.debug("初始化界面")
         super().__init__()
+        self._upgrade_page_animation()
         self._init_window()
 
         # 启动页面
@@ -52,6 +54,21 @@ class MainWindow(MSFluentWindow):
         self.addSubInterface(self.automation_page, FluentIcon.AIRPLANE, "自动化")
         self.addSubInterface(self.update_page, FluentIcon.UPDATE, "更新")
         self.addSubInterface(self.about_page, FluentIcon.INFO, "关于", position=NavigationItemPosition.BOTTOM)
+
+    def _upgrade_page_animation(self):
+        """将导航页切换动画替换为高刷新率实现
+
+        MSFluentWindow 内建 StackedWidget 的动画由 QAbstractAnimation 驱动
+        （实测约 53Hz），此处替换其内部 view 为 PopupStackedWidget。
+        """
+        wrapper = self.stackedWidget
+        old_view = wrapper.view
+        new_view = PopupStackedWidget(wrapper)
+        # 新 view 需进入外壳布局（replaceWidget），否则无布局管理，页面会缩成小矩形
+        wrapper.hBoxLayout.replaceWidget(old_view, new_view)
+        wrapper.view = new_view  # type: ignore[reportAttributeAccessIssue]  # 刻意替换为兼容实现
+        new_view.currentChanged.connect(wrapper.currentChanged)
+        old_view.deleteLater()
 
     def _init_window(self):
         self.setObjectName("MainWindow")

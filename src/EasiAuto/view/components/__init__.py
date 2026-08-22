@@ -1,6 +1,7 @@
 from .announcement_card import AnnouncementCard
 from .auth_verification import UserAuthVerificationThread
 from .patch import PatchThread, patch_error_message
+from .popup_stacked_widget import PopupStackedWidget
 from .pre_run_popup import DialogResponse, PreRunPopup
 from .privacy_mask import PrivacyMask
 from .setting_card import CardType as SettingCardType
@@ -13,6 +14,7 @@ __all__ = [
     "DialogResponse",
     "PatchThread",
     "PreRunPopup",
+    "PopupStackedWidget",
     "PrivacyMask",
     "ExpandSelectorSettingCard",
     "SettingCard",
