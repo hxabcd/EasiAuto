@@ -80,9 +80,14 @@ def _is_newtonsoft_patched(dll_path: Path) -> bool:
 
 
 def _is_account_patched(dll_path: Path) -> bool:
+    """检测 EasiNote.Account.dll 是否已修补。
+
+    当前补丁在 TokenFactory.Build 中注入 SeewoPipeBridge.StartBridge 调用，
+    因此 DLL 中必然出现 SeewoPipeBridge 与 StartBridge 两个标记。
+    """
     try:
         data = dll_path.read_bytes()
-        return b"IsTokenLoggedByProcess" in data and b"StartBridge" in data
+        return b"SeewoPipeBridge" in data and b"StartBridge" in data
     except OSError:
         return False
 
