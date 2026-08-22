@@ -7,15 +7,18 @@ from loguru import logger
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QFileDialog, QVBoxLayout
+from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
+    CardWidget,
     FluentIcon,
+    IconWidget,
     ImageLabel,
     InfoBar,
     InfoBarPosition,
     PushSettingCard,
+    StrongBodyLabel,
     Theme,
     TitleLabel,
     setTheme,
@@ -32,7 +35,7 @@ from EasiAuto.core.utils import (
 from EasiAuto.models.config import LoginMethod, config
 from EasiAuto.view.components import SettingCard, SettingCardType
 from EasiAuto.view.components.setting_card import ExpandSelectorSettingCard
-from EasiAuto.view.oobe.oobe_window import OobeStep
+from EasiAuto.view.oobe.oobe_window import OobeStep, OobeWindow
 
 
 class WelcomeStep(OobeStep):
@@ -361,6 +364,38 @@ class ClassIslandStep(OobeStep):
         self.set_next_enabled(True)
 
 
+class FinishNavCard(CardWidget):
+    """OOBE 结束页导航卡片：图标 + 标题 + 描述 + 链接图标"""
+
+    def __init__(self, icon, title: str, content: str, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(86)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(18, 12, 18, 12)
+        layout.setSpacing(14)
+
+        self.icon_widget = IconWidget(icon, self)
+        self.icon_widget.setFixedSize(24, 24)
+
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(2)
+        text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.title_label = StrongBodyLabel(title, self)
+        self.content_label = BodyLabel(content, self)
+        self.content_label.setWordWrap(True)
+        text_layout.addWidget(self.title_label)
+        text_layout.addWidget(self.content_label)
+
+        self.link_icon = IconWidget(FluentIcon.LINK.colored(QColor("#878787"), QColor("#b5b5b5")), self)
+        self.link_icon.setFixedSize(16, 16)
+
+        layout.addWidget(self.icon_widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addLayout(text_layout, 1)
+        layout.addWidget(self.link_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+
+
 class FinishStep(OobeStep):
     title = "一切就绪！"
 
@@ -368,9 +403,33 @@ class FinishStep(OobeStep):
         super().__init__(parent)
         self.layout_instance = QVBoxLayout(self)
         self.layout_instance.setContentsMargins(0, 8, 0, 0)
-        self.layout_instance.setSpacing(6)
+        self.layout_instance.setSpacing(10)
 
         self.title_label = BodyLabel("接下来：")
-
         self.layout_instance.addWidget(self.title_label)
+
+        self.settings_card = FinishNavCard(
+            FluentIcon.SETTING,
+            "编辑设置",
+            "调整更多功能与选项。",
+            self,
+        )
+        self.profile_card = FinishNavCard(
+            FluentIcon.DOCUMENT,
+            "编辑档案",
+            "管理用于登录的希沃账号。",
+            self,
+        )
+        self.settings_card.clicked.connect(lambda: self._open_page(OobeWindow.NAV_CONFIG))
+        self.profile_card.clicked.connect(lambda: self._open_page(OobeWindow.NAV_PROFILE))
+
+        self.layout_instance.addWidget(self.settings_card)
+        self.layout_instance.addWidget(self.profile_card)
+
         self.layout_instance.addStretch(1)
+
+    def _open_page(self, target: str) -> None:
+        """关闭向导并请求主界面直达指定页面"""
+        window = cast("OobeWindow", self.window())
+        window.navigate_to = target
+        window.accept()

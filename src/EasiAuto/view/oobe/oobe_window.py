@@ -67,9 +67,14 @@ class OobeStep(QWidget):
 class OobeWindow(FramelessDialog):
     """首次运行设置向导窗口"""
 
+    # 主界面导航页面的 objectName，作为完成后的直达目标
+    NAV_CONFIG = "ConfigPage"
+    NAV_PROFILE = "ProfilePage"
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self.navigate_to: str | None = None  # 完成后的直达目标（主界面页面 objectName）
         self.setResizeEnabled(False)
         self.titleBar.closeBtn.hide()
         # self.setTitleBar(SplitTitleBar(self))

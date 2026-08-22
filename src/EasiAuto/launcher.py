@@ -125,7 +125,7 @@ class Launcher:
 
         return False
 
-    def _show_settings_window(self) -> None:
+    def _show_settings_window(self, navigate_to: str | None = None) -> None:
         if self.main_window is None:
             self.main_window = MainWindow()
             self.main_window.runAutomation.connect(self._handle_login_request_from_ui)
@@ -133,6 +133,10 @@ class Launcher:
         self.main_window.show()
         self.main_window.raise_()
         self.main_window.activateWindow()
+
+        # 直达 OOBE 结束时选中的导航页面（按 objectName 查找）
+        if navigate_to and not self.main_window.switch_to_interface(navigate_to):
+            logger.warning("未找到 OOBE 请求的导航页面: %s", navigate_to)
 
     def _handle_login_request_from_ui(self, automation: BaseAutomation) -> None:
         """响应从 UI 发送的自动登录执行请求"""
@@ -412,20 +416,25 @@ class Launcher:
 
     def cmd_settings(self, _) -> None:
         """settings 子命令 - 打开设置界面"""
-        if not config.Internal.IsOobeCompleted:
-            self._run_oobe()
+        navigate_to = self._run_oobe() if not config.Internal.IsOobeCompleted else None
 
-        self._show_settings_window()
+        self._show_settings_window(navigate_to)
 
         if not self._ipc_context:
             stop(get_app().exec())
 
-    def _run_oobe(self) -> None:
-        """首次运行时启动设置向导"""
+    def _run_oobe(self) -> str | None:
+        """首次运行时启动设置向导
+
+        Returns:
+            向导结束后主界面应直达的页面 objectName，未指定则为 None
+        """
         from EasiAuto.view.oobe import OobeWindow
 
         logger.info("首次运行，启动设置向导")
-        OobeWindow().exec()
+        window = OobeWindow()
+        window.exec()
+        return window.navigate_to
 
     def cmd_oobe(self, _) -> None:
         """oobe 子命令 - 重新运行首次设置向导"""

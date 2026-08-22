@@ -92,6 +92,15 @@ class MainWindow(MSFluentWindow):
         self.profile_page.manager_page.scroll_to_automation(automation_id)
         self.switchTo(self.profile_page)
 
+    def switch_to_interface(self, object_name: str) -> bool:
+        """按 objectName 切换到导航页面，找不到返回 False"""
+        for i in range(self.stackedWidget.count()):
+            page = self.stackedWidget.widget(i)
+            if page is not None and page.objectName() == object_name:
+                self.switchTo(page)
+                return True
+        return False
+
     def closeEvent(self, e):
         self.themeListener.terminate()  # 停止监听器线程
         super().closeEvent(e)

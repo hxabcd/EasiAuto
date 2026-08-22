@@ -296,10 +296,16 @@ class ConfigPage(QWidget):
 
     def reopen_oobe(self):
         """重新运行首次设置向导（调试用）"""
+        from EasiAuto.view.main_window import MainWindow
         from EasiAuto.view.oobe import OobeWindow
 
         config.Internal.IsOobeCompleted = False
-        OobeWindow(self.window()).exec()
+        window = OobeWindow(self.window())
+        window.exec()
+
+        # 结束页卡片请求直达页面（按 objectName 查找）
+        if window.navigate_to:
+            cast(MainWindow, self.window()).switch_to_interface(window.navigate_to)
 
     def add_resetter(self, parent: ExpandGroupSettingCard, path: str, display_name: str = "设置"):
         reset_card = PushSettingCard(
