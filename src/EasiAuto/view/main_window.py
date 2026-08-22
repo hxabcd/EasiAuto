@@ -1,7 +1,10 @@
+import time
+
 from loguru import logger
 
 from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentIcon,
     MSFluentWindow,
@@ -33,6 +36,12 @@ class MainWindow(MSFluentWindow):
         self.splashScreen.setIconSize(QSize(102, 102))
         logger.debug("显示启动页面")
         self.show()
+
+        # 事件循环尚未启动：手动泵出首帧，让启动画面在构建期间保持可见
+        deadline = time.monotonic() + 0.1
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            time.sleep(0.005)
 
         self.config_page = ConfigPage()
         self.automation_page = AutomationPage()
