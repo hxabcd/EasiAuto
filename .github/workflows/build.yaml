@@ -53,6 +53,8 @@ jobs:
         run: uv sync
 
       - name: Build and Zip
+        env:
+          PYTHONIOENCODING: utf-8
         run: uv run python tools/build.py --type ${{ matrix.build_type }}
 
       - name: Upload Artifacts

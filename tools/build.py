@@ -74,25 +74,42 @@ def run_pyinstaller(build_type: Literal["full", "lite"]):
     print(f"Copying resources to {dest_resources}...")
     shutil.copytree(RESOURCES, dest_resources)
 
-    # 复制 vendors 目录 (FULL)
-    if build_type == "full":
-        vendors_dir = ROOT / "vendors"
+    # 复制 vendors 目录 (FULL/LITE 均包含 DllPatcher 等组件)
+    vendors_dir = ROOT / "vendors"
 
-        # DllPatcher 编译产物先放入 vendors，再随 vendors 整体复制
-        dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net8.0"
-        if dllpatcher_dir.exists():
-            dest_patcher = vendors_dir / "DllPatcher"
-            if dest_patcher.exists():
-                shutil.rmtree(dest_patcher)
-            print(f"Copying DllPatcher to {dest_patcher}...")
-            shutil.copytree(dllpatcher_dir, dest_patcher)
+    # DllPatcher 编译产物先放入 vendors，再随 vendors 整体复制
+    dllpatcher_proj = ROOT / "tools/DllPatcher/DllPatcher.csproj"
+    dllpatcher_dir = ROOT / "tools/DllPatcher/bin/Release/net8.0"
+    if not dllpatcher_dir.exists():
+        # 未预编译时自动编译，避免发行版静默缺失 DllPatcher
+        print("DllPatcher 未编译，正在自动编译...")
+        try:
+            subprocess.run(
+                ["dotnet", "build", "-c", "Release", str(dllpatcher_proj)],
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"DllPatcher 编译失败: {e}", file=sys.stderr)
+            sys.exit(1)
+    if dllpatcher_dir.exists():
+        dest_patcher = vendors_dir / "DllPatcher"
+        if dest_patcher.exists():
+            shutil.rmtree(dest_patcher)
+        print(f"Copying DllPatcher to {dest_patcher}...")
+        shutil.copytree(dllpatcher_dir, dest_patcher)
 
-        if vendors_dir.exists():
-            dest_vendors = dist_path / "vendors"
-            if dest_vendors.exists():
-                shutil.rmtree(dest_vendors)
-            print(f"Copying vendors to {dest_vendors}...")
-            shutil.copytree(vendors_dir, dest_vendors)
+    if vendors_dir.exists():
+        dest_vendors = dist_path / "vendors"
+        if dest_vendors.exists():
+            shutil.rmtree(dest_vendors)
+        print(f"Copying vendors to {dest_vendors}...")
+        shutil.copytree(vendors_dir, dest_vendors)
+        # LITE 无 numpy，cv2.pyd 无法运行，不携带
+        if build_type == "lite":
+            lite_cv2 = dest_vendors / "cv2.pyd"
+            if lite_cv2.exists():
+                print(f"Removing cv2.pyd from LITE: {lite_cv2}")
+                lite_cv2.unlink()
 
     # 删除冗余/不需要的 DLL
     redundant_patterns = [
