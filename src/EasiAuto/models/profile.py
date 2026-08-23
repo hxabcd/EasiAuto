@@ -24,7 +24,7 @@ from EasiAuto.consts import EA_PREFIX, PROFILE_PATH
 from EasiAuto.core.security import get_profile_cipher
 from EasiAuto.models.config import config
 
-_PROFILE_SCHEMA_VERSION = 4
+_PROFILE_SCHEMA_VERSION = 3
 _SECRET_TOKEN_PREFIX = "ea$"
 
 ProfileChangeReason = Literal[
@@ -197,16 +197,6 @@ class Profile(BaseModel):
                     raw["automations"][i]["type"] = "password"
                     raw["automations"][i]["password"] = raw["automations"][i]["password"].replace("ea2$", "ea$", 1)
                 raw["schema_version"] = 3
-
-                upgraded = cls(**raw)
-                upgraded.save()
-                return upgraded
-            if schema_version < 4:
-                logger.warning("从 v3 档案升级到 v4: 移除已废弃的二维码登录档案")
-                raw["automations"] = [
-                    a for a in raw.get("automations", []) if a.get("type") != "qrcode"
-                ]
-                raw["schema_version"] = 4
 
                 upgraded = cls(**raw)
                 upgraded.save()
