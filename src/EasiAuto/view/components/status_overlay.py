@@ -319,9 +319,16 @@ class SmallStatusOverlay(StatusOverlayBase):
 
 if __name__ == "__main__":
     from PySide6.QtWidgets import QApplication
+    from qfluentwidgets import Theme, setTheme, setThemeColor
 
-    app = QApplication([])
+    app = QApplication(sys.argv)
+
+    setTheme(Theme.DARK)
+    setThemeColor("#00C884")
     overlay = StatusOverlay()
+    overlay.logo.setImage("d:/MyPC/Dev/Projects/EasiAuto/resources/icons/EasiAuto.ico")
+    overlay.logo.setFixedSize(32, 32)
+    overlay.logo.setScaledContents(True)
     overlay.show()
     overlay.stop_clicked.connect(app.exit)
     sys.exit(app.exec())

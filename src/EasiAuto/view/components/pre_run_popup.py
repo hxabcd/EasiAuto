@@ -145,3 +145,27 @@ class PreRunPopup(Dialog):
     def mouseReleaseEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = False
+
+
+if __name__ == "__main__":
+    import sys
+
+    from PySide6.QtWidgets import QApplication
+    from qfluentwidgets import Theme, setTheme, setThemeColor
+
+    app = QApplication(sys.argv)
+
+    setTheme(Theme.DARK)
+    setThemeColor("#00C884")
+
+    popup = PreRunPopup()
+    popup.set_account_name("Miku")
+    popup.iconLabel.setImage("d:/MyPC/Dev/Projects/EasiAuto/resources/icons/EasiAuto.ico")
+    popup.iconLabel.setScaledContents(True)
+    popup.iconLabel.setFixedSize(50, 50)
+    popup.contentLabel.setText(
+        "<span style='color: transparent;'>占位文本</span>"
+        + "将在 <span style='font-size: 20px; font-weight: 600; font-family: monospace;'>39</span> 秒后登录"
+        + "<b>「Miku」</b>"
+    )
+    popup.exec()
