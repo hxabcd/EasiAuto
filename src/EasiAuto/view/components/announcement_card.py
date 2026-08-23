@@ -2,85 +2,115 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
-from qfluentwidgets import InfoBar, InfoBarIcon, InfoBarPosition, PushButton, TextWrap
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    BodyLabel,
+    CardWidget,
+    FluentIcon,
+    HyperlinkButton,
+    InfoBarIcon,
+    StrongBodyLabel,
+    TransparentToolButton,
+    drawIcon,
+    isDarkTheme,
+)
 
 from EasiAuto.services.announcement_service import Announcement
 from EasiAuto.view.helpers import set_tooltip
 
 
-class AnnouncementCard(InfoBar):
-    def __init__(self, announcement: Announcement, on_close: Callable[[str], None], parent: QWidget | None = None):
+class SeverityIcon(QWidget):
+    """InfoBarIcon 圆形按严重性着色，保留白色字形"""
+
+    def __init__(self, icon: InfoBarIcon, accent: str, parent=None):
+        super().__init__(parent)
+        self.icon = icon
+        self.accent = accent
+        self.setFixedSize(18, 18)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+        # 只给第 0 个 path（圆形）上色，字形保持白色（同 InfoBar 的 InfoIconWidget）
+        drawIcon(self.icon, painter, QRectF(self.rect()), indexes=[0], fill=QColor(self.accent).name())
+
+
+class AnnouncementCard(CardWidget):
+    """设置页公告卡片（Fluent 风格）"""
+
+    def __init__(self, announcement: Announcement, on_close: Callable[[str], None], parent=None):
+        super().__init__(parent)
         self.announcement = announcement
         self._on_close = on_close
 
-        super().__init__(
-            icon=self._resolve_icon(announcement.severity),
-            title=announcement.title,
-            content=announcement.content,
-            orient=Qt.Orientation.Vertical,
-            isClosable=True,
-            position=InfoBarPosition.NONE,
-            duration=-1,
-            parent=parent,
+        self.setObjectName(f"AnnouncementCard_{announcement.id}")
+        self.setBorderRadius(8)
+
+        # 严重性背景着色（同 InfoBar 原版）
+        self._light_bg, self._dark_bg = self._resolve_background(announcement.severity)
+        self.setBackgroundColor(self._normalBackgroundColor())
+
+        # 左侧严重性图标（圆形着色，与标题对齐）
+        self.icon_label = SeverityIcon(
+            self._resolve_icon(announcement.severity),
+            self._resolve_accent_color(announcement.severity),
+            self,
         )
 
-        self.setObjectName(f"AnnouncementCard_{announcement.id}")
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumWidth(0)
-        self.closedSignal.connect(self._handle_close)
+        # 标题 + 正文
+        self.title_label = StrongBodyLabel(announcement.title, self)
+        self.content_label = BodyLabel(announcement.content, self)
+        self.content_label.setWordWrap(True)
 
-        light_bg, dark_bg = self._resolve_background(announcement.severity)
-        if light_bg and dark_bg:
-            self.setCustomBackgroundColor(light_bg, dark_bg)
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(2)
+        text_layout.addWidget(self.title_label)
+        text_layout.addWidget(self.content_label)
 
-        self.hBoxLayout.setSizeConstraint(self.hBoxLayout.SizeConstraint.SetDefaultConstraint)
-        self.hBoxLayout.setStretch(1, 1)
-        self.hBoxLayout.setContentsMargins(6, 3, 6, 3)
-        self.hBoxLayout.setSpacing(3)
-
-        self.titleLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.contentLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.titleLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.contentLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-
-        set_tooltip(self.closeButton, "忽略此公告")
-
+        # 查看详情
+        self.link_button: HyperlinkButton | None = None
         if announcement.link:
-            detail_button = PushButton("查看详情", self)
-            detail_button.clicked.connect(self._open_link)
-            set_tooltip(detail_button, announcement.link)
-            self.widgetLayout.addSpacing(2)
-            self.widgetLayout.addWidget(detail_button, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            self.hBoxLayout.setContentsMargins(6, 3, 6, 0)
+            self.link_button = HyperlinkButton(FluentIcon.LINK, announcement.link, "详情", self)
+            set_tooltip(self.link_button, announcement.link)
 
-    def _adjustText(self):
-        w = 900 if not self.parent() else (self.parent().width())  # type: ignore
+        # 忽略公告
+        self.close_button = TransparentToolButton(FluentIcon.CLOSE, self)
+        self.close_button.clicked.connect(self._handle_close)
+        set_tooltip(self.close_button, "忽略此公告")
 
-        # adjust title
-        chars = int(max(min(w / 10, 120), 30))
-        self.titleLabel.setText(TextWrap.wrap(self.title, chars, False)[0])
+        # 统一两个操作按钮的高度，保证内容垂直对齐
+        height = self.close_button.sizeHint().height()
+        if self.link_button:
+            height = max(height, self.link_button.sizeHint().height())
+            self.link_button.setFixedHeight(height)
+        self.close_button.setFixedHeight(height)
 
-        # adjust content
-        chars = int(max(min(w / 9, 120), 30))
-        self.contentLabel.setText(TextWrap.wrap(self.content, chars, False)[0])
-
-    def _limit_content_lines(self, max_lines: int) -> None:
-        self.contentLabel.setMaximumHeight(self._line_limit_height(self.contentLabel, max_lines))
-
-    @staticmethod
-    def _line_limit_height(label: QLabel, max_lines: int) -> int:
-        metrics = label.fontMetrics()
-        return metrics.lineSpacing() * max_lines + 2
-
-    def _open_link(self) -> None:
-        if self.announcement.link:
-            QDesktopServices.openUrl(QUrl(self.announcement.link))
+        # 水平布局：图标 | 文字 | 操作
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 12, 12, 12)
+        layout.setSpacing(12)
+        layout.addWidget(self.icon_label, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(text_layout, 1)
+        if self.link_button:
+            layout.addWidget(self.link_button, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self.close_button, 0, Qt.AlignmentFlag.AlignTop)
 
     def _handle_close(self) -> None:
         self._on_close(self.announcement.id)
+
+    def _normalBackgroundColor(self):
+        if getattr(self, "_light_bg", None) is None:
+            return super()._normalBackgroundColor()
+        return QColor(self._dark_bg if isDarkTheme() else self._light_bg)
+
+    def _hoverBackgroundColor(self):
+        return self._normalBackgroundColor() if getattr(self, "_light_bg", None) else super()._hoverBackgroundColor()
+
+    def _pressedBackgroundColor(self):
+        return self._normalBackgroundColor() if getattr(self, "_light_bg", None) else super()._pressedBackgroundColor()
 
     @staticmethod
     def _resolve_icon(severity: str) -> InfoBarIcon:
