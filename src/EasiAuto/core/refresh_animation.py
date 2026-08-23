@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from contextlib import suppress
 
+from shiboken6 import isValid
+
 from PySide6.QtCore import (
     Property,
     QAbstractAnimation,
@@ -163,6 +165,10 @@ class RefreshDrivenAnimation(QObject):
     def easingCurve(self) -> QEasingCurve:
         return self._easing
 
+    def _target_alive(self) -> bool:
+        """目标对象及其 C++ 实例是否仍然有效"""
+        return self._target is None or isValid(self._target)
+
     def start(self) -> None:
         """启动动画
 
@@ -183,7 +189,7 @@ class RefreshDrivenAnimation(QObject):
     def value(self):
         """读取目标当前值（配合 ProperObject 与 FluentAnimation 使用）"""
         target = self._target
-        if target is None:
+        if target is None or not isValid(target):
             return self._current
         getter = getattr(target, "getValue", None)
         if callable(getter):
@@ -207,7 +213,7 @@ class RefreshDrivenAnimation(QObject):
         self.valueChanged.emit(value)
 
     def _set_target_property(self, value) -> None:
-        if self._target is None or not self._property_name:
+        if self._target is None or not self._property_name or not isValid(self._target):
             return
         try:
             self._target.setProperty(self._property_name, value)
@@ -216,6 +222,11 @@ class RefreshDrivenAnimation(QObject):
             self._target.setProperty(self._property_name, int(round(value)))
 
     def _tick(self) -> None:
+        if not self._target_alive():
+            # 目标已销毁（如控件关闭时移除透明度效果），停止动画并收尾
+            self._timer.stop()
+            self.finished.emit()
+            return
         progress = min(self._elapsed.elapsed() / self._duration, 1.0)
         self._evaluate(self._easing.valueForProgress(progress))
         if progress >= 1.0:
