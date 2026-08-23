@@ -101,8 +101,8 @@ class ThemeStep(OobeStep):
         desc.setWordWrap(True)
 
         self.theme_card = SettingCard.from_config_item(config.get_item("App.Theme"), parent=self)
-        self.theme_card = cast(ExpandSelectorSettingCard, self.theme_card)
-        self.theme_card.setAlwaysExpand(True)
+        # self.theme_card = cast(ExpandSelectorSettingCard, self.theme_card)
+        # self.theme_card.setAlwaysExpand(True)
         self.theme_card.valueChanged.connect(lambda t: setTheme(Theme(t.value)))
 
         layout.addWidget(desc)

@@ -516,7 +516,7 @@ class AppConfig(ConfigModel):
         default=ThemeOptions.AUTO,
         title="应用主题",
         description="控制应用的明暗主题",
-        json_schema_extra={"icon": "Constract", "style": "expand_selector"},
+        json_schema_extra={"icon": "Constract"},
     )
     LogEnabled: bool = Field(
         default=True,
