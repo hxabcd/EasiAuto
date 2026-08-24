@@ -43,7 +43,7 @@ from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, DownloadSource, UpdateMode, config
 from EasiAuto.services.toast_service import ToastNotifier
 from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_service
-from EasiAuto.view.components import SettingCard
+from EasiAuto.view.components import SettingCard, TagLabel
 from EasiAuto.view.helpers import get_app, get_main_container, get_main_window, set_tooltip
 
 
@@ -51,16 +51,17 @@ class HighlightedChangeLogCard(CardWidget):
     def __init__(self, name: str, description: str):
         super().__init__()
 
-        self.setFixedSize(256, 120)
+        self.setFixedWidth(256)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 8, 16, 8)
+        layout.setContentsMargins(16, 12, 16, 12)
 
-        name_label = SubtitleLabel(name)  # ! 最多 11 个字
-        changelog_label = BodyLabel(description)  # ! 最多 16*3 个字
+        name_label = SubtitleLabel(name)
+        changelog_label = BodyLabel(description)
         name_label.setWordWrap(True)
         changelog_label.setWordWrap(True)
 
         layout.addWidget(name_label)
+        layout.addSpacing(6)
         layout.addWidget(changelog_label)
 
 
@@ -96,8 +97,11 @@ class UpdateContentView(QWidget):
 
         scroll_layout = QVBoxLayout(container)
 
-        self.description_label = BodyLabel()
-        self.description_label.setWordWrap(True)
+        self.description_container = QWidget()
+        self.description_layout = QVBoxLayout(self.description_container)
+        self.description_layout.setContentsMargins(0, 0, 0, 0)
+        self.description_layout.setSpacing(4)
+        self._description_rows: list[QWidget] = []
 
         self.highlights_title = SubtitleLabel("✨ 亮点")
         self.highlights_layout = FlowLayout()
@@ -110,7 +114,7 @@ class UpdateContentView(QWidget):
         self.placeholder_label.setWordWrap(True)
 
         scroll_layout.addWidget(self.placeholder_label)
-        scroll_layout.addWidget(self.description_label)
+        scroll_layout.addWidget(self.description_container)
         scroll_layout.addSpacing(10)
         scroll_layout.addWidget(self.highlights_title)
         scroll_layout.addLayout(self.highlights_layout)
@@ -182,9 +186,39 @@ class UpdateContentView(QWidget):
 
         return scroll_area
 
+    def _clear_description_rows(self):
+        """清空描述区（每行为版本 TagLabel + 描述 BodyLabel）"""
+        for row in self._description_rows:
+            row.deleteLater()
+        self._description_rows.clear()
+
+    def _build_description_row(self, line: str) -> QWidget | None:
+        """把一行 "[版本] 描述" 渲染为版本 TagLabel + 描述 BodyLabel，空行返回 None"""
+        line = line.strip()
+        if not line:
+            return None
+
+        version, text = None, line
+        if line.startswith("[") and "]" in line:
+            end = line.find("]")
+            if candidate := line[1:end].strip():
+                version, text = candidate, line[end + 1 :].strip()
+
+        row = QWidget()
+        h_layout = QHBoxLayout(row)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(8)
+        if version:
+            h_layout.addWidget(TagLabel(version), 0, Qt.AlignmentFlag.AlignTop)
+        if text:
+            label = BodyLabel(text)
+            label.setWordWrap(True)
+            h_layout.addWidget(label, 1)
+        return row
+
     def set_change_log(self, change_log: ChangeLog | None):
         """允许初始化后传入/更新 changelog"""
-        self.description_label.setText("")
+        self._clear_description_rows()
         self.highlights_layout.takeAllWidgets()
         while self.others_layout.count():
             w = self.others_layout.takeAt(0).widget()  # type: ignore
@@ -192,7 +226,7 @@ class UpdateContentView(QWidget):
                 w.deleteLater()
 
         self.placeholder_label.setVisible(not bool(change_log))
-        self.description_label.setVisible(bool(getattr(change_log, "description", None)))
+        self.description_container.setVisible(bool(getattr(change_log, "description", None)))
         self.highlights_title.setVisible(bool(getattr(change_log, "highlights", None)))
         self.others_title.setVisible(bool(getattr(change_log, "others", None)))
 
@@ -200,7 +234,10 @@ class UpdateContentView(QWidget):
             return
 
         try:
-            self.description_label.setText(change_log.description)
+            for line in change_log.description.splitlines():
+                if row := self._build_description_row(line):
+                    self.description_layout.addWidget(row)
+                    self._description_rows.append(row)
 
             for item in change_log.highlights:
                 card = HighlightedChangeLogCard(item["name"], item["description"])
@@ -212,6 +249,8 @@ class UpdateContentView(QWidget):
                 self.others_layout.addWidget(label)
         except Exception as e:
             logger.warning(f"显示更新日志时发生错误: {e}")
+            self._clear_description_rows()
+            self.description_container.setVisible(False)
             self.placeholder_label.setVisible(True)
             self.highlights_title.setVisible(False)
             self.others_title.setVisible(False)

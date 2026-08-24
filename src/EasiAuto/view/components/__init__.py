@@ -7,6 +7,7 @@ from .privacy_mask import PrivacyMask
 from .setting_card import CardType as SettingCardType
 from .setting_card import ExpandSelectorSettingCard, SettingCard
 from .status_overlay import SmallStatusOverlay, StatusOverlay, StatusOverlayBase
+from .tag import PrimaryTagLabel, TagLabel
 from .warning_banner import WarningBanner
 
 __all__ = [
@@ -25,4 +26,6 @@ __all__ = [
     "UserAuthVerificationThread",
     "WarningBanner",
     "patch_error_message",
+    "TagLabel",
+    "PrimaryTagLabel",
 ]
