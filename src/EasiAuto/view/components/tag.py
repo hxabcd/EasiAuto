@@ -1,3 +1,4 @@
+from PySide6.QtGui import QFont
 from qfluentwidgets import (
     FluentLabelBase,
     FluentStyleSheet,
@@ -35,8 +36,14 @@ class TagLabel(FluentLabelBase):
         "}"
     )
 
+    is_bold = False
+
     def getFont(self):
-        return getFont(12)
+        return getFont(12, QFont.Weight.Bold if self.is_bold else QFont.Weight.Normal)
+
+    def setBold(self, on: bool):
+        self.is_bold = on
+        self.setFont(self.getFont())
 
     def _init(self):
         FluentStyleSheet.LABEL.apply(self)
@@ -51,7 +58,7 @@ class TagLabel(FluentLabelBase):
 
 
 class PrimaryTagLabel(TagLabel):
-    """带主题色的标签组件（使用 EasiAuto 品牌主题色）"""
+    """带主题色的标签组件"""
 
     lightQss = (
         "FluentLabelBase{"

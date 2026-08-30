@@ -1,6 +1,6 @@
 from loguru import logger
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -12,11 +12,12 @@ from qfluentwidgets import (
     AvatarWidget,
     BodyLabel,
     CaptionLabel,
-    CardWidget,
     ExpandGroupSettingCard,
     FluentIcon,
+    HorizontalSeparator,
     HyperlinkCard,
     ImageLabel,
+    SimpleCardWidget,
     SmoothScrollArea,
     SubtitleLabel,
     TitleLabel,
@@ -24,8 +25,47 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.consts import IS_FULL
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.utils import get_resource, get_third_party_libs
+from EasiAuto.view.components.tag import PrimaryTagLabel, TagLabel
 from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
+
+_GITHUB_URL = "https://github.com/hxabcd/EasiAuto"
+
+_AUTHOR_LINKS = (
+    (FluentIcon.GLOBE, "个人网站", "0xabcd.dev"),
+    (FluentIcon.HOME_FILL, "哔哩哔哩主页", "space.bilibili.com/401002238"),
+    (FluentIcon.GITHUB, "GitHub 主页", "github.com/hxabcd"),
+)
+
+_ACKNOWLEDGEMENTS = (
+    "智教联盟 对本项目的宣传",
+    "Class-Widget 对本项目代码提供参考",
+    "ClassIsland 「自动化」 对本项目提供载体",
+    "我的初中英语老师 为本项目提供动机",
+)
+
+# 横幅图片最大宽度
+_BANNER_MAX_WIDTH = 720
+
+
+class _BannerImageLabel(ImageLabel):
+    """横幅图片：不固定宽度，最大 720px，按宽高比随可用宽度缩放"""
+
+    _banner_ratio = 1.0
+
+    def setImage(self, image=None):
+        super().setImage(image)
+        # 从真实图片尺寸计算宽高比，避免被布局收缩后的控件尺寸误导
+        pm = self.pixmap()
+        if pm.width() > 0:
+            self._banner_ratio = pm.height() / pm.width()
+
+    def resizeToWidth(self, width: int):
+        """按指定宽度缩放（受最大宽度限制），保持宽高比"""
+        width = min(width, _BANNER_MAX_WIDTH)
+        if width <= 0:
+            return
+        self.setScaledSize(QSize(width, round(width * self._banner_ratio)))
 
 
 class AboutPage(QWidget):
@@ -50,113 +90,105 @@ class AboutPage(QWidget):
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         QScroller.grabGesture(self.scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         layout.addWidget(self.scroll_area)
-
+        # 窗口尺寸变化时重新计算横幅宽度
+        self.scroll_area.installEventFilter(self)
         # 居中容器
         self.scroll_container = QWidget()
         self.scroll_area.setWidget(self.scroll_container)
 
         self.scroll_container_layout = QHBoxLayout(self.scroll_container)
-        self.scroll_container_layout.setContentsMargins(0, 0, 0, 0)
+        # 卡片之外的边距，避免窄窗口下贴边
+        self.scroll_container_layout.setContentsMargins(24, 0, 24, 0)
         self.scroll_container_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         self.content_widget = QWidget()
-        self.content_widget.setMaximumWidth(600)
+        self.content_widget.setMaximumWidth(720)
         self.scroll_container_layout.addWidget(self.content_widget)
 
         # 内容容器
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(0, 0, 0, 20)
-        self.content_layout.setSpacing(28)
+        self.content_layout.setSpacing(20)
 
-        # 产品信息卡片
-        self.banner_container = CardWidget()
+        self.content_layout.addWidget(self._create_banner_section())
+        self.content_layout.addWidget(self._create_author_section())
+        self.content_layout.addStretch(1)
+
+    def eventFilter(self, obj, event):
+        if obj is self.scroll_area and event.type() == QEvent.Type.Resize:
+            self._update_banner_width()
+        return super().eventFilter(obj, event)
+
+    def _update_banner_width(self):
+        """按滚动区可用宽度更新横幅图片宽度（忽略滚动条占位）"""
+        margins = self.scroll_container_layout.contentsMargins()
+        self.banner_image.resizeToWidth(
+            self.scroll_area.width() - margins.left() - margins.right()
+        )
+
+    def _create_banner_section(self) -> SimpleCardWidget:
+        """产品信息卡片（主视觉图、简介、链接、鸣谢）"""
+        self.banner_container = SimpleCardWidget()
         banner_container_layout = QVBoxLayout(self.banner_container)
         banner_container_layout.setContentsMargins(0, 0, 0, 0)
         banner_container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # 主视觉图
         _banner_img_src = QPixmap(get_resource("banner.png"))
-        banner_image = ImageLabel(_banner_img_src)
-        banner_image.setFixedWidth(600)
-        banner_image.scaledToWidth(600)
-        banner_image.setBorderRadius(8, 8, 0, 0)
-        banner_container_layout.addWidget(banner_image)
+        self.banner_image = _BannerImageLabel(_banner_img_src)
+        self.banner_image.setBorderRadius(8, 8, 0, 0)
+        banner_container_layout.addWidget(self.banner_image)
 
         banner_layout = QVBoxLayout()
-        banner_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        banner_layout.setContentsMargins(20, 0, 20, 12)
-        banner_layout.setSpacing(16)
+        banner_layout.setContentsMargins(24, 0, 24, 12)
+        banner_layout.setSpacing(0)
+        banner_layout.addSpacing(10)
 
-        # 应用描述
+        # 标题行（应用名 + 版本）
         title_layout = QHBoxLayout()
-        title_layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        title = TitleLabel("EasiAuto", self)
-        subtitle = SubtitleLabel(f"版本 v{__version__} ({'FULL' if IS_FULL else 'LITE'})", self)
-        title_layout.addWidget(title)
+        title_label = TitleLabel("EasiAuto")
+        version_label = PrimaryTagLabel(f"v{__version__}")
+        version_label.setBold(True)
+        channel_label = TagLabel("完整版" if IS_FULL else "精简版")
+        title_layout.addWidget(title_label)
         title_layout.addSpacing(6)
-        title_layout.addWidget(subtitle)
+        title_layout.addWidget(version_label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        title_layout.addSpacing(4)
+        title_layout.addWidget(channel_label, alignment=Qt.AlignmentFlag.AlignVCenter)
         title_layout.addStretch(1)
 
         banner_layout.addLayout(title_layout)
+        banner_layout.addSpacing(2)
 
-        description_layout = QVBoxLayout()
-        product_text = BodyLabel("一款自动登录希沃白板的小工具")
-        github_link = HyperlinkCard(
-            icon=FluentIcon.GITHUB,
-            title="GitHub 仓库",
-            content="不妨点个 Star 支持一下？  (≧∇≦)ﾉ★",
-            url="https://github.com/hxabcd/EasiAuto",
-            text="查看",
+        # 应用描述与许可
+        banner_layout.addWidget(BodyLabel("一款自动登录希沃白板的小工具"))
+        banner_layout.addSpacing(16)
+
+        license_label = CaptionLabel("本项目基于 GNU General Public License v3.0 (GPLv3) 获得许可")
+        license_label.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
+        banner_layout.addWidget(license_label)
+        banner_layout.addSpacing(8)
+        banner_layout.addWidget(HorizontalSeparator())
+        banner_layout.addSpacing(8)
+
+        # 链接
+        banner_layout.addWidget(
+            self._create_link_card(FluentIcon.GITHUB, "GitHub 仓库", "不妨点个 Star 支持一下？  (≧∇≦)ﾉ★", _GITHUB_URL)
         )
-        additional_info = ExpandGroupSettingCard(
-            icon=FluentIcon.INFO, title="其他信息", content="开源协议、第三方库、鸣谢"
-        )
-        additional_info.viewLayout.setContentsMargins(16, 8, 16, 12)
-        additional_info.viewLayout.setSpacing(6)
-        additional_info.addGroupWidget(BodyLabel("本项自基于 GNU General Public License v3.0 (GPLv3) 获得许可"))
-        additional_info.addGroupWidget(
-            BodyLabel(
-                "\n  - ".join(
-                    [
-                        "本项目使用到的第三方库及项目（仅列出部分）：",
-                        "qfluentwidget",
-                        "PySide6",
-                        "Pydantic",
-                        "pywinauto",
-                        "pyautogui",
-                        "opencv-python",
-                        "loguru",
-                        "sentry-sdk",
-                        "windows11toast",
-                    ]
-                )
-            )
-        )
-        additional_info.addGroupWidget(
-            BodyLabel(
-                "\n  - ".join(
-                    [
-                        "特别感谢：",
-                        "智教联盟 对本项目的宣传",
-                        "Class-Widget 对本项目代码提供参考",
-                        "ClassIsland 「自动化」 对本项目提供载体",
-                        "我的初中英语老师 为本项目提供动机",
-                    ]
-                )
-                + "\n\n    以及——愿意使用 EasiAuto 的你"
-            )
-        )
-        description_layout.addWidget(product_text)
-        description_layout.addWidget(github_link)
-        description_layout.addWidget(additional_info)
-        description_layout.addStretch(1)
-        banner_layout.addLayout(description_layout)
+        banner_layout.addSpacing(4)
+
+        # 鸣谢与第三方库
+        banner_layout.addWidget(self._create_credits_card())
+        banner_layout.addSpacing(4)
+        banner_layout.addWidget(self._create_third_party_card())
+        banner_layout.addStretch(1)
 
         banner_container_layout.addLayout(banner_layout)
-        self.content_layout.addWidget(self.banner_container)
+        return self.banner_container
 
-        # 作者信息卡片
-        self.author_area = CardWidget()
+    def _create_author_section(self) -> SimpleCardWidget:
+        """作者信息卡片（头像、昵称、个人链接）"""
+        self.author_area = SimpleCardWidget()
         author_layout = QVBoxLayout(self.author_area)
         author_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         author_layout.setContentsMargins(24, 16, 24, 16)
@@ -168,10 +200,9 @@ class AboutPage(QWidget):
 
         sub_layout = QVBoxLayout()
         sub_layout.setSpacing(0)
-        author_name = SubtitleLabel("HxAbCd")
+        sub_layout.addWidget(SubtitleLabel("HxAbCd"))
         author_content = CaptionLabel("Just be yourself.  >_<")
         author_content.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
-        sub_layout.addWidget(author_name)
         sub_layout.addWidget(author_content)
 
         author_info_layout.addWidget(author_avatar)
@@ -179,30 +210,41 @@ class AboutPage(QWidget):
         author_info_layout.addLayout(sub_layout)
         author_info_layout.addStretch(1)
 
-        author_link1 = HyperlinkCard(
-            icon=FluentIcon.GLOBE,
-            title="个人网站",
-            url="https://0xabcd.dev",
-            text="访问",
-        )
-        author_link2 = HyperlinkCard(
-            icon=FluentIcon.HOME_FILL,
-            title="哔哩哔哩主页",
-            url="https://space.bilibili.com/401002238",
-            text="访问",
-        )
-        author_link3 = HyperlinkCard(
-            icon=FluentIcon.GITHUB,
-            title="GitHub 主页",
-            url="https://github.com/hxabcd",
-            text="访问",
-        )
-
         author_layout.addLayout(author_info_layout)
         author_layout.addSpacing(4)
-        author_layout.addWidget(author_link1)
-        author_layout.addWidget(author_link2)
-        author_layout.addWidget(author_link3)
+        for icon, title, url in _AUTHOR_LINKS:
+            author_layout.addWidget(self._create_link_card(icon, title, None, f"https://{url}", "访问"))
 
-        self.content_layout.addWidget(self.author_area)
-        self.content_layout.addStretch(1)
+        return self.author_area
+
+    def _create_link_card(
+        self,
+        icon,
+        title: str,
+        content: str | None,
+        url: str,
+        text: str = "访问",
+    ) -> HyperlinkCard:
+        """统一创建外部链接卡片"""
+        return HyperlinkCard(icon=icon, title=title, content=content, url=url, text=text)
+
+    def _create_credits_card(self) -> ExpandGroupSettingCard:
+        """鸣谢展开卡：致谢文本"""
+        credits_card = ExpandGroupSettingCard(icon=FluentIcon.HEART, title="鸣谢", content="特别感谢与支持")
+        credits_card.viewLayout.setContentsMargins(16, 8, 16, 12)
+        credits_card.viewLayout.setSpacing(6)
+        credits_card.addGroupWidget(
+            BodyLabel("\n  - ".join(["特别感谢：", *_ACKNOWLEDGEMENTS]) + "\n\n以及——愿意使用 EasiAuto 的你")
+        )
+        return credits_card
+
+    def _create_third_party_card(self) -> ExpandGroupSettingCard:
+        """第三方库展开卡：运行时自动收集的库及版本"""
+        third_party_text: str = "\n".join([f"- {item}" for item in get_third_party_libs()])
+        third_party_card = ExpandGroupSettingCard(
+            icon=FluentIcon.LIBRARY_FILL, title="第三方库", content="本项目使用到的第三方库"
+        )
+        third_party_card.viewLayout.setContentsMargins(16, 8, 16, 12)
+        third_party_card.viewLayout.setSpacing(6)
+        third_party_card.addGroupWidget(BodyLabel(third_party_text))
+        return third_party_card
