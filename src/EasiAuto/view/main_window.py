@@ -98,7 +98,7 @@ class MainWindow(MSFluentWindow):
         self.automation_page.editClicked.connect(self._on_edit_automation)
 
     def _on_edit_automation(self, automation_id: str):
-        self.profile_page.manager_page.scroll_to_automation(automation_id)
+        self.profile_page.open_automation_editor(automation_id)
         self.switchTo(self.profile_page)
 
     def switch_to_interface(self, object_name: str) -> bool:

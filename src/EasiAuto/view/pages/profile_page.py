@@ -5,30 +5,41 @@ from __future__ import annotations
 from loguru import logger
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidgetItem,
     QScroller,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
     Action,
+    BodyLabel,
+    CaptionLabel,
     CommandBar,
     FluentIcon,
     HorizontalSeparator,
+    IconWidget,
     InfoBar,
     InfoBarPosition,
+    PrimaryPushButton,
+    PushButton,
+    TitleLabel,
     VerticalSeparator,
+    setFont,
 )
 
 from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
+from EasiAuto.models.config import config
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
 from EasiAuto.view.components import ProfileCard, ProfileEditor, ProfileStatusBar
 from EasiAuto.view.components.qfw_widgets import ListWidget
 from EasiAuto.view.helpers import get_main_container
+from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 
 class ProfileManagePage(QWidget):
@@ -249,6 +260,57 @@ class ProfileManagePage(QWidget):
             self.refresh_binding_display()
 
 
+class FirstUseSubpage(QWidget):
+    """档案页 - 首次使用 子页面（保护密码初始化引导）"""
+
+    setupRequested = Signal()  # 用户点击「设置保护密码」
+    dismissed = Signal()  # 用户选择「稍后再说」
+
+    def __init__(self):
+        super().__init__()
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon_container = QHBoxLayout()
+        icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_icon = IconWidget(FluentIcon.VPN)
+        hint_icon.setFixedSize(96, 96)
+        icon_container.addWidget(hint_icon)
+
+        hint_label = TitleLabel("设置密码保护")
+        hint_desc = BodyLabel("设置用于加密登录信息的密码，保护账号隐私安全")
+        setFont(hint_desc, 15)
+        hint_desc2 = CaptionLabel("忘记后将无法找回，请牢记密码")
+        hint_desc2.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(10)
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        setup_button = PrimaryPushButton(icon=FluentIcon.VPN, text="设置保护密码")
+        setup_button.setFixedWidth(150)
+        setup_button.clicked.connect(self.setupRequested.emit)
+
+        dismiss_button = PushButton(icon=FluentIcon.RIGHT_ARROW, text="暂不设置")
+        dismiss_button.setFixedWidth(150)
+        dismiss_button.clicked.connect(self.dismissed.emit)
+
+        actions_layout.addWidget(setup_button)
+        actions_layout.addWidget(dismiss_button)
+
+        layout.addLayout(icon_container)
+        layout.addSpacing(12)
+        layout.addWidget(hint_label)
+        layout.addWidget(hint_desc)
+        layout.addWidget(hint_desc2)
+        layout.addSpacing(18)
+        layout.addLayout(actions_layout)
+
+
 class ProfilePage(QWidget):
     """设置 - 档案页"""
 
@@ -269,6 +331,39 @@ class ProfilePage(QWidget):
         self.manager_page.profileChanged.connect(self.profileChanged.emit)
         self.manager_page.runAutomation.connect(self.runAutomation.emit)
 
+        # 首次使用引导页（保护密码初始化），仅首次打开档案页时展示
+        self.first_use_page = FirstUseSubpage()
+        # TODO: 保护密码功能实现后连接 setupRequested 接入设置流程
+        self.first_use_page.dismissed.connect(self._dismiss_first_use)
+
+        self.main_widget = QStackedWidget()
+        self.main_widget.addWidget(self.first_use_page)
+        self.main_widget.addWidget(self.manager_page)
+
+        self.separator = HorizontalSeparator()
         layout.addWidget(self.status_bar)
-        layout.addWidget(HorizontalSeparator())
-        layout.addWidget(self.manager_page)
+        layout.addWidget(self.separator)
+        layout.addWidget(self.main_widget)
+
+        self._refresh_view()
+
+    def _is_first_use(self) -> bool:
+        """引导未展示过时进入首次使用页"""
+        return not config.Internal.IsProfilePageNoticeShown
+
+    def _refresh_view(self):
+        is_first_use = self._is_first_use()
+        self.main_widget.setCurrentWidget(self.first_use_page if is_first_use else self.manager_page)
+        # 引导页状态栏仅保留左侧标题，隐藏右侧按钮与状态提示
+        self.status_bar.set_compact_mode(is_first_use)
+
+    def _dismiss_first_use(self):
+        """结束首次使用引导，切换到档案管理页"""
+        config.Internal.IsProfilePageNoticeShown = True
+        self._refresh_view()
+
+    def open_automation_editor(self, automation_id: str):
+        """跳过引导并跳转到指定档案编辑（外部导航入口）"""
+        if self._is_first_use():
+            self._dismiss_first_use()
+        self.manager_page.scroll_to_automation(automation_id)

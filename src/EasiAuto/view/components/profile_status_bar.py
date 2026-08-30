@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
+    BodyLabel,
     FluentIcon,
+    IconWidget,
     MessageBoxBase,
     SubtitleLabel,
     TransparentPushButton,
 )
 
 from EasiAuto.models.profile import profile
+from EasiAuto.view.tokens import BRAND, TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 from .setting_card import CardType as SettingCardType
 from .setting_card import SettingCard
@@ -74,8 +78,44 @@ class ProfileStatusBar(QWidget):
         self.option_button.clicked.connect(self._show_advanced_options)
 
         layout.addWidget(SubtitleLabel("档案编辑"))
+
+        # 加密提示：左侧图标，右侧文本，右对齐
+        self.encrypt_hint = QWidget(self)
+        hint_layout = QHBoxLayout(self.encrypt_hint)
+        hint_layout.setContentsMargins(0, 0, 0, 0)
+        hint_layout.setSpacing(4)
+        self.encrypt_icon = IconWidget(FluentIcon.VPN.colored(QColor(BRAND), QColor(BRAND)))
+        self.encrypt_icon.setFixedSize(16, 16)
+        self.encrypt_label = BodyLabel("账号已加密存储在本地")
+        self.encrypt_label.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
+        self.encrypt_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hint_layout.addWidget(self.encrypt_icon)
+        hint_layout.addWidget(self.encrypt_label)
+
+        layout.addSpacing(16)
+        layout.addWidget(self.encrypt_hint, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addStretch(1)
         layout.addWidget(self.option_button)
+
+        profile.notifier.changed.connect(self._on_profile_changed)
+        self._refresh_encryption_hint()
+
+    def _on_profile_changed(self, reason: str):
+        if reason == "encryption_changed":
+            self._refresh_encryption_hint()
+
+    def _refresh_encryption_hint(self):
+        """根据当前加密设置刷新提示可见性"""
+        self.encrypt_hint.setVisible(profile.encryption_enabled)
+
+    def set_compact_mode(self, compact: bool):
+        """精简模式：隐藏右侧高级选项按钮与加密提示，仅保留左侧标题"""
+        if compact:
+            self.encrypt_hint.hide()
+            self.option_button.hide()
+        else:
+            self._refresh_encryption_hint()
+            self.option_button.show()
 
     def _show_advanced_options(self):
         dialog = AdvancedOptionsDialog(self.window())

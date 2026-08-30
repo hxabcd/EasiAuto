@@ -644,6 +644,7 @@ class DebugConfig(ConfigModel):
 
 class InternalConfig(ConfigModel):
     IsOobeCompleted: bool = Field(default=False)
+    IsProfilePageNoticeShown: bool = Field(default=False)
     IsAutomationPageNoticeShown: bool = Field(default=False)
     IsEasiNotePatched: bool = Field(default=False)
     LastUpdateCheckTime: datetime | None = Field(default=None)
