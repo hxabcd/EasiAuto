@@ -9,7 +9,7 @@ from typing import Any, assert_never
 from loguru import logger
 from packaging.version import Version
 
-from PySide6.QtCore import Qt, QThread, QTimer
+from PySide6.QtCore import QLocale, Qt, QThread, QTimer
 
 from EasiAuto import __version__
 from EasiAuto.automation.manager import automation_manager
@@ -591,7 +591,7 @@ class Launcher:
             )
 
             app = QApplication(sys.argv)
-            translator = FluentTranslator()  # 很玄学的问题，必须先存储为变量再传入，否则无法生效
+            translator = FluentTranslator(QLocale(QLocale.Language.Chinese))
             app.installTranslator(translator)
             setTheme(Theme(config.App.Theme.value))
             setThemeColor(BRAND)

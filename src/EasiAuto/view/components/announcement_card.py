@@ -7,10 +7,10 @@ from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
-    CardWidget,
     FluentIcon,
     HyperlinkButton,
     InfoBarIcon,
+    SimpleCardWidget,
     StrongBodyLabel,
     TransparentToolButton,
     drawIcon,
@@ -47,7 +47,7 @@ class SeverityIcon(QWidget):
         drawIcon(self.icon, painter, QRectF(self.rect()), indexes=[0], fill=QColor(self.accent).name())
 
 
-class AnnouncementCard(CardWidget):
+class AnnouncementCard(SimpleCardWidget):
     """设置页公告卡片（Fluent 风格）"""
 
     def __init__(self, announcement: Announcement, on_close: Callable[[str], None], parent=None):

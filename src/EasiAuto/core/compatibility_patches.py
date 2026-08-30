@@ -263,6 +263,6 @@ def apply_all() -> None:
     patch_smooth_scroll_fps()
     patch_expand_card_animation()
     patch_pivot_animation()
-    patch_remaining_animations()
+    # patch_remaining_animations()
     _APPLIED[0] = True
-    logger.debug(f"已应用全部兼容性补丁（平滑滚动 fps={get_main_display_refresh_rate()}，跟随主显示器刷新率）")
+    logger.debug(f"已应用全部兼容性补丁（平滑滚动 fps={get_main_display_refresh_rate()}）")
