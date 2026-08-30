@@ -44,7 +44,7 @@ from EasiAuto.models.config import ConfigGroup, DownloadSource, UpdateMode, conf
 from EasiAuto.services.toast_service import ToastNotifier
 from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_service
 from EasiAuto.view.components import SettingCard, TagLabel
-from EasiAuto.view.helpers import get_app, get_main_container, get_main_window, set_tooltip
+from EasiAuto.view.helpers import get_app, get_main_container, get_main_window, set_tooltip, wrap_centered
 
 
 class HighlightedChangeLogCard(CardWidget):
@@ -69,7 +69,8 @@ class UpdateContentView(QWidget):
     def __init__(self, change_log: ChangeLog | None = None):
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 0, 30, 0)
+        # 外层 wrap_centered 已提供 24px 边距，这里保留 6px 使总边距与原先的 30px 一致
+        layout.setContentsMargins(6, 0, 6, 0)
         layout.setSpacing(2)
 
         self.pivot = Pivot()
@@ -450,7 +451,7 @@ class UpdatePage(QWidget):
 
         status_widget = QWidget()
         status_widget.setFixedHeight(96)
-        status_widget.setContentsMargins(36, 0, 36, 0)
+        status_widget.setContentsMargins(12, 0, 12, 0)
         status_layout = QHBoxLayout(status_widget)
 
         icon = IconWidget(FluentIcon.SYNC)
@@ -478,14 +479,21 @@ class UpdatePage(QWidget):
         text_layout.addWidget(self.indeterminate_progress_bar)
         text_layout.addWidget(self.progress_bar)
         status_layout.addLayout(text_layout)
-        status_layout.addSpacing(8)
+        status_layout.addStretch(1)
         status_layout.addWidget(self.action_button, alignment=Qt.AlignmentFlag.AlignRight)
 
         self.content_widget = UpdateContentView()
 
-        layout.addWidget(status_widget)
-        layout.addWidget(HorizontalSeparator())
-        layout.addWidget(self.content_widget)
+        # 整个页面内容（状态栏、分隔线、内容区）统一包裹为居中、限宽的列
+        page_content = QWidget()
+        page_layout = QVBoxLayout(page_content)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+        page_layout.addWidget(status_widget)
+        page_layout.addWidget(HorizontalSeparator())
+        page_layout.addWidget(self.content_widget)
+
+        layout.addWidget(wrap_centered(page_content))
 
     @property
     def _last_check(self) -> str | None:

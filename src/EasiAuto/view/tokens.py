@@ -49,3 +49,6 @@ RADIUS_SETTING = 6  # 设置卡片（SettingCard、公告卡片）
 RADIUS_CARD = 8  # 绑定页卡片
 RADIUS_OVERLAY = 12  # 状态浮窗卡片
 RADIUS_TAG = 4  # 标签
+
+# ========== 布局 ==========
+MAX_CONTENT_WIDTH = 900  # 页面内容（卡片）最大宽度

@@ -33,7 +33,7 @@ from EasiAuto.view.components import (
     SettingCard,
 )
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
-from EasiAuto.view.helpers import get_main_container, set_enable_by
+from EasiAuto.view.helpers import get_main_container, set_enable_by, wrap_centered
 
 # 从属关系映射: [!]Condition -> Targets
 ENABLE_MAPPING: dict[str, str | list[str]] = {
@@ -81,11 +81,11 @@ class ConfigPage(QWidget):
         QScroller.grabGesture(self.scroll_area.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
         layout.addWidget(self.scroll_area)
 
-        self.content_widget = QWidget(self.scroll_area)
-        self.scroll_area.setWidget(self.content_widget)
+        self.content_widget = QWidget()
+        self.scroll_area.setWidget(wrap_centered(self.content_widget))
 
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(40, 0, 40, 20)
+        self.content_layout.setContentsMargins(16, 0, 16, 20)
         self.content_layout.setSpacing(28)
 
         # 添加设置组
@@ -149,10 +149,10 @@ class ConfigPage(QWidget):
         self.announcement_container = QWidget(self)
         self.announcement_container.setContentsMargins(0, 0, 0, 0)
         self.announcement_layout = QVBoxLayout(self.announcement_container)
-        self.announcement_layout.setContentsMargins(40, 0, 40, 4)
+        self.announcement_layout.setContentsMargins(16, 0, 16, 4)
         self.announcement_layout.setSpacing(4)
         self.announcement_container.hide()
-        layout.addWidget(self.announcement_container)
+        layout.addWidget(wrap_centered(self.announcement_container))
 
     def init_patcher_setting_card(self, layout: QVBoxLayout):
         """创建"修补希沃白板"开关卡片（与设置向导共用）"""

@@ -27,7 +27,7 @@ from EasiAuto import __version__
 from EasiAuto.consts import IS_FULL
 from EasiAuto.core.utils import get_resource, get_third_party_libs
 from EasiAuto.view.components.tag import PrimaryTagLabel, TagLabel
-from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
+from EasiAuto.view.tokens import MAX_CONTENT_WIDTH, TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 _GITHUB_URL = "https://github.com/hxabcd/EasiAuto"
 
@@ -44,10 +44,6 @@ _ACKNOWLEDGEMENTS = (
     "我的初中英语老师 为本项目提供动机",
 )
 
-# 横幅图片最大宽度
-_BANNER_MAX_WIDTH = 720
-
-
 class _BannerImageLabel(ImageLabel):
     """横幅图片：不固定宽度，最大 720px，按宽高比随可用宽度缩放"""
 
@@ -62,7 +58,7 @@ class _BannerImageLabel(ImageLabel):
 
     def resizeToWidth(self, width: int):
         """按指定宽度缩放（受最大宽度限制），保持宽高比"""
-        width = min(width, _BANNER_MAX_WIDTH)
+        width = min(width, MAX_CONTENT_WIDTH)
         if width <= 0:
             return
         self.setScaledSize(QSize(width, round(width * self._banner_ratio)))
@@ -102,7 +98,7 @@ class AboutPage(QWidget):
         self.scroll_container_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         self.content_widget = QWidget()
-        self.content_widget.setMaximumWidth(720)
+        self.content_widget.setMaximumWidth(MAX_CONTENT_WIDTH)
         self.scroll_container_layout.addWidget(self.content_widget)
 
         # 内容容器

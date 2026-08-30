@@ -1,14 +1,27 @@
 from enum import Enum
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 from qfluentwidgets import ExpandGroupSettingCard, FluentIconBase, SwitchButton, ToolTipFilter
 from qfluentwidgets.common.config import Theme
 
 from EasiAuto.core.utils import get_resource
+from EasiAuto.view.tokens import MAX_CONTENT_WIDTH
 
 if TYPE_CHECKING:
     from EasiAuto.view.main_window import MainWindow
+
+
+def wrap_centered(widget: QWidget, max_width: int = MAX_CONTENT_WIDTH) -> QWidget:
+    """将控件包一层水平居中、限制最大宽度的容器"""
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(24, 0, 24, 0)
+    layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    widget.setMaximumWidth(max_width)
+    layout.addWidget(widget)
+    return container
 
 
 class Icons(FluentIconBase, Enum):
