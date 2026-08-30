@@ -36,6 +36,7 @@ from EasiAuto.models.config import LoginMethod, config
 from EasiAuto.view.components import SettingCard, SettingCardType
 from EasiAuto.view.components.setting_card import ExpandSelectorSettingCard
 from EasiAuto.view.oobe.oobe_window import OobeStep, OobeWindow
+from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 
 class WelcomeStep(OobeStep):
@@ -57,7 +58,7 @@ class WelcomeStep(OobeStep):
         # desc = BodyLabel()
         # desc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         version = CaptionLabel(f"v{__version__}")
-        version.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        version.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
         version.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         layout.addStretch(1)
@@ -160,7 +161,7 @@ class PatchStep(OobeStep):
             "随时可在主界面“配置”页中开启或撤销修补。"
         )
         note1.setWordWrap(True)
-        note1.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        note1.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
 
         self.note2 = BodyLabel("已选择令牌投递登录，必须修补才能正常使用。")
         self.note2.setWordWrap(True)
@@ -280,7 +281,7 @@ class ClassIslandStep(OobeStep):
             "具体的科目绑定可在完成向导后，前往主界面“自动化”页配置。"
         )
         note.setWordWrap(True)
-        note.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        note.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
 
         layout.addWidget(desc)
         layout.addWidget(locate_card)
@@ -388,7 +389,9 @@ class FinishNavCard(CardWidget):
         text_layout.addWidget(self.title_label)
         text_layout.addWidget(self.content_label)
 
-        self.link_icon = IconWidget(FluentIcon.LINK.colored(QColor("#878787"), QColor("#b5b5b5")), self)
+        self.link_icon = IconWidget(
+            FluentIcon.LINK.colored(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK)), self
+        )
         self.link_icon.setFixedSize(16, 16)
 
         layout.addWidget(self.icon_widget, 0, Qt.AlignmentFlag.AlignVCenter)

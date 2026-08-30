@@ -43,6 +43,7 @@ from EasiAuto.view.components import (
 )
 from EasiAuto.view.helpers import get_app
 from EasiAuto.view.main_window import MainWindow
+from EasiAuto.view.tokens import BRAND
 
 UI_COMMANDS = {None, "settings", "login", "oobe"}
 FORWARDABLE_COMMANDS = {None, "settings", "login", "skip", "oobe"}
@@ -593,7 +594,7 @@ class Launcher:
             translator = FluentTranslator()  # 很玄学的问题，必须先存储为变量再传入，否则无法生效
             app.installTranslator(translator)
             setTheme(Theme(config.App.Theme.value))
-            setThemeColor("#00C884")
+            setThemeColor(BRAND)
 
             self.ipc_server = ArgvIpcServer(IPC_SERVER_NAME, self._handle_external_argv)
             self.ipc_server.start()

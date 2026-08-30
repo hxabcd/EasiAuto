@@ -5,20 +5,33 @@ from qfluentwidgets import (
     setCustomStyleSheet,
 )
 
+from EasiAuto.view.tokens import (
+    BRAND,
+    RADIUS_TAG,
+    TAG_BRAND_BG,
+    TAG_BRAND_TEXT_DARK,
+    TAG_BRAND_TEXT_LIGHT,
+    TAG_NEUTRAL_BG,
+    TAG_NEUTRAL_BORDER_DARK,
+    TAG_NEUTRAL_BORDER_LIGHT,
+    TAG_NEUTRAL_TEXT_DARK,
+    TAG_NEUTRAL_TEXT_LIGHT,
+)
+
 
 class TagLabel(FluentLabelBase):
     """标签组件"""
 
     lightQss = (
         "FluentLabelBase{"
-        "background-color: #339E9E9E; color: #424242; font-size: 12px;"
-        "border: 1px solid #9E9E9E; border-radius: 4px;"
+        f"background-color: {TAG_NEUTRAL_BG}; color: {TAG_NEUTRAL_TEXT_LIGHT}; font-size: 12px;"
+        f"border: 1px solid {TAG_NEUTRAL_BORDER_LIGHT}; border-radius: {RADIUS_TAG}px;"
         "}"
     )
     darkQss = (
         "FluentLabelBase{"
-        "background-color: #339E9E9E; color: #E0E0E0; font-size: 12px;"
-        "border: 1px solid #757575; border-radius: 4px;"
+        f"background-color: {TAG_NEUTRAL_BG}; color: {TAG_NEUTRAL_TEXT_DARK}; font-size: 12px;"
+        f"border: 1px solid {TAG_NEUTRAL_BORDER_DARK}; border-radius: {RADIUS_TAG}px;"
         "}"
     )
 
@@ -38,17 +51,17 @@ class TagLabel(FluentLabelBase):
 
 
 class PrimaryTagLabel(TagLabel):
-    """带主题色的标签组件（硬编码 EasiAuto 主题色）"""
+    """带主题色的标签组件（使用 EasiAuto 品牌主题色）"""
 
     lightQss = (
         "FluentLabelBase{"
-        "background-color: #3300C884; color: #275317; font-size: 12px;"
-        "border: 1px solid #00C884; border-radius: 4px;"
+        f"background-color: {TAG_BRAND_BG}; color: {TAG_BRAND_TEXT_LIGHT}; font-size: 12px;"
+        f"border: 1px solid {BRAND}; border-radius: {RADIUS_TAG}px;"
         "}"
     )
     darkQss = (
         "FluentLabelBase{"
-        "background-color: #3300C884; color: #CDFFE4; font-size: 12px;"
-        "border: 1px solid #00C884; border-radius: 4px;"
+        f"background-color: {TAG_BRAND_BG}; color: {TAG_BRAND_TEXT_DARK}; font-size: 12px;"
+        f"border: 1px solid {BRAND}; border-radius: {RADIUS_TAG}px;"
         "}"
     )

@@ -24,6 +24,7 @@ from qfluentwidgets import (
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.helpers import get_main_container
+from EasiAuto.view.tokens import DIVIDER, DIVIDER_TEXT, RADIUS_CARD, SELECTED_BORDER, UNSELECTED_BORDER
 
 
 @dataclass
@@ -67,9 +68,9 @@ class SubjectCard(CardWidget):
 
     def _apply_selected_style(self):
         if self._selected:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {SELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {UNSELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -106,9 +107,9 @@ class UnboundCard(CardWidget):
 
     def set_checked(self, checked: bool):
         if checked:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {SELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {UNSELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
 
 
 class ProfileCard(CardWidget):
@@ -177,9 +178,9 @@ class ProfileCard(CardWidget):
 
     def set_checked(self, checked: bool):
         if checked:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(0, 200, 132, 0.85); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {SELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
         else:
-            self.setStyleSheet("CardWidget { border: 1px solid rgba(120, 120, 120, 0); border-radius: 8px; }")
+            self.setStyleSheet(f"CardWidget {{ border: 1px solid {UNSELECTED_BORDER}; border-radius: {RADIUS_CARD}px; }}")
 
 
 class BindingPage(QWidget):
@@ -389,15 +390,15 @@ class BindingPage(QWidget):
         left_line = QFrame()
         left_line.setFrameShape(QFrame.Shape.HLine)
         left_line.setFrameShadow(QFrame.Shadow.Plain)
-        left_line.setStyleSheet("color: rgba(120, 120, 120, 80);")
+        left_line.setStyleSheet(f"color: {DIVIDER};")
 
         right_line = QFrame()
         right_line.setFrameShape(QFrame.Shape.HLine)
         right_line.setFrameShadow(QFrame.Shadow.Plain)
-        right_line.setStyleSheet("color: rgba(120, 120, 120, 80);")
+        right_line.setStyleSheet(f"color: {DIVIDER};")
 
         label = BodyLabel("未绑定")
-        label.setStyleSheet("color: rgba(120, 120, 120, 180);")
+        label.setStyleSheet(f"color: {DIVIDER_TEXT};")
 
         layout.addWidget(left_line, 1)
         layout.addWidget(label)

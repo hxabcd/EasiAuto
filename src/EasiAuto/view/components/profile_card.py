@@ -25,6 +25,7 @@ from qfluentwidgets import (
 from EasiAuto.models.profile import BaseAutomation, profile
 
 from ..helpers import get_main_window
+from ..tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 from .qfw_widgets import PillOverflowBar, PillPushButton
 
 
@@ -68,7 +69,7 @@ class ProfileCard(CardWidget):
 
         self.name_label = SubtitleLabel(self.automation.display_name or "未命名自动化")
         self.detail_label = BodyLabel(self.automation.detail_name)
-        self.detail_label.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        self.detail_label.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
 
         self.subject_bar = PillOverflowBar()
         self.subject_bar.setContentsMargins(0, 6, 0, 0)

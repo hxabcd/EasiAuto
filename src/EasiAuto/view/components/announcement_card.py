@@ -19,6 +19,16 @@ from qfluentwidgets import (
 
 from EasiAuto.services.announcement_service import Announcement
 from EasiAuto.view.helpers import set_tooltip
+from EasiAuto.view.tokens import (
+    BRAND,
+    RADIUS_SETTING,
+    SEVERITY_ERROR_ACCENT,
+    SEVERITY_ERROR_BG_DARK,
+    SEVERITY_ERROR_BG_LIGHT,
+    SEVERITY_WARNING_ACCENT,
+    SEVERITY_WARNING_BG_DARK,
+    SEVERITY_WARNING_BG_LIGHT,
+)
 
 
 class SeverityIcon(QWidget):
@@ -46,7 +56,7 @@ class AnnouncementCard(CardWidget):
         self._on_close = on_close
 
         self.setObjectName(f"AnnouncementCard_{announcement.id}")
-        self.setBorderRadius(8)
+        self.setBorderRadius(RADIUS_SETTING)
 
         # 严重性背景着色（同 InfoBar 原版）
         self._light_bg, self._dark_bg = self._resolve_background(announcement.severity)
@@ -123,15 +133,15 @@ class AnnouncementCard(CardWidget):
     @staticmethod
     def _resolve_background(severity: str) -> tuple[str | None, str | None]:
         if severity == "warning":
-            return "#fff4ce", "#5c4500"
+            return SEVERITY_WARNING_BG_LIGHT, SEVERITY_WARNING_BG_DARK
         if severity == "error":
-            return "#fde7e9", "#442726"
+            return SEVERITY_ERROR_BG_LIGHT, SEVERITY_ERROR_BG_DARK
         return None, None
 
     @staticmethod
     def _resolve_accent_color(severity: str) -> str:
         if severity == "warning":
-            return "#ffb900"
+            return SEVERITY_WARNING_ACCENT
         if severity == "error":
-            return "#a4262c"
-        return "#00C884"
+            return SEVERITY_ERROR_ACCENT
+        return BRAND

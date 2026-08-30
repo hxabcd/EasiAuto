@@ -25,6 +25,7 @@ from qfluentwidgets import (
 from EasiAuto import __version__
 from EasiAuto.consts import IS_FULL
 from EasiAuto.core.utils import get_resource
+from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 
 class AboutPage(QWidget):
@@ -169,7 +170,7 @@ class AboutPage(QWidget):
         sub_layout.setSpacing(0)
         author_name = SubtitleLabel("HxAbCd")
         author_content = CaptionLabel("Just be yourself.  >_<")
-        author_content.setTextColor(QColor("#878787"), QColor("#b5b5b5"))
+        author_content.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_DARK))
         sub_layout.addWidget(author_name)
         sub_layout.addWidget(author_content)
 

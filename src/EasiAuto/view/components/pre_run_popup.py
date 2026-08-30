@@ -15,6 +15,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core.utils import get_resource
+from EasiAuto.view.tokens import BRAND
 
 
 class DialogResponse(Enum):
@@ -156,7 +157,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     setTheme(Theme.DARK)
-    setThemeColor("#00C884")
+    setThemeColor(BRAND)
 
     popup = PreRunPopup()
     popup.set_account_name("Miku")

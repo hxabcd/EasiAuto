@@ -18,6 +18,15 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import FluentIcon, IconWidget, ImageLabel, IndeterminateProgressRing, PrimaryPushButton
 
 from EasiAuto.core.utils import QABCMeta, get_resource, get_scale, get_screen_size
+from EasiAuto.view.tokens import (
+    BRAND,
+    OVERLAY_BOTTOM_BG,
+    OVERLAY_CARD_BG,
+    OVERLAY_SHADOW,
+    OVERLAY_TEXT,
+    OVERLAY_TEXT_DIM,
+    RADIUS_OVERLAY,
+)
 
 
 class StatusOverlayBase(QWidget, metaclass=QABCMeta):
@@ -32,8 +41,8 @@ class StatusOverlayBase(QWidget, metaclass=QABCMeta):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFixedWidth(440)
 
-        self.finished_icon = IconWidget(FluentIcon.COMPLETED.colored(QColor("#ffffff"), QColor("#ffffff")))
-        self.failed_icon = IconWidget(FluentIcon.INFO.colored(QColor("#ffffff"), QColor("#ffffff")))
+        self.finished_icon = IconWidget(FluentIcon.COMPLETED.colored(QColor(OVERLAY_TEXT), QColor(OVERLAY_TEXT)))
+        self.failed_icon = IconWidget(FluentIcon.INFO.colored(QColor(OVERLAY_TEXT), QColor(OVERLAY_TEXT)))
 
         if parent is None:
             self.setWindowFlags(
@@ -135,12 +144,12 @@ class StatusOverlay(StatusOverlayBase):
     def _init_main_card(self, task_text: str, progress_text: str, parent: QWidget | None = None):
         card = QFrame()
         card.setObjectName("statusCardOverlayCard")
-        card.setStyleSheet("QFrame#statusCardOverlayCard {background-color: rgba(0, 0, 0, 0.6);border-radius: 12px;}")
+        card.setStyleSheet(f"QFrame#statusCardOverlayCard {{background-color: {OVERLAY_CARD_BG};border-radius: {RADIUS_OVERLAY}px;}}")
 
         shadow = QGraphicsDropShadowEffect(card)
         shadow.setBlurRadius(16)
         shadow.setOffset(2, 4)
-        shadow.setColor(QColor(0, 0, 0, 64))
+        shadow.setColor(QColor(OVERLAY_SHADOW))
         card.setGraphicsEffect(shadow)
 
         card_layout = QVBoxLayout(card)
@@ -172,12 +181,12 @@ class StatusOverlay(StatusOverlayBase):
         self.task_label = QLabel(task_text, top)
         title_font = QFont("Microsoft YaHei UI", 24, QFont.Weight.Bold)
         self.task_label.setFont(title_font)
-        self.task_label.setStyleSheet("color: #ffffff;")
+        self.task_label.setStyleSheet(f"color: {OVERLAY_TEXT};")
 
         self.progress_label = QLabel(progress_text, top)
         progress_font = QFont("Microsoft YaHei UI", 14, QFont.Weight.Normal)
         self.progress_label.setFont(progress_font)
-        self.progress_label.setStyleSheet("color: #cdcdcd;")
+        self.progress_label.setStyleSheet(f"color: {OVERLAY_TEXT_DIM};")
 
         text_layout.addWidget(self.task_label)
         text_layout.addWidget(self.progress_label)
@@ -190,12 +199,12 @@ class StatusOverlay(StatusOverlayBase):
         self.bottom = QFrame(card)
         self.bottom.setObjectName("statusCardOverlayBottom")
         self.bottom.setFixedHeight(72)
-        self.bottom.setStyleSheet("""
-            QFrame#statusCardOverlayBottom {
-                background-color: rgba(70, 70, 70, 0.85);
-                border-bottom-left-radius: 12px;
-                border-bottom-right-radius: 12px;
-            }
+        self.bottom.setStyleSheet(f"""
+            QFrame#statusCardOverlayBottom {{
+                background-color: {OVERLAY_BOTTOM_BG};
+                border-bottom-left-radius: {RADIUS_OVERLAY}px;
+                border-bottom-right-radius: {RADIUS_OVERLAY}px;
+            }}
         """)
 
         bottom_layout = QHBoxLayout(self.bottom)
@@ -210,7 +219,7 @@ class StatusOverlay(StatusOverlayBase):
         self.brand_label = QLabel("EasiAuto", self.bottom)
         brand_font = QFont("Microsoft YaHei UI", 18, QFont.Weight.Bold)
         self.brand_label.setFont(brand_font)
-        self.brand_label.setStyleSheet("color: #ffffff;")
+        self.brand_label.setStyleSheet(f"color: {OVERLAY_TEXT};")
 
         self.stop_button = PrimaryPushButton("停止", icon=FluentIcon.CANCEL_MEDIUM)
         self.stop_button.setFixedSize(100, 36)
@@ -248,12 +257,12 @@ class SmallStatusOverlay(StatusOverlayBase):
     def _init_main_card(self, task_text: str, progress_text: str, parent: QWidget | None = None):
         card = QFrame()
         card.setObjectName("statusCardOverlayCard")
-        card.setStyleSheet("QFrame#statusCardOverlayCard {background-color: rgba(0, 0, 0, 0.6);border-radius: 12px;}")
+        card.setStyleSheet(f"QFrame#statusCardOverlayCard {{background-color: {OVERLAY_CARD_BG};border-radius: {RADIUS_OVERLAY}px;}}")
 
         shadow = QGraphicsDropShadowEffect(card)
         shadow.setBlurRadius(16)
         shadow.setOffset(2, 4)
-        shadow.setColor(QColor(0, 0, 0, 64))
+        shadow.setColor(QColor(OVERLAY_SHADOW))
         card.setGraphicsEffect(shadow)
 
         card_layout = QHBoxLayout(card)
@@ -280,12 +289,12 @@ class SmallStatusOverlay(StatusOverlayBase):
         self.task_label = QLabel(task_text)
         title_font = QFont("Microsoft YaHei UI", 16, QFont.Weight.Bold)
         self.task_label.setFont(title_font)
-        self.task_label.setStyleSheet("color: #ffffff;")
+        self.task_label.setStyleSheet(f"color: {OVERLAY_TEXT};")
 
         self.progress_label = QLabel(progress_text)
         progress_font = QFont("Microsoft YaHei UI", 12, QFont.Weight.Normal)
         self.progress_label.setFont(progress_font)
-        self.progress_label.setStyleSheet("color: #cdcdcd;")
+        self.progress_label.setStyleSheet(f"color: {OVERLAY_TEXT_DIM};")
 
         text_layout.addWidget(self.task_label)
         text_layout.addWidget(self.progress_label)
@@ -324,7 +333,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     setTheme(Theme.DARK)
-    setThemeColor("#00C884")
+    setThemeColor(BRAND)
     overlay = StatusOverlay()
     overlay.logo.setImage("d:/MyPC/Dev/Projects/EasiAuto/resources/icons/EasiAuto.ico")
     overlay.logo.setFixedSize(32, 32)

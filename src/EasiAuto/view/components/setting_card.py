@@ -39,6 +39,7 @@ from qfluentwidgets import (
 from EasiAuto.models.config import ConfigGroup, ConfigItem
 from EasiAuto.view.components.qfw_widgets import CustomRadioButton, SettingIconWidget
 from EasiAuto.view.components.tag import TagLabel
+from EasiAuto.view.tokens import RADIUS_SETTING
 
 
 class CardType(Enum):
@@ -450,7 +451,7 @@ class SettingCard(QFrame):
             painter.setPen(QColor(0, 0, 0, 19))
 
         if not self.is_item:
-            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
+            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), RADIUS_SETTING, RADIUS_SETTING)
 
     @staticmethod
     def _load_icon(extra: dict[str, Any]) -> FluentIcon | QIcon | None:

@@ -11,6 +11,8 @@ from qfluentwidgets import (
     TitleLabel,
 )
 
+from EasiAuto.view.tokens import BRAND, TEXT_MUTED
+
 
 class PrivacyMask(QWidget):
     def __init__(self):
@@ -30,7 +32,7 @@ class PrivacyMask(QWidget):
 
         icon_container = QHBoxLayout()
         icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_icon = IconWidget(FluentIcon.VPN.colored("#00C884", "#00C884"))  # type: ignore
+        hint_icon = IconWidget(FluentIcon.VPN.colored(BRAND, BRAND))  # type: ignore
         hint_icon.setFixedSize(64, 64)
         icon_container.addWidget(hint_icon)
 
@@ -39,7 +41,7 @@ class PrivacyMask(QWidget):
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_label.setStyleSheet("color: black;")
-        hint_desc.setStyleSheet("color: #555555;")
+        hint_desc.setStyleSheet(f"color: {TEXT_MUTED};")
 
         layout.addLayout(icon_container)
         layout.addSpacing(12)
