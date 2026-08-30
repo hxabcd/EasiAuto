@@ -30,6 +30,7 @@ from qfluentwidgets import (
     FluentIcon,
     FluentStyleSheet,
     LineEdit,
+    PushButton,
     Slider,
     SpinBox,
     SwitchButton,
@@ -53,6 +54,7 @@ class CardType(Enum):
     COLOR = auto()
     RANGE = auto()
     ENUM = auto()
+    BUTTON = auto()
 
 
 class SettingCard(QFrame):
@@ -85,6 +87,7 @@ class SettingCard(QFrame):
     """
 
     valueChanged = Signal(object)
+    clicked = Signal()  # 按钮点击信号（仅 BUTTON 类型）
     index: weakref.WeakValueDictionary[str, SettingCard | ExpandGroupSettingCard] = weakref.WeakValueDictionary()
 
     def __init__(
@@ -279,6 +282,12 @@ class SettingCard(QFrame):
             case CardType.ENUM:
                 self._create_combo_box()
 
+            case CardType.BUTTON:
+                self._widget = PushButton(self)
+                if text := kwargs.get("button_text"):
+                    self._widget.setText(text)
+                self._widget.clicked.connect(self.clicked.emit)
+
             case unreachable:
                 assert_never(unreachable)
 
@@ -372,6 +381,8 @@ class SettingCard(QFrame):
             case CardType.ENUM:
                 name = getattr(value, "display_name", value.name)
                 self._widget.setCurrentText(name)
+            case CardType.BUTTON:
+                self._widget.setText(value)
             case unreachable:
                 assert_never(unreachable)
 
@@ -389,6 +400,8 @@ class SettingCard(QFrame):
                 return self._widget.color
             case CardType.ENUM:
                 return self._widget.currentData()
+            case CardType.BUTTON:
+                return None
             case unreachable:
                 assert_never(unreachable)
         return None

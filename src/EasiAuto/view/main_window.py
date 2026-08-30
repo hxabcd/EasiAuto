@@ -16,8 +16,9 @@ from qfluentwidgets import (
     setTheme,
 )
 
+from EasiAuto.core import security
 from EasiAuto.core.utils import get_resource
-from EasiAuto.models.profile import BaseAutomation
+from EasiAuto.models.profile import BaseAutomation, profile
 from EasiAuto.view.components import PopupStackedWidget
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage
 
@@ -56,6 +57,17 @@ class MainWindow(MSFluentWindow):
 
         logger.success("界面初始化完成")
         self.splashScreen.finish()
+        self._attempt_profile_auto_unlock()
+
+    def _attempt_profile_auto_unlock(self):
+        """启动时始终用本机缓存静默解锁会话（不弹窗）。
+
+        「免密查看」只影响档案页是否再次要求输入主密码，不阻断本次启动的会话解锁。
+        """
+        if not profile.encryption_enabled or security.is_master_key_unlocked():
+            return
+        if profile.read_cached_unlock():
+            logger.info("已从本机缓存自动解锁档案")
 
     def _init_navigation(self):
         self.addSubInterface(self.config_page, FluentIcon.SETTING, "配置")

@@ -14,7 +14,7 @@ from PySide6.QtCore import QLocale, Qt, QThread, QTimer
 from EasiAuto import __version__
 from EasiAuto.automation.manager import automation_manager
 from EasiAuto.consts import IPC_SERVER_NAME
-from EasiAuto.core import compatibility_patches
+from EasiAuto.core import compatibility_patches, security
 from EasiAuto.core.exception_handler import init_exception_handler
 from EasiAuto.core.ipc import ArgvIpcServer, send_argv_to_primary
 from EasiAuto.core.utils import (
@@ -89,6 +89,7 @@ class PostLoginUpdateThread(QThread):
 class Launcher:
     def __init__(self) -> None:
         self.main_window: MainWindow | None = None
+        self._unlock_host = None  # 登录无窗口时作为主密码对话框的宿主
         self.banner: WarningBanner | None = None
         self.status_overlay: StatusOverlayBase | None = None
         self.privacy_mask: PrivacyMask | None = None
@@ -299,6 +300,16 @@ class Launcher:
             logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
             return False
 
+        # 自动登录：先尝试本机缓存静默解锁，失败则弹窗要求输入主密码
+        if profile.encryption_enabled and not security.is_master_key_unlocked():
+            if profile.read_cached_unlock():
+                logger.info("自动登录已从本机缓存自动解锁档案")
+            elif not self._prompt_login_unlock():
+                logger.error("未解锁档案，自动登录中止")
+                if not from_ipc:
+                    stop(1)
+                return False
+
         if config.Login.SkipOnce:
             logger.info("已通过配置文件禁用, 正在退出")
             config.Login.SkipOnce = False
@@ -404,6 +415,30 @@ class Launcher:
 
         self.login_running = True
         return True
+
+    def _prompt_login_unlock(self) -> bool:
+        """登录时无法自动解锁时，弹出模态对话框要求输入主密码。
+
+        成功后已解锁会话并把密钥写入本机缓存，返回 True；用户取消则返回 False。
+        """
+        from PySide6.QtWidgets import QWidget
+
+        from EasiAuto.view.components.master_password_dialog import MasterPasswordDialog
+
+        parent = self.main_window
+        if parent is None:
+            if self._unlock_host is None:
+                self._unlock_host = QWidget()
+            parent = self._unlock_host
+
+        dialog = MasterPasswordDialog(
+            title="解锁档案",
+            description="自动登录需要读取账号密码，请输入主密码解锁",
+            verify=profile.unlock_master_password,
+            parent=parent,
+        )
+        dialog.exec()
+        return dialog.get_password() is not None
 
     def cmd_login(self, args: Namespace) -> bool:
         """login 子命令 - 执行自动登录"""

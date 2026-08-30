@@ -31,12 +31,14 @@ from qfluentwidgets import (
     setFont,
 )
 
+from EasiAuto.core import security
 from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
 from EasiAuto.models.config import config
-from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, profile
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, ProfileLockedError, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend
 from EasiAuto.view.components import ProfileCard, ProfileEditor, ProfileStatusBar
+from EasiAuto.view.components.master_password_flyout import show_master_password_flyout
 from EasiAuto.view.components.qfw_widgets import ListWidget
 from EasiAuto.view.helpers import get_main_container
 from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
@@ -148,10 +150,28 @@ class ProfileManagePage(QWidget):
         self.current_list_item = item
         self.editor.load(automation.model_copy(deep=True))
 
+    def _try_save(self, reason: ProfileChangeReason = "profile_changed") -> bool:
+        """保存档案；档案处于锁定态时提示用户先解锁，并返回 False。"""
+        try:
+            profile.save(reason=reason)
+            return True
+        except ProfileLockedError:
+            InfoBar.warning(
+                title="档案已锁定",
+                content="请先解锁档案（输入主密码）后再保存",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=4000,
+                parent=get_main_container(),
+            )
+            return False
+
     def _on_editor_save_requested(self, automation: BaseAutomation):
         """持久化编辑器提交的档案并刷新界面"""
         profile.upsert_automation(automation)
-        profile.save(reason="automation_saved")
+        if not self._try_save("automation_saved"):
+            return
 
         self._init_selector()
 
@@ -195,12 +215,14 @@ class ProfileManagePage(QWidget):
             return
 
         automation.enabled = enabled
-        profile.save(reason="automation_saved")
+        if not self._try_save("automation_saved"):
+            automation.enabled = not enabled
 
     def _handle_action_remove(self, item: QListWidgetItem):
         automation: EasiAutomation = item.data(Qt.ItemDataRole.UserRole)
         if profile.delete_automation(automation.id):
-            profile.save(reason="automation_deleted")
+            if not self._try_save("automation_deleted"):
+                return
             if self.current_list_item == item:
                 self.current_list_item = None
                 self.editor.clear()
@@ -258,6 +280,9 @@ class ProfileManagePage(QWidget):
         if reason in {"automation_saved", "automation_deleted"}:
             self._sync_bindings()
             self.refresh_binding_display()
+        elif reason == "encryption_changed":
+            # 解锁后密码恢复明文，重建列表以刷新档案数据
+            self._init_selector()
 
 
 class FirstUseSubpage(QWidget):
@@ -294,6 +319,7 @@ class FirstUseSubpage(QWidget):
         setup_button = PrimaryPushButton(icon=FluentIcon.VPN, text="设置保护密码")
         setup_button.setFixedWidth(150)
         setup_button.clicked.connect(self.setupRequested.emit)
+        self.setup_button = setup_button
 
         dismiss_button = PushButton(icon=FluentIcon.RIGHT_ARROW, text="暂不设置")
         dismiss_button.setFixedWidth(150)
@@ -309,6 +335,41 @@ class FirstUseSubpage(QWidget):
         layout.addWidget(hint_desc2)
         layout.addSpacing(18)
         layout.addLayout(actions_layout)
+
+
+class ProfileLockedOverlay(QWidget):
+    """档案页 - 锁定覆盖层：需要先输主密码才能查看档案密码时展示"""
+
+    unlockRequested = Signal()  # 用户点击「解锁档案」
+
+    def __init__(self):
+        super().__init__()
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon_container = QHBoxLayout()
+        icon_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_icon = IconWidget(FluentIcon.FINGERPRINT)
+        hint_icon.setFixedSize(96, 96)
+        icon_container.addWidget(hint_icon)
+
+        hint_label = TitleLabel("档案已锁定")
+        hint_desc = BodyLabel("档案已使用主密码加密，解锁后才能查看与编辑登录信息")
+        setFont(hint_desc, 15)
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        unlock_button = PrimaryPushButton(icon=FluentIcon.VPN, text="解锁档案")
+        unlock_button.setFixedWidth(150)
+        unlock_button.clicked.connect(self.unlockRequested.emit)
+
+        layout.addLayout(icon_container)
+        layout.addSpacing(12)
+        layout.addWidget(hint_label)
+        layout.addWidget(hint_desc)
+        layout.addSpacing(18)
+        layout.addWidget(unlock_button, alignment=Qt.AlignmentFlag.AlignHCenter)
 
 
 class ProfilePage(QWidget):
@@ -333,34 +394,99 @@ class ProfilePage(QWidget):
 
         # 首次使用引导页（保护密码初始化），仅首次打开档案页时展示
         self.first_use_page = FirstUseSubpage()
-        # TODO: 保护密码功能实现后连接 setupRequested 接入设置流程
+        self.first_use_page.setupRequested.connect(self._on_setup_master_password)
         self.first_use_page.dismissed.connect(self._dismiss_first_use)
+
+        # 锁定覆盖层：查看密码前需先输主密码时，用它替换管理页
+        self.locked_page = ProfileLockedOverlay()
+        self.locked_page.unlockRequested.connect(self._on_unlock_requested)
+        # 本次启动内是否已输主密码查看过（用于「免密查看」关闭时只拦一次）
+        self._profile_view_unlocked = False
 
         self.main_widget = QStackedWidget()
         self.main_widget.addWidget(self.first_use_page)
         self.main_widget.addWidget(self.manager_page)
+        self.main_widget.addWidget(self.locked_page)
 
         self.separator = HorizontalSeparator()
         layout.addWidget(self.status_bar)
         layout.addWidget(self.separator)
         layout.addWidget(self.main_widget)
 
+        profile.notifier.changed.connect(self._on_profile_notifier_changed)
         self._refresh_view()
 
     def _is_first_use(self) -> bool:
         """引导未展示过时进入首次使用页"""
         return not config.Internal.IsProfilePageNoticeShown
 
+    def _is_locked(self) -> bool:
+        """档案需先输主密码才能查看密码时返回 True（锁定覆盖层）"""
+        if not profile.encryption_enabled:
+            return False
+        if not security.is_master_key_unlocked():
+            # 会话未解锁：无论如何需要先解锁会话
+            return True
+        if profile.passwordless_view:
+            return False
+        # 未勾选「免密查看」：本次启动内需先输主密码查看一次
+        return not self._profile_view_unlocked
+
     def _refresh_view(self):
+        if self._is_locked():
+            self.main_widget.setCurrentWidget(self.locked_page)
+            # 保留「高级选项」入口，便于调整免密查看/加密
+            self.status_bar.set_compact_mode(False)
+            return
         is_first_use = self._is_first_use()
         self.main_widget.setCurrentWidget(self.first_use_page if is_first_use else self.manager_page)
         # 引导页状态栏仅保留左侧标题，隐藏右侧按钮与状态提示
         self.status_bar.set_compact_mode(is_first_use)
 
+    def _on_profile_notifier_changed(self, reason: ProfileChangeReason):
+        if reason == "encryption_changed":
+            self._refresh_view()
+
+    def _on_unlock_requested(self):
+        """锁定覆盖层点击「解锁档案」：弹出模态主密码对话框解锁"""
+        from EasiAuto.view.components.master_password_dialog import MasterPasswordDialog
+
+        dialog = MasterPasswordDialog(
+            title="解锁档案",
+            description="档案已使用主密码加密，请输入主密码以查看档案密码",
+            verify=profile.unlock_master_password,
+            parent=self.window(),
+        )
+        dialog.exec()
+        if dialog.get_password() is not None:
+            self._profile_view_unlocked = True
+            self._refresh_view()
+
     def _dismiss_first_use(self):
         """结束首次使用引导，切换到档案管理页"""
         config.Internal.IsProfilePageNoticeShown = True
         self._refresh_view()
+
+    def _on_setup_master_password(self):
+        """引导页点击「设置保护密码」：弹出主密码设置 Flyout"""
+        show_master_password_flyout(
+            target=self.first_use_page.setup_button,
+            parent=self,
+            title="设置主密码",
+            description="设置用于加密登录信息的主密码，保护账号隐私安全。忘记后将无法找回，请牢记密码",
+            require_confirm=True,
+            confirm_text="启用加密",
+            on_confirm=self._apply_setup_master_password,
+        )
+
+    def _apply_setup_master_password(self, master_password: str) -> str | None:
+        try:
+            profile.enable_encryption(master_password)
+        except Exception as e:
+            logger.error(f"启用档案加密失败: {e}")
+            return "启用加密失败，请重试"
+        self._dismiss_first_use()
+        return None
 
     def open_automation_editor(self, automation_id: str):
         """跳过引导并跳转到指定档案编辑（外部导航入口）"""
