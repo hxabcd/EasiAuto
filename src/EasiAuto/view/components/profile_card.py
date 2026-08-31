@@ -74,6 +74,7 @@ class ProfileCard(CardWidget):
         self.subject_bar = PillOverflowBar()
         self.subject_bar.setContentsMargins(0, 6, 0, 0)
         self.subject_bar.setSpacing(6)
+        self.subject_bar.doubleClicked.connect(self._on_subject_bar_double_clicked)
 
         self.add_subject_button = PillPushButton("添加", icon=FluentIcon.ADD)
         self.add_subject_button.clicked.connect(self._on_add_subject)
@@ -151,9 +152,16 @@ class ProfileCard(CardWidget):
         self.subject_bar.setTags(tags)
 
     def _on_add_subject(self):
-        # TODO: 跳转至对应科目
         window = get_main_window()
         window.switchTo(window.automation_page)
+
+    def _on_subject_bar_double_clicked(self, subject_name: str):
+        window = get_main_window()
+        auto_page = window.automation_page
+        window.switchTo(auto_page)
+        if hasattr(auto_page, "binding_page"):
+            auto_page.main_widget.setCurrentWidget(auto_page.binding_page)
+            auto_page.binding_page.open_with_subject(subject_name)
 
     def _on_run(self):
         if self._automation_id:

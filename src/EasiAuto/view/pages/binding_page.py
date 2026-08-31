@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from loguru import logger
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QScroller, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
@@ -17,14 +18,23 @@ from qfluentwidgets import (
     InfoBar,
     InfoBarPosition,
     SmoothScrollArea,
+    StrongBodyLabel,
     SubtitleLabel,
     VerticalSeparator,
+    setFont,
 )
 
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.helpers import get_main_container
-from EasiAuto.view.tokens import DIVIDER, DIVIDER_TEXT, RADIUS_CARD, SELECTED_BORDER, UNSELECTED_BORDER
+from EasiAuto.view.tokens import (
+    DIVIDER,
+    DIVIDER_TEXT,
+    RADIUS_CARD,
+    SELECTED_BORDER,
+    TEXT_SECONDARY_LIGHT,
+    UNSELECTED_BORDER,
+)
 
 
 @dataclass
@@ -42,14 +52,16 @@ class SubjectCard(CardWidget):
         self.key = key
         self._selected = False
 
-        self.setMinimumHeight(60)
+        self.setMinimumHeight(50)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
 
-        self.subject_label = SubtitleLabel("")
+        self.subject_label = StrongBodyLabel("")
+        setFont(self.subject_label, 16, QFont.Weight.DemiBold)
         self.status_label = BodyLabel("")
+        self.status_label.setTextColor(QColor(TEXT_SECONDARY_LIGHT), QColor(TEXT_SECONDARY_LIGHT))
         self.status_label.setWordWrap(True)
 
         layout.addWidget(self.subject_label)
@@ -223,7 +235,7 @@ class BindingPage(QWidget):
 
         subject_header = QWidget()
         subject_header_layout = QHBoxLayout(subject_header)
-        subject_header_layout.setContentsMargins(8, 0, 8, 0)
+        subject_header_layout.setContentsMargins(8, 0, 0, 0)
         subject_header_layout.setSpacing(6)
         subject_header_layout.addWidget(SubtitleLabel("科目"))
         subject_header_layout.addStretch(1)
@@ -303,7 +315,7 @@ class BindingPage(QWidget):
         auto = profile.get_automation(row.automation_id)
         if not auto:
             return "绑定已失效"
-        return f"绑定到：{self._profile_display_name(auto)}"
+        return f"{self._profile_display_name(auto)}"
 
     def _clear_subject_grid(self):
         while self.subject_grid.count():
@@ -530,6 +542,16 @@ class BindingPage(QWidget):
     def open_with_profile(self, profile_id: str):
         self.preferred_profile_id = profile_id
         self.reload(reload=True)
+
+    def open_with_subject(self, subject_name: str):
+        """定位并选中指定科目（按名称匹配）"""
+        self.reload(reload=True)
+        for key, row in self.subject_rows.items():
+            if row.subject.name == subject_name:
+                self._on_subject_selected(key)
+                if card := self.subject_cards.get(key):
+                    self.subject_scroll.ensureWidgetVisible(card)
+                return
 
     def _persist_and_sync(self):
         # 从 UI 当前行状态生成目标绑定映射并直接提交给 Backend

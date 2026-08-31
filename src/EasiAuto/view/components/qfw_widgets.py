@@ -1,6 +1,6 @@
 """重写的 QFluentWidgets 组件"""
 
-from PySide6.QtCore import Property, QModelIndex, Qt
+from PySide6.QtCore import Property, QEvent, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QListView,
@@ -229,6 +229,8 @@ class PillPushButton(PushButton, PillButtonBase):
 class PillOverflowBar(QWidget):
     """Pill 标签栏（首尾固定，中间尽量显示，溢出使用省略按钮）"""
 
+    doubleClicked = Signal(str)  # 双击的科目名（空白处取第一个标签）
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._tags: list[PillPushButton] = []
@@ -237,6 +239,17 @@ class PillOverflowBar(QWidget):
 
         self.ellipsis_button = PillPushButton("...", self)
         self.ellipsis_button.hide()
+        self.installEventFilter(self)
+        self.ellipsis_button.installEventFilter(self)
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.Type.MouseButtonDblClick and e.button() == Qt.MouseButton.LeftButton:
+            if obj in self._tags:
+                self.doubleClicked.emit(obj.text())
+            elif obj is self and self._tags:
+                self.doubleClicked.emit(self._tags[0].text())
+            return True
+        return super().eventFilter(obj, e)
 
     def setSpacing(self, spacing: int):
         self._spacing = max(0, spacing)
@@ -249,6 +262,7 @@ class PillOverflowBar(QWidget):
         self._last_widget = widget
         widget.setParent(self)
         widget.show()
+        widget.installEventFilter(self)
         self._update_geometry()
 
     def setTags(self, tags: list[str]):
@@ -261,6 +275,7 @@ class PillOverflowBar(QWidget):
         for text in tags:
             button = PillPushButton(text, self)
             button.show()
+            button.installEventFilter(self)
             self._tags.append(button)
 
         self._update_geometry()
