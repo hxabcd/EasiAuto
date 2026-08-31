@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -17,13 +18,14 @@ from typing import Any
 import qt_pydantic as qtp
 from loguru import logger
 from packaging.version import Version
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
 from EasiAuto import __version__
 from EasiAuto.consts import CONFIG_PATH, IS_FULL
+from EasiAuto.core.utils import desensitize_account
 
 
 @total_ordering
@@ -671,6 +673,17 @@ class StatisticsConfig(ConfigModel):
     MaxLoginTime: float = Field(default=0)
 
     LoginCountsPerAccount: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("LoginCountsPerAccount", mode="after")
+    @classmethod
+    def _desensitize_account_keys(cls, value: dict[str, int]) -> dict[str, int]:
+        """把遗留明文账号键迁移为脱敏哈希，避免配置落盘泄露真实账号。"""
+        if not value:
+            return value
+        return {
+            desensitize_account(key) if not re.fullmatch(r"[0-9a-f]{16}", key) else key: count
+            for key, count in value.items()
+        }
 
 
 PAGE_INDEX: dict[str, list[str]] = {

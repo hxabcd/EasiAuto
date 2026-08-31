@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import os
 import signal
@@ -31,6 +32,14 @@ from EasiAuto.consts import (
     EA_EXECUTABLE,
     EA_RESDIR,
 )
+
+
+def desensitize_account(account: str) -> str:
+    """对账号进行脱敏，生成一致的哈希值用于统计。
+    
+    取 SHA256 哈希值的前 16 位十六进制数，确保相同账号产生相同脱敏值。
+    """
+    return hashlib.sha256(account.encode("utf-8")).hexdigest()[:16]
 
 
 def get_resource(filename: str):

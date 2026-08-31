@@ -14,7 +14,15 @@ from PySide6.QtCore import QThread, Signal
 from EasiAuto.automation import easinote_api
 from EasiAuto.automation.easinote_patcher import fetch_current_login_info
 from EasiAuto.core.exception_handler import capture_handled_exception
-from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
+from EasiAuto.core.utils import (
+    Point,
+    QABCMeta,
+    desensitize_account,
+    get_scale,
+    get_screen_size_physical,
+    kill_process,
+    switch_window,
+)
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
 
@@ -258,9 +266,10 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         # 统计数据
         time_start = time.monotonic()
         config.Statistics.LoginCounts += 1
-        if config.Statistics.LoginCountsPerAccount.get(self.account) is None:
-            config.Statistics.LoginCountsPerAccount[self.account] = 0
-        config.Statistics.LoginCountsPerAccount[self.account] += 1
+        account_hash = desensitize_account(self.account)
+        if config.Statistics.LoginCountsPerAccount.get(account_hash) is None:
+            config.Statistics.LoginCountsPerAccount[account_hash] = 0
+        config.Statistics.LoginCountsPerAccount[account_hash] += 1
 
         retries = 0
         while True:
