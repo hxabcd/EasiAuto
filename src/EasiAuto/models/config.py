@@ -558,6 +558,14 @@ class ExperimentalConfig(ConfigModel):
         json_schema_extra={"icon": "VPN"},
     )
 
+class ProfileConfig(ConfigModel):
+    SkipVerify: bool = Field(
+        default=False,
+        title="保存档案时跳过账号校验",
+        description="保存档案时不再连接希沃校验账号密码并缓存用户信息",
+        json_schema_extra={"icon": "CheckBox"},
+    )
+
 
 class ClassIslandConfig(ConfigModel):
     AutoPath: bool = Field(
@@ -704,10 +712,8 @@ class Config(ConfigModel):
     App: AppConfig = Field(default_factory=AppConfig, title="应用设置")
     Experimental: ExperimentalConfig = Field(default_factory=ExperimentalConfig, title="实验性选项")
 
-    # AutomationPage
+    Profile: ProfileConfig = Field(default_factory=ProfileConfig, title="档案设置")
     ClassIsland: ClassIslandConfig = Field(default_factory=ClassIslandConfig, title="ClassIsland 设置")
-
-    # UpdatePage
     Update: UpdateConfig = Field(default_factory=UpdateConfig, title="更新设置")
 
     # 内部

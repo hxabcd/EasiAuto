@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import shutil
+import uuid
+from pathlib import Path
+
 from loguru import logger
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QVBoxLayout,
@@ -21,11 +26,15 @@ from qfluentwidgets import (
     LineEdit,
     PasswordLineEdit,
     PrimaryPushButton,
+    PushButton,
     SubtitleLabel,
+    TransparentToolButton,
 )
 
-from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
-from EasiAuto.view.helpers import get_main_container
+from EasiAuto.consts import AVATAR_DIR
+from EasiAuto.models.config import config
+from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileLockedError, profile
+from EasiAuto.view.helpers import get_main_container, set_tooltip
 
 from .auth_verification import UserAuthVerificationThread
 
@@ -56,25 +65,48 @@ class ProfileEditor(QWidget):
         self.new_auto_hint.hide()
 
         self.automation_name_label = SubtitleLabel()
+        self.refresh_button = TransparentToolButton(FluentIcon.SYNC, self)
+        set_tooltip(self.refresh_button, "连接希沃白板并刷新用户信息")
+        self.refresh_button.clicked.connect(self._on_refresh_user_info)
 
-        self.form = QWidget()
-        self.form.setStyleSheet("QLabel { font-size: 14px; margin-right: 4px; }")
-        form_layout = QFormLayout(self.form)
+        name_row = QHBoxLayout()
+        name_row.setContentsMargins(0, 0, 0, 0)
+        name_row.setSpacing(8)
+        name_row.addWidget(self.automation_name_label)
+        name_row.addStretch(1)
+        name_row.addWidget(self.refresh_button)
+
+        form = QWidget()
+        form.setContentsMargins(0, 0, 0, 0)
+        form_layout = QFormLayout(form)
+        self.setStyleSheet("BodyLabel { margin-right: 8px; }")
 
         self.name_edit = LineEdit()
+        self.name_edit.setPlaceholderText("可选")
+        self.name_edit.setClearButtonEnabled(True)
         self.account_edit = LineEdit()
         self.password_edit = PasswordLineEdit()
 
-        form_layout.addRow(BodyLabel("名称 (可选)"), self.name_edit)
         form_layout.addRow(BodyLabel("账号"), self.account_edit)
         form_layout.addRow(BodyLabel("密码"), self.password_edit)
+        form_layout.addRow(BodyLabel("备注"), self.name_edit)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(8)
+        self.avatar_button = PushButton("设置头像")
+        self.avatar_button.clicked.connect(self._on_set_avatar)
+        actions_layout.addWidget(self.avatar_button)
+        actions_layout.addStretch(1)
 
         self.save_button = PrimaryPushButton("保存")
         self.save_button.clicked.connect(self._handle_save)
 
         layout.addWidget(self.new_auto_hint)
-        layout.addWidget(self.automation_name_label)
-        layout.addWidget(self.form)
+        layout.addLayout(name_row)
+        layout.addWidget(form)
+        layout.addSpacing(10)
+        layout.addLayout(actions_layout)
         layout.addStretch(1)
         layout.addWidget(self.save_button)
 
@@ -101,6 +133,8 @@ class ProfileEditor(QWidget):
                 self.password_edit.setDisabled(False)
 
         self.setEnabled(True)
+        # 新档案尚未入库，头像无法立即落盘，先禁用
+        self.avatar_button.setEnabled(not is_new)
 
     def start_new(self):
         """开始编辑新档案"""
@@ -171,6 +205,10 @@ class ProfileEditor(QWidget):
             self._request_save()
             return
 
+        if config.Profile.SkipVerify:
+            self._request_save()
+            return
+
         # 后台校验账号密码，成功或离线时再提交
         self._pending_save_automation = self.current_automation
         self.save_button.setEnabled(False)
@@ -206,9 +244,7 @@ class ProfileEditor(QWidget):
         automation = self._resolve_pending_save()
         if automation is None:
             return
-        automation.account_name = account_name or None
-        automation.avatar = avatar_path or None
-        automation.login_uid = uid or None
+        self.apply_user_info(account_name, avatar_path, uid)
         self.saveRequested.emit(automation)
 
     def _on_auth_failed(self, message: str):
@@ -223,6 +259,110 @@ class ProfileEditor(QWidget):
     def _on_auth_finished(self):
         self.save_button.setEnabled(True)
         self.save_button.setText("保存")
+
+    def apply_user_info(self, account_name: str, avatar_path: str, uid: str):
+        """应用希沃用户信息（用户名、头像、uid）到当前档案。
+
+        供保存校验成功与“刷新”按钮公共调用。
+        """
+        automation = self.current_automation
+        if not isinstance(automation, EasiAutomation):
+            return
+        automation.account_name = account_name or None
+        automation.avatar = avatar_path or None
+        automation.login_uid = uid or None
+
+    # ---- 刷新 / 头像 / 关联 ----
+
+    def _on_refresh_user_info(self):
+        """连接希沃白板刷新当前账号的用户信息（uid、头像）。"""
+        automation = self.current_automation
+        if not isinstance(automation, EasiAutomation):
+            self._show_error("无法刷新", "当前档案不支持连接希沃账号")
+            return
+        account = self.account_edit.text().strip()
+        password = self.password_edit.text()
+        if not account or not password:
+            self._show_error("无法刷新", "请先填写账号和密码")
+            return
+
+        self.refresh_button.setEnabled(False)
+        worker = UserAuthVerificationThread(account, password, parent=self)
+        worker.succeeded.connect(self._on_refresh_succeeded)
+        worker.failed.connect(lambda msg: self._show_error("刷新失败", msg))
+        worker.offline.connect(lambda msg: self._show_warning("刷新已跳过", msg))
+        worker.finished.connect(self._on_refresh_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_refresh_succeeded(self, account_name: str, avatar_path: str, uid: str):
+        self.apply_user_info(account_name, avatar_path, uid)
+        self._show_success("已更新用户信息", "已连接希沃白板并刷新账号信息")
+
+    def _on_refresh_finished(self):
+        self.refresh_button.setEnabled(True)
+
+    def _on_set_avatar(self):
+        """选择本地图片作为档案头像，并立即写入磁盘。"""
+        if not isinstance(self.current_automation, EasiAutomation):
+            self._show_error("无法设置头像", "当前档案暂不支持自定义头像")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择头像图片",
+            "",
+            "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;所有文件 (*)",
+        )
+        if not path:
+            return
+        stored = self._store_avatar_image(path)
+        self.current_automation.avatar = stored
+        self._persist_avatar(stored)
+
+    def _persist_avatar(self, avatar_path: str) -> bool:
+        """仅把头像更改写入磁盘；新档案（尚未入库）仅暂存到编辑对象。"""
+        automation = self.current_automation
+        existing = profile.get_automation(automation.id) if automation else None
+        if not isinstance(existing, EasiAutomation):
+            return False
+        existing.avatar = avatar_path
+        try:
+            profile.save(reason="automation_saved")
+            return True
+        except ProfileLockedError:
+            self._show_warning("档案已锁定", "头像更改已暂存，请先解锁档案（输入主密码）后再保存")
+            return False
+
+    @staticmethod
+    def _store_avatar_image(path: str) -> str:
+        """将用户选择的图片复制到头像缓存目录，返回可持久化的路径。"""
+        suffix = Path(path).suffix.lower() or ".png"
+        AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+        destination = AVATAR_DIR / f"user_{uuid.uuid4().hex}{suffix}"
+        shutil.copy2(path, destination)
+        return str(destination)
+
+    def _show_success(self, title: str, content: str, duration: int = 2500):
+        InfoBar.success(
+            title=title,
+            content=content,
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=duration,
+            parent=get_main_container(),
+        )
+
+    def _show_warning(self, title: str, content: str, duration: int = 2500):
+        InfoBar.warning(
+            title=title,
+            content=content,
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=duration,
+            parent=get_main_container(),
+        )
 
     def _show_error(self, title: str, content: str, duration: int = 2500):
         InfoBar.error(

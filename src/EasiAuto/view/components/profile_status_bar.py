@@ -20,6 +20,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core import security
+from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
 from EasiAuto.view.tokens import BRAND, TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
@@ -76,6 +77,11 @@ class AdvancedOptionsDialog(MessageBoxBase):
         )
         self.passwordless_card.valueChanged.connect(self._on_passwordless_changed)
         self.vBoxLayout.addWidget(self.passwordless_card)
+
+        self.skip_verify_card = SettingCard.from_config_item(
+            config.get_item("Profile.SkipVerify"), is_item=True, item_margin=False
+        )
+        self.vBoxLayout.addWidget(self.skip_verify_card)
 
         self._refresh_encrypt_card()
 
