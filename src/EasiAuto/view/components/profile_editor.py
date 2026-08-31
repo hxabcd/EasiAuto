@@ -202,12 +202,13 @@ class ProfileEditor(QWidget):
         self._pending_save_automation = None
         return automation
 
-    def _on_auth_succeeded(self, account_name: str, avatar_path: str):
+    def _on_auth_succeeded(self, account_name: str, avatar_path: str, uid: str):
         automation = self._resolve_pending_save()
         if automation is None:
             return
         automation.account_name = account_name or None
         automation.avatar = avatar_path or None
+        automation.login_uid = uid or None
         self.saveRequested.emit(automation)
 
     def _on_auth_failed(self, message: str):

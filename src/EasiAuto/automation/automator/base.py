@@ -16,6 +16,7 @@ from EasiAuto.automation.easinote_patcher import fetch_current_login_info
 from EasiAuto.core.exception_handler import capture_handled_exception
 from EasiAuto.core.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 from EasiAuto.models.config import config
+from EasiAuto.models.profile import profile
 
 
 class LoginCancelled(Exception):  # noqa: N818
@@ -187,27 +188,32 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)  # type: ignore (prepare中已检验希沃白板路径)
         self.check_interruption()
 
+    def _current_uid(self) -> str | None:
+        """读取当前登录希沃账号的 userId；未修补或无登录信息时返回 None。"""
+        info = fetch_current_login_info(False)
+        if not info or info.get("statusCode") != 202:
+            return None
+        return info.get("userId") or None
+
     def check_logged_in(self) -> bool:
-        """目标账号是否已登录"""
+        """目标账号是否已登录（优先本地比对缓存，无缓存则联网解析目标 uid）"""
         if not config.Internal.IsEasiNotePatched:
             return False
 
-        info = fetch_current_login_info(False)
-        if not info or info.get("statusCode") != 202:
-            return False
-
-        current_uid = info.get("userId")
+        current_uid = self._current_uid()
         if not current_uid:
             return False
 
-        try:
-            result = easinote_api.login(self.account, self.password)
-        except Exception:
-            return False
-
-        target_uid = result.user.uid
+        target_uid = profile.get_login_uid(self.account)
         if not target_uid:
-            return False
+            try:
+                result = easinote_api.login(self.account, self.password)
+            except Exception:
+                return False
+            target_uid = result.user.uid
+            if not target_uid:
+                return False
+            profile.set_login_uid(self.account, target_uid)
 
         return current_uid == target_uid
 

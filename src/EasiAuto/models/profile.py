@@ -180,6 +180,7 @@ class EasiAutomation(BaseAutomation):
     password: str = Field(default="", description="密码")
     account_name: str | None = Field(default=None, description="希沃白板用户名")
     avatar: Any | None = Field(default=None, description="希沃白板头像")
+    login_uid: str | None = Field(default=None, description="希沃白板用户 ID")
 
     @model_serializer(mode="wrap")
     def check_on_dump(self, serializer):
@@ -392,6 +393,25 @@ class Profile(BaseModel):
             if item.id == id:
                 return item
         return None
+
+    def get_login_uid(self, account: str) -> str | None:
+        """按账号返回缓存的希沃用户 ID；无缓存返回 None。"""
+        for item in self.automations:
+            if isinstance(item, EasiAutomation) and item.account == account:
+                return item.login_uid
+        return None
+
+    def set_login_uid(self, account: str, uid: str) -> None:
+        """把联网解析到的希沃用户 ID 缓存进档案，下次本地比对免联网。"""
+        if not account or not uid:
+            return
+        updated = False
+        for item in self.automations:
+            if isinstance(item, EasiAutomation) and item.account == account:
+                item.login_uid = uid
+                updated = True
+        if updated and not (self.encryption_enabled and not security.is_master_key_unlocked()):
+            self.save(reason="automation_saved")
 
     def upsert_automation(self, automation: BaseAutomation) -> None:
         i = self._find_automation_index(automation.id)

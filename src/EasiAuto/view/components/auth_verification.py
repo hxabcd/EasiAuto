@@ -22,7 +22,7 @@ from EasiAuto.consts import AVATAR_DIR
 class UserAuthVerificationThread(QThread):
     """后台线程：校验希沃账号密码，并缓存头像。"""
 
-    succeeded = Signal(str, str)  # account_name, avatar_path
+    succeeded = Signal(str, str, str)  # account_name, avatar_path, uid
     failed = Signal(str)  # 认证失败原因
     offline = Signal(str)  # 网络异常（跳过校验）
 
@@ -47,7 +47,7 @@ class UserAuthVerificationThread(QThread):
 
         avatar_path = self._download_avatar(result.user.photo_url or None)
         account_name = result.user.nick_name or result.user.real_name
-        self.succeeded.emit(account_name, avatar_path or "")
+        self.succeeded.emit(account_name, avatar_path or "", result.user.uid)
 
     @staticmethod
     def _download_avatar(url: str | None) -> str | None:

@@ -11,7 +11,7 @@ from EasiAuto.automation.easinote_api import (
     SeewoNeedCaptcha,
     SeewoNetworkError,
 )
-from EasiAuto.automation.easinote_patcher import PIPE_NAME, fetch_current_login_info
+from EasiAuto.automation.easinote_patcher import PIPE_NAME
 from EasiAuto.models import config
 
 from .base import BaseAutomator, LoginError
@@ -21,12 +21,7 @@ class TokenAutomator(BaseAutomator):
     def check_logged_in(self) -> bool:
         if not config.Internal.IsEasiNotePatched:
             return False
-
-        info = fetch_current_login_info(False)
-        if info and info.get("statusCode") == 202:
-            current_uid = info.get("userId", "")
-            return current_uid and current_uid == self.login_info.user.uid
-        return False
+        return self._current_uid() == self.login_info.user.uid
 
     def prepare(self):
         if not config.Internal.IsEasiNotePatched:
