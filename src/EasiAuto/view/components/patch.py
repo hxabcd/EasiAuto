@@ -34,7 +34,7 @@ class PatchThread(QThread):
         self.enable = enable
 
     def run(self) -> None:
-        from EasiAuto.automation.easinote_patcher import (
+        from EasiAuto.integrations.easinote.patcher import (
             PATCH_ERR_EASINOTE_NOT_FOUND,
             PATCH_ERR_UNKNOWN,
             PATCH_OK,
@@ -80,7 +80,7 @@ class PatchThread(QThread):
 
 def patch_error_message(code: int, launched: bool) -> str:
     """根据子进程退出码返回用户可读的错误信息"""
-    from EasiAuto.automation.easinote_patcher import (
+    from EasiAuto.integrations.easinote.patcher import (
         PATCH_ERR_EASINOTE_NOT_FOUND,
         PATCH_ERR_OPERATION_FAILED,
         PATCH_ERR_UNKNOWN,
@@ -134,7 +134,7 @@ class PatcherSettingCard(SettingCard):
             return
 
         # 先同步状态再连接信号，避免初始化时触发修补
-        from EasiAuto.automation.easinote_patcher import is_easinote_patched
+        from EasiAuto.integrations.easinote.patcher import is_easinote_patched
 
         self.switch.setChecked(is_easinote_patched(self.path))
         self.switch.checkedChanged.connect(self._on_switch_changed)

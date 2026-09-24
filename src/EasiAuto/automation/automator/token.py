@@ -4,14 +4,14 @@ from pathlib import Path
 
 from loguru import logger
 
-from EasiAuto.automation.easinote_api import (
+from EasiAuto.integrations.easinote.api import (
     SeewoAuthError,
     SeewoClient,
     SeewoLoginError,
     SeewoNeedCaptcha,
     SeewoNetworkError,
 )
-from EasiAuto.automation.easinote_patcher import PIPE_NAME
+from EasiAuto.integrations.easinote.patcher import PIPE_NAME
 from EasiAuto.models import config
 
 from .base import BaseAutomator, LoginError

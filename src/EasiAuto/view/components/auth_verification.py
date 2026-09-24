@@ -9,14 +9,14 @@ from PIL import Image
 
 from PySide6.QtCore import QThread, Signal
 
-from EasiAuto.automation.easinote_api import (
+from EasiAuto.consts import AVATAR_DIR
+from EasiAuto.integrations.easinote.api import (
     SeewoAuthError,
     SeewoClient,
     SeewoLoginError,
     SeewoNeedCaptcha,
     SeewoNetworkError,
 )
-from EasiAuto.consts import AVATAR_DIR
 
 
 class UserAuthVerificationThread(QThread):

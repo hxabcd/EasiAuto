@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from loguru import logger
 from pydantic import BaseModel
 
-from EasiAuto.integrations.classisland_manager import (
+from EasiAuto.integrations.classisland.classisland import (
     CiSubject,
     ManagedCiAutomation,
 )
-from EasiAuto.integrations.classisland_manager import (
+from EasiAuto.integrations.classisland.classisland import (
     classisland_manager as ci_manager,
 )
 from EasiAuto.models.config import config

@@ -176,7 +176,7 @@ class PatchStep(OobeStep):
     def update_patched_ui(self):
         if config.Login.Method == LoginMethod.TOKEN:
             self.note2.show()
-            from EasiAuto.automation.easinote_patcher import is_easinote_patched
+            from EasiAuto.integrations.easinote.patcher import is_easinote_patched
 
             if self._path is not None:
                 self.set_next_enabled(is_easinote_patched(self._path))

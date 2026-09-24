@@ -33,7 +33,7 @@ from qfluentwidgets import (
 
 from EasiAuto.core import security
 from EasiAuto.core.utils import create_shortcut
-from EasiAuto.integrations.classisland_manager import classisland_manager as ci_manager
+from EasiAuto.integrations.classisland.classisland import classisland_manager as ci_manager
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, ProfileLockedError, profile
 from EasiAuto.services.binding_service import ClassIslandBindingBackend

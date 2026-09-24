@@ -11,8 +11,6 @@ from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
-from EasiAuto.automation import easinote_api
-from EasiAuto.automation.easinote_patcher import fetch_current_login_info
 from EasiAuto.core.exception_handler import capture_handled_exception
 from EasiAuto.core.utils import (
     Point,
@@ -23,6 +21,8 @@ from EasiAuto.core.utils import (
     kill_process,
     switch_window,
 )
+from EasiAuto.integrations.easinote import api as easinote_api
+from EasiAuto.integrations.easinote.patcher import fetch_current_login_info
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
 
