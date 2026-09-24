@@ -11,20 +11,19 @@ from EasiAuto.integrations.easinote.api import (
     SeewoNeedCaptcha,
     SeewoNetworkError,
 )
-from EasiAuto.integrations.easinote.patcher import PIPE_NAME
-from EasiAuto.models import config
+from EasiAuto.integrations.easinote.patcher import PIPE_NAME, is_patched
 
 from .base import BaseAutomator, LoginError
 
 
 class TokenAutomator(BaseAutomator):
     def check_logged_in(self) -> bool:
-        if not config.Internal.IsEasiNotePatched:
+        if not is_patched():
             return False
         return self._current_uid() == self.login_info.user.uid
 
     def prepare(self):
-        if not config.Internal.IsEasiNotePatched:
+        if not is_patched():
             raise LoginError("希沃白板未修补", retry=False)
 
         self.seewo_client = SeewoClient()

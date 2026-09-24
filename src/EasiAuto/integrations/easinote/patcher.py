@@ -104,6 +104,16 @@ def is_easinote_patched(easinote_exe_path: Path) -> bool:
     )
 
 
+def is_patched() -> bool:
+    """当前安装的希沃白板是否已修补（自动解析安装路径，未安装时返回 False）"""
+    from EasiAuto.automation.utils import resolve_easinote_path
+
+    path, _ = resolve_easinote_path()
+    if path is None:
+        return False
+    return is_easinote_patched(path)
+
+
 def patch_easinote(easinote_exe_path: Path) -> bool:
     dllpatcher_exe = VENDOR_PATH / "DllPatcher" / "DllPatcher.exe"
 

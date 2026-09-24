@@ -1,5 +1,4 @@
 import time
-from pathlib import Path
 
 from EasiAuto.core.utils import (
     Point,
@@ -7,17 +6,26 @@ from EasiAuto.core.utils import (
     get_scale,
     get_screen_size_physical,
 )
+from EasiAuto.integrations.easinote.env import detect_is_iwb, parse_start_mode
 from EasiAuto.models.config import config
 
 from .base import PyAutoGuiBaseAutomator
 
 
 class FixedAutomator(PyAutoGuiBaseAutomator):
-    """通过固定位置来登录"""
+    """通过固定位置来登录
 
-    def start_easinote(self, path: Path, args: str):
-        # NOTE: 强制 Iwb
-        return super().start_easinote(path, args if config.Login.IsIwb else "-m Display iwb")
+    NOTE: 坐标基于白板（IWB）界面的登录窗口，故在机器本身不会进入白板界面时，
+    强制追加 `-m Display iwb`，使希沃白板呈现该登录窗口；本身即为白板设备时沿用用户设置的参数。
+    """
+
+    def resolve_launch_args(self) -> str:
+        args = config.Login.EasiNote.Args
+        # 固定位置的坐标基于白板界面的登录窗口，故仅在确实会进入该界面时沿用用户参数
+        mode = parse_start_mode(args)
+        if mode == "display" or (mode is None and detect_is_iwb()):
+            return args
+        return "-m Display iwb"
 
     @staticmethod
     def resolve_position(position: tuple[int, int]) -> tuple[int, int]:
@@ -39,18 +47,17 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         scale = get_scale()
 
         # 进入登录界面
-        if config.Login.IsIwb or True:  # NOTE: 强制 Iwb
-            self.check_interruption()
-            self.update_progress("进入登录界面")
+        self.check_interruption()
+        self.update_progress("进入登录界面")
 
-            # 相对左下角，单独缩放
-            x, y = config.Login.Position.EnterLogin
-            if config.Login.Position.EnableScaling:
-                x = x * scale
-                y = screen_size[1] - (config.Login.Position.BaseSize[1] - y) * scale
+        # 相对左下角，单独缩放
+        x, y = config.Login.Position.EnterLogin
+        if config.Login.Position.EnableScaling:
+            x = x * scale
+            y = screen_size[1] - (config.Login.Position.BaseSize[1] - y) * scale
 
-            self.click(x, y)
-            time.sleep(config.Login.Timeout.EnterLoginUI)
+        self.click(x, y)
+        time.sleep(config.Login.Timeout.EnterLoginUI)
 
         # 显示隐私保护遮罩
         if config.Experimental.PrivacyMask.Enabled:

@@ -11,14 +11,13 @@ from .base import LoginError, PyAutoGuiBaseAutomator
 class CVAutomator(PyAutoGuiBaseAutomator):
     """通过识别图像登录"""
 
-    def __init__(self, account: str, password: str) -> None:
-        super().__init__(account, password)
-
-        self.path_suffix: str = ""
-        if not config.Login.IsIwb:
-            self.path_suffix += "_direct"
+    @property
+    def path_suffix(self) -> str:
+        """图像资源后缀，随界面环境（白板/普通）与分辨率适配变化"""
+        suffix = "" if self.is_iwb else "_direct"
         if config.Login.Is4K:
-            self.path_suffix += "_4k"
+            suffix += "_4k"
+        return suffix
 
     def find_control(self, img_name: str, ext_name: str = "png", _assert: bool = False) -> Point:
         import pyautogui
@@ -38,7 +37,7 @@ class CVAutomator(PyAutoGuiBaseAutomator):
 
         # 进入登录界面
         self.check_interruption()
-        if config.Login.IsIwb:
+        if self.is_iwb:
             self.update_progress("进入登录界面")
 
             self.click(172 * scale, 1044 * scale)

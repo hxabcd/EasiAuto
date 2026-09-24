@@ -24,6 +24,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core import utils
+from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
 from EasiAuto.services import announcement_service
 from EasiAuto.services.announcement_service import Announcement
@@ -222,7 +223,7 @@ class ConfigPage(QWidget):
             match name:
                 case "Login.Method":
                     card = cast(ExpandSelectorSettingCard, card)
-                    if not config.Internal.IsEasiNotePatched:
+                    if not is_patched():
                         card.setOptionEnabled(LoginMethod.TOKEN, False)
 
                 case "Login.SkipOnce":

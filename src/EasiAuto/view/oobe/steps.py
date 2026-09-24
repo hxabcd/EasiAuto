@@ -25,13 +25,13 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.automation.utils import resolve_easinote_path
 from EasiAuto.core.utils import (
     create_shortcut,
     get_resource,
     get_start_menu_programs,
     probe_ci_executable,
 )
+from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.models.config import LoginMethod, config
 from EasiAuto.view.components import SettingCard, SettingCardType
 from EasiAuto.view.components.setting_card import ExpandSelectorSettingCard
@@ -138,7 +138,6 @@ class PatchStep(OobeStep):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._path: Path | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 8, 0, 0)
@@ -176,16 +175,12 @@ class PatchStep(OobeStep):
     def update_patched_ui(self):
         if config.Login.Method == LoginMethod.TOKEN:
             self.note2.show()
-            from EasiAuto.integrations.easinote.patcher import is_easinote_patched
-
-            if self._path is not None:
-                self.set_next_enabled(is_easinote_patched(self._path))
+            self.set_next_enabled(is_patched())
         else:
             self.note2.hide()
             self.set_next_enabled(True)
 
     def on_enter(self) -> None:
-        self._path, _ = resolve_easinote_path()
         self.update_patched_ui()
 
     def on_leave(self) -> None:

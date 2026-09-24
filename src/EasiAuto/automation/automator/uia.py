@@ -20,7 +20,7 @@ class UIAAutomator(BaseAutomator):
         dlg.set_focus()  # 设置焦点为希沃白板窗口
 
         # 进入登录界面
-        if config.Login.IsIwb:
+        if self.is_iwb:
             self.check_interruption()
             self.update_progress("进入登录界面")
 
@@ -47,7 +47,7 @@ class UIAAutomator(BaseAutomator):
         self.update_progress("切换至账号登录页")
 
         account_login_button = dlg.child_window(
-            auto_id="AccountRadioButton" if config.Login.IsIwb else "AccountLoginRadioButton",
+            auto_id="AccountRadioButton" if self.is_iwb else "AccountLoginRadioButton",
             control_type="RadioButton",
         )
         account_login_button.click()
@@ -58,7 +58,7 @@ class UIAAutomator(BaseAutomator):
         self.update_progress("定位登录控件")
 
         account_login_page = dlg.child_window(
-            auto_id="IwbAccountControl" if config.Login.IsIwb else "PasswordLoginControl", control_type="Custom"
+            auto_id="IwbAccountControl" if self.is_iwb else "PasswordLoginControl", control_type="Custom"
         )
 
         # 输入账号

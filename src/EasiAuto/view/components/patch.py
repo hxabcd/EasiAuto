@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, SwitchButton
 
-from EasiAuto.models.config import config
+from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.view.components.setting_card import CardType as SettingCardType
 from EasiAuto.view.components.setting_card import SettingCard
 
@@ -134,9 +134,7 @@ class PatcherSettingCard(SettingCard):
             return
 
         # 先同步状态再连接信号，避免初始化时触发修补
-        from EasiAuto.integrations.easinote.patcher import is_easinote_patched
-
-        self.switch.setChecked(is_easinote_patched(self.path))
+        self.refresh_switch()
         self.switch.checkedChanged.connect(self._on_switch_changed)
 
     def _on_switch_changed(self, value: bool):
@@ -161,8 +159,7 @@ class PatcherSettingCard(SettingCard):
         thread.start()
 
     def _finish_patch(self, value: bool, ok: bool, content: str | None):
-        """统一处理修补结果：更新配置、失败时回弹开关、恢复可用状态"""
-        config.Internal.IsEasiNotePatched = value if ok else not value
+        """统一处理修补结果：以磁盘实际状态回填开关、失败时提示、恢复可用状态"""
         if not ok:
             InfoBar.error(
                 title=f"{'修补' if value else '撤销修补'}失败",
@@ -173,8 +170,14 @@ class PatcherSettingCard(SettingCard):
                 duration=3000,
                 parent=self.window(),
             )
-            self.switch.blockSignals(True)
-            self.switch.setChecked(not value)
-            self.switch.blockSignals(False)
+
+        # 以实际的磁盘状态为准，避免失败或部分修补时开关与真实情况不符
+        self.refresh_switch()
         self.switch.setEnabled(True)
         self.finished.emit(ok)
+
+    def refresh_switch(self) -> None:
+        """按磁盘实际状态同步开关（不触发修补）"""
+        self.switch.blockSignals(True)
+        self.switch.setChecked(is_patched())
+        self.switch.blockSignals(False)

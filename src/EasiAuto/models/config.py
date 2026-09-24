@@ -345,12 +345,6 @@ class LoginConfig(ConfigModel):
         description="可避免某些情况下自动登录被希沃白板的快捷登录打断",
         json_schema_extra={"icon": "PowerButton"},
     )
-    IsIwb: bool = Field(
-        default=True,
-        title="需要进入登录界面",
-        description="适用于打开希沃白板后直接进入黑板界面（iwb）的情况，在非希沃机器上需要关闭",
-        json_schema_extra={"icon": "People"},
-    )
     Is4K: bool = Field(
         default=False,
         title="图像识别 4K 适配",
@@ -645,7 +639,6 @@ class InternalConfig(ConfigModel):
     IsOobeCompleted: bool = Field(default=False)
     IsProfilePageNoticeShown: bool = Field(default=False)
     IsAutomationPageNoticeShown: bool = Field(default=False)
-    IsEasiNotePatched: bool = Field(default=False)
     LastUpdateCheckTime: datetime | None = Field(default=None)
     HiddenAnnouncementIds: list[str] = Field(default_factory=list)
 
@@ -711,9 +704,11 @@ class Config(ConfigModel):
     Statistics: StatisticsConfig = Field(default_factory=StatisticsConfig, title="统计数据")
 
     @staticmethod
-    def migrate_config(obj: Any):
-        """对旧配置进行额外的迁移"""
+    def migrate_config(obj: Any) -> Any:
+        """对旧配置进行额外的迁移
 
+        按历史版本号依次施加迁移；新增迁移时在下方追加分支即可。
+        """
         if not isinstance(obj, dict):
             return obj
 
@@ -731,11 +726,6 @@ class Config(ConfigModel):
 
         try:
             transferred = False
-            if last_version <= Version("1.1.3"):  # noqa: SIM102
-                transferred = True
-                if obj["Login"]["Directly"]:
-                    del obj["Login"]["Directly"]
-                    obj["Login"]["IsIwb"] = False
 
             if transferred:
                 logger.info(f"已迁移配置 ({last_version} -> {__version__})")

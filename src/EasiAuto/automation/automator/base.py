@@ -22,7 +22,8 @@ from EasiAuto.core.utils import (
     switch_window,
 )
 from EasiAuto.integrations.easinote import api as easinote_api
-from EasiAuto.integrations.easinote.patcher import fetch_current_login_info
+from EasiAuto.integrations.easinote.env import resolve_is_iwb
+from EasiAuto.integrations.easinote.patcher import fetch_current_login_info, is_patched
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
 
@@ -62,6 +63,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.password: str = password
         self.easinote_path: Path | None = None
         self.easinote: int | None = None
+        self.easinote_args: str = ""
+        self.is_iwb: bool = False  # 由 restart_easinote() 按机器环境检测
 
         self._prev_task: str | None = None
         self._prev_progress: str | None = None
@@ -185,6 +188,10 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
     def _after_easinote_dead(self):
         pass
 
+    def resolve_launch_args(self) -> str:
+        """本次启动希沃白板实际使用的参数（子类可覆写以强制启动模式）"""
+        return config.Login.EasiNote.Args
+
     def restart_easinote(self):
         logger.info("终止希沃进程")
         self.kill_processes()
@@ -192,8 +199,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         self._after_easinote_dead()
 
+        # 按实际启动参数判定界面环境（命令行 -m 优先，否则探测本机硬件）
+        args = self.resolve_launch_args()
+        self.is_iwb = resolve_is_iwb(args)
+
         logger.info("启动希沃白板")
-        self.start_easinote(path=self.easinote_path, args=config.Login.EasiNote.Args)  # type: ignore (prepare中已检验希沃白板路径)
+        self.start_easinote(path=self.easinote_path, args=args)  # type: ignore (prepare中已检验希沃白板路径)
         self.check_interruption()
 
     def _current_uid(self) -> str | None:
@@ -205,7 +216,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     def check_logged_in(self) -> bool:
         """目标账号是否已登录（优先本地比对缓存，无缓存则联网解析目标 uid）"""
-        if not config.Internal.IsEasiNotePatched:
+        if not is_patched():
             return False
 
         current_uid = self._current_uid()

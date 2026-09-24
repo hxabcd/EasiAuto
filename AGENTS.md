@@ -25,7 +25,7 @@ src/EasiAuto/
     announcement_service.py  # 公告轮询服务
     update_service.py    # 版本更新检查与安装
   integrations/
-    easinote/            # 希沃白板集成：api(登录接口) / patcher(二进制修补)
+    easinote/            # 希沃白板集成：api(登录接口) / env(启动环境检测) / patcher(二进制修补)
     classisland/         # ClassIsland 集成：配置文件读写接口
   view/
     main_window.py       # 主窗口
