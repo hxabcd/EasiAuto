@@ -11,6 +11,8 @@ from loguru import logger
 
 from EasiAuto.consts import VENDOR_PATH
 
+from .path import resolve_easinote_path
+
 # cmd_patch 专用退出码，值 20–29 与系统中其他退出码（0/1/2/argparse 的 2）完全隔离
 PATCH_OK = 20
 PATCH_ERR_OPERATION_FAILED = 21
@@ -106,7 +108,6 @@ def is_easinote_patched(easinote_exe_path: Path) -> bool:
 
 def is_patched() -> bool:
     """当前安装的希沃白板是否已修补（自动解析安装路径，未安装时返回 False）"""
-    from EasiAuto.automation.utils import resolve_easinote_path
 
     path, _ = resolve_easinote_path()
     if path is None:

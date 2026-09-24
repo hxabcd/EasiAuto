@@ -1,8 +1,10 @@
+"""希沃白板安装路径解析"""
+
+from __future__ import annotations
+
 import winreg
 from pathlib import Path
 from typing import Literal
-
-from EasiAuto.models import config
 
 
 def resolve_easinote_path() -> tuple[Path | None, Literal["registry", "fallback", "manual"]]:
@@ -14,6 +16,8 @@ def resolve_easinote_path() -> tuple[Path | None, Literal["registry", "fallback"
                 'fallback' — 注册表失败，使用默认路径
                 'manual'   — 使用手动配置路径
     """
+    from EasiAuto.models import config
+
     if config.Login.EasiNote.AutoPath:
         try:
             with winreg.OpenKey(

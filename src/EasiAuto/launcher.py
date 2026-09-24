@@ -492,7 +492,6 @@ class Launcher:
         退出码: 20 = 成功, 21 = 操作失败, 22 = 未找到希沃白板路径, 29 = 未知异常.
         使用 20–29 区间，与其他退出码完全隔离，避免误判。
         """
-        from EasiAuto.automation.utils import resolve_easinote_path
         from EasiAuto.integrations.easinote.patcher import (
             PATCH_ERR_EASINOTE_NOT_FOUND,
             PATCH_ERR_OPERATION_FAILED,
@@ -501,6 +500,7 @@ class Launcher:
             patch_easinote,
             unpatch_easinote,
         )
+        from EasiAuto.integrations.easinote.path import resolve_easinote_path
 
         path, _ = resolve_easinote_path()
         if path is None:

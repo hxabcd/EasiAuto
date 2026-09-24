@@ -24,6 +24,7 @@ from EasiAuto.core.utils import (
 from EasiAuto.integrations.easinote import api as easinote_api
 from EasiAuto.integrations.easinote.env import resolve_is_iwb
 from EasiAuto.integrations.easinote.patcher import fetch_current_login_info, is_patched
+from EasiAuto.integrations.easinote.path import resolve_easinote_path
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
 
@@ -94,7 +95,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
     @staticmethod
     def get_easinote_path() -> Path | None:
-        from ..utils import resolve_easinote_path
 
         path, source = resolve_easinote_path()
         if source == "registry":

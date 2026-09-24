@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, SwitchButton
 
 from EasiAuto.integrations.easinote.patcher import is_patched
+from EasiAuto.integrations.easinote.path import resolve_easinote_path
 from EasiAuto.view.components.setting_card import CardType as SettingCardType
 from EasiAuto.view.components.setting_card import SettingCard
 
@@ -73,7 +74,6 @@ class PatchThread(QThread):
 
     @staticmethod
     def _resolve_path():
-        from EasiAuto.automation.utils import resolve_easinote_path
 
         return resolve_easinote_path()[0]
 
@@ -125,7 +125,7 @@ class PatcherSettingCard(SettingCard):
         self.path: Path | None = None
         self._patch_thread: PatchThread | None = None
 
-        from EasiAuto.automation.utils import resolve_easinote_path
+        from EasiAuto.integrations.easinote.path import resolve_easinote_path
 
         self.path, _ = resolve_easinote_path()
         if self.path is None:
