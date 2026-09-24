@@ -35,7 +35,7 @@ from qfluentwidgets.common.animation import (
     FluentAnimationType,
 )
 
-from EasiAuto.core.utils import get_animation_frame_interval
+from EasiAuto.core.display import get_animation_frame_interval
 
 
 def _same_category(a, b) -> bool:

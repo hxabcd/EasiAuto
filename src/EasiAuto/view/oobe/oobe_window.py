@@ -19,7 +19,7 @@ from qfluentwidgets import (
     SubtitleLabel,
 )
 
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.resources import get_resource
 from EasiAuto.models.config import config
 from EasiAuto.view.components import PopupStackedWidget
 

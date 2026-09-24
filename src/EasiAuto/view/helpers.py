@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 from qfluentwidgets import ExpandGroupSettingCard, FluentIconBase, SwitchButton, ToolTipFilter
 from qfluentwidgets.common.config import Theme
 
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.resources import get_resource
 from EasiAuto.view.tokens import MAX_CONTENT_WIDTH
 
 if TYPE_CHECKING:
@@ -22,6 +22,14 @@ def wrap_centered(widget: QWidget, max_width: int = MAX_CONTENT_WIDTH) -> QWidge
     widget.setMaximumWidth(max_width)
     layout.addWidget(widget)
     return container
+
+
+def cleanup_widget(widget):
+    """关闭并释放 Qt 控件；传入 None 时直接返回（便于 `x = cleanup_widget(x)` 的写法）"""
+    if widget is not None:
+        if hasattr(widget, "close"):
+            widget.close()
+        widget.deleteLater()
 
 
 class Icons(FluentIconBase, Enum):

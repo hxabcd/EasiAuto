@@ -17,7 +17,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core import security
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.resources import get_resource
 from EasiAuto.models.profile import BaseAutomation, profile
 from EasiAuto.view.components import PopupStackedWidget
 from EasiAuto.view.pages import AboutPage, AutomationPage, ConfigPage, ProfilePage, UpdatePage

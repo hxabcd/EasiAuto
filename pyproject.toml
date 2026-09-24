@@ -102,6 +102,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tools/*.py" = ["T201"]
+# 分层约束由 tools/develop/check_layers.py 校验，见 AGENTS.md「分层约定」
 
 [tool.ruff.lint.isort]
 known-first-party = ["EasiAuto"]

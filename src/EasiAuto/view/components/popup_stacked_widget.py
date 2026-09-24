@@ -8,7 +8,7 @@ qfluentwidgets 的 PopUpAniStackedWidget 由 QAbstractAnimation 驱动，
 from PySide6.QtCore import QEasingCurve, QElapsedTimer, QPoint, QTimer
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
-from EasiAuto.core.utils import get_animation_frame_interval
+from EasiAuto.core.display import get_animation_frame_interval
 
 
 class PopupStackedWidget(QStackedWidget):

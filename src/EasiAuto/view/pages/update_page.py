@@ -39,12 +39,12 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.consts import CACHE_DIR
-from EasiAuto.core import utils
 from EasiAuto.models.config import ConfigGroup, DownloadSource, UpdateMode, config
-from EasiAuto.services.toast_service import ToastNotifier
+from EasiAuto.runtime.lifecycle import stop
 from EasiAuto.services.update_service import ChangeLog, UpdateDecision, update_service
 from EasiAuto.view.components import SettingCard, TagLabel
 from EasiAuto.view.helpers import get_app, get_main_container, get_main_window, set_tooltip, wrap_centered
+from EasiAuto.view.notifications import ToastNotifier
 
 
 class HighlightedChangeLogCard(CardWidget):
@@ -612,7 +612,7 @@ class UpdatePage(QWidget):
                     get_app().aboutToQuit.connect(
                         lambda: update_service.apply_script(zip_path=CACHE_DIR / self._update_file, reopen=True),
                     )
-                utils.stop()
+                stop()
 
     def check_started(self):
         self.action = UpdateStatus.CHECKING

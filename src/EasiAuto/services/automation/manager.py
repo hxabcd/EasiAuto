@@ -4,8 +4,15 @@ from loguru import logger
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.automation.automator import BaseAutomator, CvAutomator, FixedAutomator, TokenAutomator, UiaAutomator
 from EasiAuto.models.config import LoginMethod, config
+
+from .automator import (
+    BaseAutomator,
+    CvAutomator,
+    FixedAutomator,
+    TokenAutomator,
+    UiaAutomator,
+)
 
 
 class AutomationManager(QObject):

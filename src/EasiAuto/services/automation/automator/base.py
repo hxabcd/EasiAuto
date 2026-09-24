@@ -1,57 +1,33 @@
+"""自动登录基类
+
+编排一次登录流程：准备（终止并重启希沃白板）→ 执行子类的登录动作 → 统一收尾与结果上报。
+具体的点击/输入手段由子类实现。
+"""
+
+from __future__ import annotations
+
 import subprocess
 import time
 from abc import abstractmethod
-from collections.abc import Iterable
-from enum import Enum
 from pathlib import Path
-from typing import SupportsIndex, SupportsInt
 
-import win32gui
 from loguru import logger
 
 from PySide6.QtCore import QThread, Signal
 
-from EasiAuto.core.exception_handler import capture_handled_exception
-from EasiAuto.core.utils import (
-    Point,
-    QABCMeta,
-    desensitize_account,
-    get_scale,
-    get_screen_size_physical,
-    kill_process,
-    switch_window,
-)
+from EasiAuto.core import window
+from EasiAuto.core.qt_abc import QABCMeta
 from EasiAuto.integrations.easinote import api as easinote_api
+from EasiAuto.integrations.easinote import pipe
+from EasiAuto.integrations.easinote import process as easinote_process
 from EasiAuto.integrations.easinote.env import resolve_is_iwb
-from EasiAuto.integrations.easinote.patcher import fetch_current_login_info, is_patched
+from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.integrations.easinote.path import resolve_easinote_path
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import profile
+from EasiAuto.runtime.exception_handler import capture_handled_exception
 
-
-class LoginCancelled(Exception):  # noqa: N818
-    """登录被手动取消"""
-
-
-class LoginError(Exception):
-    """登录异常"""
-
-    def __init__(self, message: str, retry: bool = True) -> None:
-        """
-        Args:
-            message (str): 异常信息
-            retry (bool, optional): 是否允许错误重试
-        """
-        super().__init__(message)
-        self.retry = retry
-
-
-class LoginStatus(Enum):
-    """登录流程的最终状态"""
-
-    SUCCESS = "success"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+from .errors import LoginCancelled, LoginError, LoginStatus
 
 
 class BaseAutomator(QThread, metaclass=QABCMeta):
@@ -115,74 +91,6 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             logger.debug(f"使用设置的路径: {config.Login.EasiNote.Path}")
         return path
 
-    def kill_processes(self):
-        target_list: list[str] = [config.Login.EasiNote.ProcessName]
-        if config.Login.KillAgent:
-            target_list.append("EasiAgent")
-        if extra := config.Login.EasiNote.ExtraKills:
-            target_list += extra.split(",")
-        logger.debug(f"要终止的目标进程: {', '.join(target_list)}")
-
-        for target in target_list:
-            kill_process(
-                target.strip().removesuffix(".exe"),
-                force=True,
-                wait=True,
-                timeout=config.Login.Timeout.Terminate,
-            )
-
-    def start_easinote(self, path: Path, args: str) -> subprocess.Popen:
-        """启动希沃白板
-
-        Args:
-            path (Path): 启动器可执行文件路径
-            args (str): 启动参数，按空白字符分隔
-
-        Returns:
-            subprocess.Popen: 已启动的进程句柄
-
-        Raises:
-            LoginError: 启动失败（文件缺失、权限不足等）
-        """
-        logger.debug(f"路径: {path}, 参数: {args}")
-        try:
-            return subprocess.Popen([str(path.resolve()), *args.split()])
-        except OSError as e:
-            raise LoginError(f"启动希沃白板失败: {e}") from e
-
-    def _enum_all_windows(self) -> list[tuple[int, str, str]]:
-        """枚举所有顶层窗口"""
-
-        def callback(hwnd, windows):
-            window_text = win32gui.GetWindowText(hwnd)
-            class_name = win32gui.GetClassName(hwnd) or ""
-            if window_text or "easinote" in class_name.lower():
-                windows.append((hwnd, window_text, class_name))
-            return True
-
-        windows = []
-        win32gui.EnumWindows(callback, windows)
-
-        return windows
-
-    def _log_all_windows(self):
-        windows = self._enum_all_windows()
-
-        windows.sort(key=lambda x: x[1])
-
-        logger.debug("==========当前窗口==========")
-        for hwnd, text, class_name in windows:
-            logger.debug(f"句柄: {hwnd:8x} | 标题: {text[:30]:30} | 类名: {class_name}")
-
-    def _find_window(self, title: str) -> int:
-        """按标题查找窗口句柄，未找到返回 0"""
-        if config.Debug.AlternateFindWindowMethod:
-            for hwnd, text, _ in self._enum_all_windows():
-                if title in text:
-                    return hwnd
-            return 0
-        return win32gui.FindWindow(None, title) or 0
-
     def wait_for_window(self, title: str, timeout: float, interval: float) -> int:
         """等待窗口出现
 
@@ -204,8 +112,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
             self.update_progress(f"等待{title}窗口出现 ({int(elapsed)}/{int(timeout)}s)")
             if config.Debug.VerboseLog:
-                self._log_all_windows()
-            if hwnd := self._find_window(title):
+                window.log_windows()
+            if hwnd := window.find_window(title, substring=config.Debug.AlternateFindWindowMethod):
                 return hwnd
             time.sleep(interval)
             elapsed += interval
@@ -231,7 +139,12 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             raise LoginError("希沃白板可执行文件不存在", retry=False)
 
         logger.info("终止希沃进程")
-        self.kill_processes()
+        easinote_process.kill_targets(
+            config.Login.EasiNote.ProcessName,
+            kill_agent=config.Login.KillAgent,
+            extra_kills=config.Login.EasiNote.ExtraKills,
+            timeout=config.Login.Timeout.Terminate,
+        )
         self.check_interruption()
 
         self._after_easinote_dead()
@@ -242,15 +155,18 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.easinote_args = args
 
         logger.info("启动希沃白板")
-        self.easinote = self.start_easinote(path=path, args=args)
+        try:
+            self.easinote = easinote_process.launch(path, args)
+        except OSError as e:
+            raise LoginError(f"启动希沃白板失败: {e}") from e
         self.check_interruption()
 
     def _current_uid(self) -> str | None:
         """读取当前登录希沃账号的 userId；未修补或无登录信息时返回 None。"""
-        info = fetch_current_login_info(False)
-        if not info or info.get("statusCode") != 202:
+        info = pipe.read_current_login_info()
+        if info is None or not info.is_logged_in:
             return None
-        return info.get("userId") or None
+        return info.user_id or None
 
     def check_logged_in(self) -> bool:
         """目标账号是否已登录（优先本地比对缓存，无缓存则联网解析目标 uid）"""
@@ -316,7 +232,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.update_progress("希沃白板已启动")
         time.sleep(config.Login.Timeout.AfterLaunch)
         try:
-            if not switch_window(self.easinote_hwnd, press_key=True):
+            if not window.switch_window(self.easinote_hwnd, press_key=True):
                 # 焦点未抢到时会继续执行，但后续模拟输入可能落到其他窗口
                 logger.warning("未能将希沃白板窗口切到前台, 模拟输入可能落入其他窗口")
         except Exception as e:
@@ -361,26 +277,16 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         match status:
             case LoginStatus.SUCCESS:
-                config.Statistics.LoginSuccessCounts += 1
                 self.succeeded.emit()
             case LoginStatus.CANCELLED:
-                config.Statistics.LoginInterruptCounts += 1
                 self.interrupted.emit()
             case LoginStatus.FAILED:
                 self.failed.emit(error or "未知错误")
 
-    def _record_attempt(self) -> None:
-        """统计本次登录尝试"""
-        config.Statistics.LoginCounts += 1
-        account_hash = desensitize_account(self.account)
-        config.Statistics.LoginCountsPerAccount[account_hash] = (
-            config.Statistics.LoginCountsPerAccount.get(account_hash, 0) + 1
-        )
-
     def run(self):
         """完整登录流程"""
         time_start = time.monotonic()
-        self._record_attempt()
+        config.Statistics.record_start(self.account)
 
         max_retries = config.App.MaxRetries
         retries = 0
@@ -437,78 +343,4 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         elapsed = time.monotonic() - time_start
         logger.info(f"登录流程耗时: {elapsed:.2f}秒")
-        config.Statistics.TotalLoginTime += elapsed
-        config.Statistics.MaxLoginTime = max(config.Statistics.MaxLoginTime, elapsed)
-
-
-class PyAutoGuiBaseAutomator(BaseAutomator):
-    def __init__(self, account: str, password: str) -> None:
-        super().__init__(account, password)
-
-        self.compatibility_mode: bool = False
-        screen_size = get_screen_size_physical()
-        scale = get_scale()
-        if config.Login.ForceCompatibilityMode:
-            logger.warning("已强制启用兼容模式输入")
-            self.compatibility_mode = True
-        elif screen_size[1] / scale < 720:
-            logger.info("检测到屏幕高度较低, 启用兼容模式输入")
-            self.compatibility_mode = True
-
-    def input(self, text: str, clear: bool = True, is_secret: bool = False):
-        """统一输入函数"""
-        import pyautogui
-        import pyperclip
-
-        if clear:
-            pyautogui.hotkey("ctrl", "a")
-            pyautogui.press("backspace")
-
-        if is_secret:
-            if (length := len(text)) > 2:  # noqa: SIM108
-                log_text = text[0] + "*" * (length - 2) + text[-1]
-            else:
-                log_text = "*" * length
-        else:
-            log_text = text
-
-        logger.debug(f"输入: {log_text}")
-        if self.compatibility_mode:
-            # 使用剪贴板输入，避免输入法遮挡等问题
-            pyperclip.copy(text)
-            pyperclip.paste()
-        else:
-            pyautogui.typewrite(text, interval=0.01)
-
-    def click(
-        self,
-        x: SupportsInt | tuple[int, int] | Point,
-        y: SupportsInt | None = None,
-        *,
-        clicks: SupportsIndex = 1,
-        interval: float = 0,
-        duration: float = 0,
-    ):
-        """统一点击函数"""
-        import pyautogui
-
-        if isinstance(x, SupportsInt):
-            if y is None:
-                raise ValueError("y坐标为空")
-            _x, _y = int(x), int(y)
-        elif isinstance(x, tuple):
-            _x, _y = x
-        elif isinstance(x, Point):
-            _x, _y = x.x, x.y
-        else:
-            raise TypeError
-
-        logger.debug(f"点击: ({_x}, {_y})")
-        pyautogui.click(_x, _y, clicks=clicks, interval=interval, duration=duration)
-
-    def press(self, keys: str | Iterable[str], presses: SupportsIndex = 1, interval: float = 0):
-        """统一按键函数"""
-        import pyautogui
-
-        logger.debug(f"按下: {keys}")
-        pyautogui.press(keys, presses, interval)
+        config.Statistics.record_result(status.value, elapsed)

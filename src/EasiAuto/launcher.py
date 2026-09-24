@@ -1,52 +1,33 @@
+"""应用入口：单实例协调、命令行分发与登录流程的生命周期管理"""
+
 import atexit
 import sys
-import time
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
-from typing import Any, assert_never
 
 from loguru import logger
 from packaging.version import Version
 
 from PySide6.QtCore import QLocale, Qt, QThread, QTimer
 
-from EasiAuto import __version__
-from EasiAuto.automation.manager import automation_manager
-from EasiAuto.consts import IPC_SERVER_NAME
-from EasiAuto.core import compatibility_patches, security
-from EasiAuto.core.exception_handler import init_exception_handler
-from EasiAuto.core.ipc import ArgvIpcServer, send_argv_to_primary
-from EasiAuto.core.utils import (
-    Point,
-    calc_relative_login_window_position,
-    get_scale,
-    get_screen_size,
-    get_screen_size_physical,
-    init_exit_signal_handlers,
-    migrate_desktop_shortcut_icon,
-    stop,
-)
+from EasiAuto import __version__, cli
+from EasiAuto.consts import IPC_SERVER_NAME, SINGLETON_MUTEX_NAME
 from EasiAuto.models.config import UpdateMode, config
-from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
+from EasiAuto.models.profile import BaseAutomation
+from EasiAuto.runtime import compatibility_patches
+from EasiAuto.runtime.exception_handler import init_exception_handler
+from EasiAuto.runtime.ipc import ArgvIpcServer, acquire_single_instance_mutex, send_argv_to_primary
+from EasiAuto.runtime.lifecycle import init_exit_signal_handlers, stop
 from EasiAuto.services import announcement_service, update_service
-from EasiAuto.services.toast_service import ToastNotifier
+from EasiAuto.services.automation import automation_manager
 from EasiAuto.services.update_service import UpdateError, cleanup_update_cache
-from EasiAuto.view.components import (
-    DialogResponse,
-    PreRunPopup,
-    PrivacyMask,
-    SmallStatusOverlay,
-    StatusOverlay,
-    StatusOverlayBase,
-    WarningBanner,
-)
-from EasiAuto.view.helpers import get_app
+from EasiAuto.view.helpers import cleanup_widget
+from EasiAuto.view.login_preflight import LoginPreflight
 from EasiAuto.view.main_window import MainWindow
+from EasiAuto.view.notifications import ToastNotifier
+from EasiAuto.view.shortcuts import migrate_desktop_shortcut_icon
 from EasiAuto.view.tokens import BRAND
-
-UI_COMMANDS = {None, "settings", "login", "oobe"}
-FORWARDABLE_COMMANDS = {None, "settings", "login", "skip", "oobe"}
 
 init_exception_handler()
 init_exit_signal_handlers()
@@ -89,45 +70,34 @@ class PostLoginUpdateThread(QThread):
 class Launcher:
     def __init__(self) -> None:
         self.main_window: MainWindow | None = None
-        self._unlock_host = None  # 登录无窗口时作为主密码对话框的宿主
-        self.banner: WarningBanner | None = None
-        self.status_overlay: StatusOverlayBase | None = None
-        self.privacy_mask: PrivacyMask | None = None
+        self.preflight = LoginPreflight()
 
         self._singleton_mutex: int | None = None
 
         self.login_running: bool = False
         self.stop_requested: bool = False
 
-        self._parser: ArgumentParser | None = None
         self.ipc_server: ArgvIpcServer | None = None
         self._ipc_context: bool = False
         self._current_login_triggered_via_ipc: bool = False
         self._post_login_update_thread: PostLoginUpdateThread | None = None
+
         automation_manager.finished.connect(self._on_login_finished)
         automation_manager.failed.connect(self._on_login_failed)
-        automation_manager.privacy_mask_show.connect(self._on_privacy_mask_show)
-        automation_manager.privacy_mask_hide.connect(self._on_privacy_mask_hide)
+        automation_manager.privacy_mask_show.connect(self.preflight.show_privacy_mask)
+        automation_manager.privacy_mask_hide.connect(self.preflight.hide_privacy_mask)
+
+    @property
+    def ipc_context(self) -> bool:
+        """当前是否处于「由次实例转发触发」的上下文"""
+        return self._ipc_context
 
     def is_unique_instance(self) -> bool:
         """检查程序是否可作为唯一实例继续运行"""
-        import win32api
-        import win32event
-        import winerror
+        self._singleton_mutex = acquire_single_instance_mutex(SINGLETON_MUTEX_NAME)
+        return self._singleton_mutex is not None
 
-        try:
-            self._singleton_mutex = win32event.CreateMutex(None, False, "EasiAutoMutex")  # type: ignore[arg-type]
-        except Exception as e:
-            logger.error(f"创建互斥锁失败: {e}")
-            return False
-
-        if win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS:
-            return True
-        logger.warning("检测到另一个正在运行的 EasiAuto 实例")
-
-        return False
-
-    def _show_settings_window(self, navigate_to: str | None = None) -> None:
+    def show_settings_window(self, navigate_to: str | None = None) -> None:
         if self.main_window is None:
             self.main_window = MainWindow()
             self.main_window.runAutomation.connect(self._handle_login_request_from_ui)
@@ -140,44 +110,82 @@ class Launcher:
         if navigate_to and not self.main_window.switch_to_interface(navigate_to):
             logger.warning("未找到 OOBE 请求的导航页面: %s", navigate_to)
 
+    def run_oobe(self) -> str | None:
+        """首次运行时启动设置向导
+
+        Returns:
+            向导结束后主界面应直达的页面 objectName，未指定则为 None
+        """
+        from EasiAuto.view.oobe import OobeWindow
+
+        logger.info("首次运行，启动设置向导")
+        window = OobeWindow()
+        window.exec()
+        return window.navigate_to
+
     def _handle_login_request_from_ui(self, automation: BaseAutomation) -> None:
         """响应从 UI 发送的自动登录执行请求"""
         if self.main_window:
             self.main_window.showMinimized()
 
         with self.from_ipc():
-            self._start_login(
-                Namespace(
-                    id=automation.id,
-                    manual=True,
-                )
-            )
+            self.start_login(Namespace(id=automation.id, manual=True))
 
-    def _build_parser(self) -> ArgumentParser:
-        if self._parser is not None:
-            return self._parser
-        parser = ArgumentParser(prog="EasiAuto", description="一款自动登录希沃白板的小工具")
-        subparsers = parser.add_subparsers(title="子命令", dest="command")
+    # ── 登录流程 ──
 
-        login_parser = subparsers.add_parser("login", help="登录账号")
-        login_target_group = login_parser.add_mutually_exclusive_group(required=True)
-        login_target_group.add_argument("-i", "--id", help="档案 ID")
-        login_target_group.add_argument("-a", "--account", help="账号")
-        login_parser.add_argument("-p", "--password", help="密码（当使用 --account 时必填）")
-        login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
+    def start_login(self, args: Namespace) -> bool:
+        """开始登录任务
 
-        subparsers.add_parser("settings", help="打开设置界面")
-        subparsers.add_parser("oobe", help="重新运行首次设置向导（调试用）")
-        subparsers.add_parser("skip", help="跳过下一次登录")
+        args:
+            id: str | None - 档案 ID (与 --account 互斥)
+            account: str | None - 账号 (当使用 --account 时必填)
+            password: str | None - 密码 (当使用 --account 时必填)
+            manual: bool - 是否为手动执行 (不显示确认弹窗)
+        """
+        from_ipc = self._ipc_context
 
-        # 内部子命令，不面向用户
-        patch_parser = subparsers.add_parser("patch", help="修补/撤销修补希沃白板（内部命令）")
-        patch_group = patch_parser.add_mutually_exclusive_group(required=True)
-        patch_group.add_argument("--on", action="store_true", help="执行修补")
-        patch_group.add_argument("--off", action="store_true", help="撤销修补")
+        if self.login_running:
+            logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
+            return False
 
-        self._parser = parser
-        return parser
+        if not self.preflight.ensure_profile_unlocked(self.main_window):
+            logger.error("未解锁档案，自动登录中止")
+            if not from_ipc:
+                stop(1)
+            return False
+
+        if config.Login.SkipOnce:
+            logger.info("已通过配置文件禁用, 正在退出")
+            config.Login.SkipOnce = False
+            if not from_ipc:
+                stop()
+            return False
+
+        # 解析登录凭据
+        result = cli.resolve_credentials(args)
+        if result is None:
+            if not from_ipc:
+                stop(1)
+            return False
+        type, credentials = result
+
+        # 运行前确认
+        if not self.preflight.confirm(args, credentials):
+            if not from_ipc:
+                stop()
+            return False
+
+        self.preflight.show_banner()
+        self.preflight.show_status_overlay(self._on_stop_automation)
+
+        # 开始登录任务
+        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
+        self._current_login_triggered_via_ipc = from_ipc
+
+        automation_manager.run(type, credentials)
+
+        self.login_running = True
+        return True
 
     def _on_login_finished(self, success: bool = True, error_message: str | None = None) -> None:
         """登录结束后的回调"""
@@ -188,8 +196,7 @@ class Launcher:
         logger.info("登录任务已停止运行")
 
         # 关闭覆盖窗口
-        self.banner = self._safe_cleanup_widget(self.banner)
-        self.privacy_mask = self._safe_cleanup_widget(self.privacy_mask)
+        self.preflight.teardown()
 
         # 发送失败通知
         if error_message:
@@ -207,7 +214,7 @@ class Launcher:
             and config.Update.Mode > UpdateMode.NEVER
         )
 
-        if self.status_overlay is not None:
+        if self.preflight.overlay_active:
             QTimer.singleShot(3000, lambda: self._close_status_overlay(from_ipc))
 
         if should_check_update:
@@ -221,321 +228,24 @@ class Launcher:
         self._on_login_finished(success=False, error_message=error_message)
 
     def _close_status_overlay(self, from_ipc: bool) -> None:
-        self.status_overlay = self._safe_cleanup_widget(self.status_overlay)
+        self.preflight.close_status_overlay()
         self._maybe_exit_after_login(from_ipc)
 
     def _on_post_login_update_check_finished(self, from_ipc: bool) -> None:
-        self._post_login_update_thread = self._safe_cleanup_widget(self._post_login_update_thread)
+        self._post_login_update_thread = cleanup_widget(self._post_login_update_thread)
         self._maybe_exit_after_login(from_ipc)
 
     def _maybe_exit_after_login(self, from_ipc: bool) -> None:
         if from_ipc:
             return
-        if self.status_overlay is None and self._post_login_update_thread is None:
+        if not self.preflight.overlay_active and self._post_login_update_thread is None:
             stop()
-
-    @staticmethod
-    def _safe_cleanup_widget(widget):
-        if widget is not None:
-            if hasattr(widget, "close"):
-                widget.close()
-            widget.deleteLater()
-
-    def _on_privacy_mask_show(self, x: int, y: int, w: int, h: int) -> None:
-        """显示隐私保护遮罩（输入均为绝对坐标）"""
-        scale = get_scale()
-        if self.privacy_mask is None:
-            self.privacy_mask = PrivacyMask()
-        # 由于 Qt 自带缩放，所以要将缩放重新转换为 100%
-        self.privacy_mask.setGeometry(int(x / scale), int(y / scale), int(w / scale), int(h / scale))
-        self.privacy_mask.show()
-
-    def _on_privacy_mask_hide(self):
-        self.privacy_mask = self._safe_cleanup_widget(self.privacy_mask)
 
     def _on_stop_automation(self) -> None:
         automation_manager.stop()
         self.stop_requested = True
 
-    def _resolve_login_credentials(self, args: Namespace) -> tuple[str, Any] | None:
-        if args.id:
-            auto = profile.get_automation(args.id)
-            if auto is None:
-                logger.error(f"未找到档案 ID: {args.id}")
-                return None
-            if not auto.enabled:
-                logger.warning(f"档案 {args.id} 已被禁用")
-                return None
-
-            match auto:
-                case EasiAutomation():
-                    if auto.account == "":
-                        logger.error(f"档案 {args.id} 的账号为空")
-                        return None
-                    if auto.password == "":
-                        logger.error(f"档案 {args.id} 的密码为空")
-                        return None
-                    return auto.type, (auto.account, auto.password)
-            return None
-
-        if args.account and args.password:
-            return "password", (args.account, args.password)
-
-        logger.error("参数错误: 使用 --account 时必须同时提供 --password")
-        return None
-
-    def _start_login(self, args: Namespace) -> bool:
-        """开始登录任务
-
-        args:
-            id: str | None - 档案 ID (与 --account 互斥)
-            account: str | None - 账号 (当使用 --account 时必填)
-            password: str | None - 密码 (当使用 --account 时必填)
-            manual: bool - 是否为手动执行 (不显示确认弹窗)
-        """
-
-        from_ipc = self._ipc_context
-
-        if self.login_running:
-            logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
-            return False
-
-        # 自动登录：先尝试本机缓存静默解锁，失败则弹窗要求输入主密码
-        if profile.encryption_enabled and not security.is_master_key_unlocked():
-            if profile.read_cached_unlock():
-                logger.info("自动登录已从本机缓存自动解锁档案")
-            elif not self._prompt_login_unlock():
-                logger.error("未解锁档案，自动登录中止")
-                if not from_ipc:
-                    stop(1)
-                return False
-
-        if config.Login.SkipOnce:
-            logger.info("已通过配置文件禁用, 正在退出")
-            config.Login.SkipOnce = False
-            if not from_ipc:
-                stop()
-            return False
-
-        # 解析登录凭据
-        result = self._resolve_login_credentials(args)
-        if result is None:
-            if not from_ipc:
-                stop(1)
-            return False
-        type, credentials = result
-
-        # 显示警告弹窗
-        if config.Warning.Enabled and not args.manual:
-            try:
-                msgbox = PreRunPopup()
-
-                if config.Warning.ShowUserName:
-                    display_name = ""
-                    if args.id:
-                        auto = profile.get_automation(args.id)
-                        if auto:
-                            display_name = auto.display_name or ""
-                    if not display_name and isinstance(credentials, tuple):
-                        display_name = credentials[0]
-                    if display_name:
-                        msgbox.set_account_name(display_name)
-
-                delays = 0
-                while True:
-                    if delays >= config.Warning.MaxDelays:
-                        msgbox.delay_btn.hide()
-                    response = msgbox.countdown(config.Warning.Timeout)
-                    match response:
-                        case DialogResponse.CANCEL:
-                            logger.info("用户取消操作, 正在退出")
-                            if not from_ipc:
-                                stop()
-                            return False
-                        case DialogResponse.CONTINUE:
-                            logger.info("用户确认继续, 继续执行")
-                            break
-                        case DialogResponse.TIMEOUT:
-                            logger.info("等待超时, 继续执行")
-                            break
-                        case DialogResponse.DELAY:
-                            logger.info(f"用户选择推迟, 等待 {config.Warning.DelayTime} 秒...")
-                            delays += 1
-                            time.sleep(config.Warning.DelayTime)
-                            continue
-                        case unreachable:
-                            assert_never(unreachable)
-            except Exception:
-                logger.error("显示警告弹窗时出错, 跳过警告")
-
-        # 显示警示横幅
-        if config.Banner.Enabled:
-            try:
-                width = get_screen_size()[0]
-                self.banner = WarningBanner(config.Banner.Style)
-                self.banner.setGeometry(0, 80, width, 140)
-                self.banner.show()
-            except Exception as e:
-                logger.error(f"显示横幅时出错, 跳过横幅: {e}")
-
-        # 显示状态浮窗
-        if config.StatusOverlay.Enabled:
-            try:
-                try:
-                    # 根据屏幕高度和登录窗口位置选择状态浮窗的大小
-                    screen_height = get_screen_size_physical()[1]
-                    expected_pos = Point(config.Login.Position.AgreementCheckbox)
-                    expected_pos.y += 8
-                    login_window_bottom = calc_relative_login_window_position(
-                        expected_pos,
-                        window_size=config.Login.Position.LoginWindowSize,
-                        base_size=config.Login.Position.BaseSize,
-                    ).y
-                    available_space = screen_height - (login_window_bottom + 8)
-                except Exception as e:
-                    logger.warning(f"计算状态浮窗位置时出错: {e}")
-                    available_space = 0
-
-                self.status_overlay = StatusOverlay() if available_space > 300 else SmallStatusOverlay()
-                self.status_overlay.stop_clicked.connect(self._on_stop_automation)
-                automation_manager.started.connect(self.status_overlay.show)
-                automation_manager.succeeded.connect(self.status_overlay.on_success)
-                automation_manager.interrupted.connect(self.status_overlay.on_interrupted)
-                automation_manager.failed.connect(self.status_overlay.on_failed)
-                automation_manager.task_updated.connect(self.status_overlay.set_task_text)
-                automation_manager.progress_updated.connect(self.status_overlay.set_progress_text)
-            except Exception as e:
-                logger.error(f"设置状态浮窗时出错, 跳过状态浮窗: {e}")
-
-        # 开始登录任务
-        logger.debug(f"当前设置的登录方案: {config.Login.Method}")
-        self._current_login_triggered_via_ipc = from_ipc
-
-        automation_manager.run(type, credentials)
-
-        self.login_running = True
-        return True
-
-    def _prompt_login_unlock(self) -> bool:
-        """登录时无法自动解锁时，弹出模态对话框要求输入主密码。
-
-        成功后已解锁会话并把密钥写入本机缓存，返回 True；用户取消则返回 False。
-        """
-        from PySide6.QtWidgets import QWidget
-
-        from EasiAuto.view.components.master_password_dialog import MasterPasswordDialog
-
-        parent = self.main_window
-        if parent is None:
-            if self._unlock_host is None:
-                self._unlock_host = QWidget()
-            parent = self._unlock_host
-
-        dialog = MasterPasswordDialog(
-            title="解锁档案",
-            description="自动登录需要读取账号密码，请输入主密码解锁",
-            verify=profile.unlock_master_password,
-            parent=parent,
-        )
-        dialog.exec()
-        return dialog.get_password() is not None
-
-    def cmd_login(self, args: Namespace) -> bool:
-        """login 子命令 - 执行自动登录"""
-        ok = self._start_login(args)
-
-        if not ok:
-            return False
-        if not self._ipc_context:
-            stop(get_app().exec())
-        return True
-
-    def cmd_settings(self, _) -> None:
-        """settings 子命令 - 打开设置界面"""
-        navigate_to = self._run_oobe() if not config.Internal.IsOobeCompleted else None
-
-        self._show_settings_window(navigate_to)
-
-        if not self._ipc_context:
-            stop(get_app().exec())
-
-    def _run_oobe(self) -> str | None:
-        """首次运行时启动设置向导
-
-        Returns:
-            向导结束后主界面应直达的页面 objectName，未指定则为 None
-        """
-        from EasiAuto.view.oobe import OobeWindow
-
-        logger.info("首次运行，启动设置向导")
-        window = OobeWindow()
-        window.exec()
-        return window.navigate_to
-
-    def cmd_oobe(self, _) -> None:
-        """oobe 子命令 - 重新运行首次设置向导"""
-        logger.info("手动触发首次设置向导")
-        config.Internal.IsOobeCompleted = False
-        self.cmd_settings(_)
-
-    def cmd_skip(self, _) -> None:
-        """skip 子命令 - 跳过下一次登录"""
-        config.Login.SkipOnce = True
-        logger.success("已更新配置文件，下次登录将跳过")
-
-        if not self._ipc_context:
-            stop()
-
-    def cmd_patch(self, args: Namespace) -> None:
-        """patch 子命令 - 修补/撤销修补希沃白板
-
-        退出码: 20 = 成功, 21 = 操作失败, 22 = 未找到希沃白板路径, 29 = 未知异常.
-        使用 20–29 区间，与其他退出码完全隔离，避免误判。
-        """
-        from EasiAuto.integrations.easinote.patcher import (
-            PATCH_ERR_EASINOTE_NOT_FOUND,
-            PATCH_ERR_OPERATION_FAILED,
-            PATCH_ERR_UNKNOWN,
-            PATCH_OK,
-            patch_easinote,
-            unpatch_easinote,
-        )
-        from EasiAuto.integrations.easinote.path import resolve_easinote_path
-
-        path, _ = resolve_easinote_path()
-        if path is None:
-            logger.error("未找到希沃白板路径")
-            stop(PATCH_ERR_EASINOTE_NOT_FOUND)
-
-        action = "修补" if args.on else "撤销修补"
-        try:
-            ok = patch_easinote(path) if args.on else unpatch_easinote(path)
-        except Exception as e:
-            logger.error(f"{action}希沃白板时发生异常: {e}")
-            stop(PATCH_ERR_UNKNOWN)
-
-        if ok:
-            logger.success(f"{action}希沃白板成功")
-            stop(PATCH_OK)
-        else:
-            logger.error(f"{action}希沃白板失败")
-            stop(PATCH_ERR_OPERATION_FAILED)
-
-    def _dispatch_command(self, args: Namespace) -> None:
-        command = getattr(args, "command", None)
-        match command:
-            case "login":
-                self.cmd_login(args)
-            case "skip":
-                self.cmd_skip(args)
-            case "patch":
-                self.cmd_patch(args)
-            case "oobe":
-                self.cmd_oobe(args)
-            case "settings" | None:
-                self.cmd_settings(args)
-            case _:
-                logger.debug(f"未知命令: {command!r}")
+    # ── 单实例与 IPC ──
 
     @contextmanager
     def from_ipc(self):
@@ -548,23 +258,22 @@ class Launcher:
 
     def _handle_external_argv(self, argv: list[str]) -> None:
         """处理来自次实例的参数"""
-        parser = self._build_parser()
         try:
-            args = parser.parse_args(argv[1:])
+            args = cli.build_parser().parse_args(argv[1:])
         except SystemExit:
             logger.warning(f"收到无效参数, 已忽略: {argv!r}")
             return
         command = getattr(args, "command", None)
-        if command not in FORWARDABLE_COMMANDS:
+        if command not in cli.FORWARDABLE_COMMANDS:
             logger.warning(f"忽略不被允许的 IPC 命令: {command!r}")
             return
 
         with self.from_ipc():
-            self._dispatch_command(args)
+            cli.dispatch(self, args)
 
     def _forward_or_exit(self, command: str | None) -> None:
         """转发参数至主实例或退出"""
-        if command in FORWARDABLE_COMMANDS:
+        if command in cli.FORWARDABLE_COMMANDS:
             ok = send_argv_to_primary(IPC_SERVER_NAME, sys.argv)
             if ok:
                 logger.info(f"已将参数转发到主实例: {command}")
@@ -604,19 +313,18 @@ class Launcher:
         config.Update.LastVersion = __version__
 
     def run(self) -> None:
-        parser = self._build_parser()
-        args = parser.parse_args()
+        args = cli.build_parser().parse_args()
         command = getattr(args, "command", None)
 
         if command == "patch":  # patch 需绕过单例检查，提前 dispatch
-            self._dispatch_command(args)
+            cli.dispatch(self, args)
             return
 
         if not self.is_unique_instance():
             self._forward_or_exit(command)
             return
 
-        if command in UI_COMMANDS:
+        if command in cli.UI_COMMANDS:
             from PySide6.QtWidgets import QApplication
             from qfluentwidgets import (
                 FluentTranslator,
@@ -636,7 +344,7 @@ class Launcher:
             compatibility_patches.apply_all()
 
         self._notify_updated(command)
-        self._dispatch_command(args)
+        cli.dispatch(self, args)
 
 
 def main() -> None:

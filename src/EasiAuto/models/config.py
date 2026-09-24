@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from functools import total_ordering
-from typing import Any
+from typing import Any, Literal
 
 import qt_pydantic as qtp
 from loguru import logger
@@ -25,7 +25,7 @@ from PySide6.QtGui import QColor
 
 from EasiAuto import __version__
 from EasiAuto.consts import CONFIG_PATH
-from EasiAuto.core.utils import desensitize_account
+from EasiAuto.core.security import desensitize_account
 
 
 @total_ordering
@@ -642,6 +642,10 @@ class InternalConfig(ConfigModel):
     HiddenAnnouncementIds: list[str] = Field(default_factory=list)
 
 
+# 登录流程的最终结果，取值与 automator.LoginStatus 一致（避免 models 反向依赖 automation）
+LoginOutcome = Literal["success", "cancelled", "failed"]
+
+
 class StatisticsConfig(ConfigModel):
     # Enabled: bool = Field(default=True)  TODO: 全局开关
 
@@ -654,6 +658,7 @@ class StatisticsConfig(ConfigModel):
     @computed_field
     @property
     def LoginFailureCounts(self) -> int:
+        """失败次数由总数减去成功与中断推出，故失败无需单独计数"""
         return self.LoginCounts - self.LoginSuccessCounts - self.LoginInterruptCounts
 
     ThisInstanceLaunchTime: datetime = Field(default=datetime.now(UTC), exclude=True)
@@ -662,6 +667,28 @@ class StatisticsConfig(ConfigModel):
     MaxLoginTime: float = Field(default=0)
 
     LoginCountsPerAccount: dict[str, int] = Field(default_factory=dict)
+
+    def record_start(self, account: str) -> None:
+        """记录一次登录流程的开始（含按账号的脱敏计数）"""
+        self.LoginCounts += 1
+        account_hash = desensitize_account(account)
+        counts = self.LoginCountsPerAccount
+        counts[account_hash] = counts.get(account_hash, 0) + 1
+
+    def record_result(self, outcome: LoginOutcome, elapsed: float) -> None:
+        """记录一次登录流程的最终结果与耗时
+
+        Args:
+            outcome (LoginOutcome): 最终结果，失败无需计数（由 LoginFailureCounts 推出）
+            elapsed (float): 本次流程耗时（秒）
+        """
+        if outcome == "success":
+            self.LoginSuccessCounts += 1
+        elif outcome == "cancelled":
+            self.LoginInterruptCounts += 1
+
+        self.TotalLoginTime += elapsed
+        self.MaxLoginTime = max(self.MaxLoginTime, elapsed)
 
     @field_validator("LoginCountsPerAccount", mode="after")
     @classmethod

@@ -24,7 +24,7 @@ from winrt.windows.ui.notifications import (
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.resources import get_resource
 
 
 class ToastHandle(QObject):

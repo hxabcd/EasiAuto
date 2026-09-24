@@ -60,7 +60,7 @@ class PatchThread(QThread):
             self.done.emit(ok, PATCH_OK if ok else PATCH_ERR_UNKNOWN, True)
             return
 
-        from EasiAuto.core.elevation import run_elevated_wait
+        from EasiAuto.runtime.elevation import run_elevated_wait
 
         launched, code = run_elevated_wait(f"patch {'--on' if self.enable else '--off'}")
         self.done.emit(launched and code == PATCH_OK, code, launched)
@@ -68,7 +68,7 @@ class PatchThread(QThread):
     @staticmethod
     def _run_directly() -> bool:
         from EasiAuto.consts import IS_DEV
-        from EasiAuto.core.elevation import is_admin
+        from EasiAuto.runtime.elevation import is_admin
 
         return is_admin() or IS_DEV
 

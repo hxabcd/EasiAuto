@@ -24,7 +24,8 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.core.utils import get_resource, get_third_party_libs
+from EasiAuto.core.diagnostics import get_third_party_libs
+from EasiAuto.core.resources import get_resource
 from EasiAuto.view.components.tag import PrimaryTagLabel
 from EasiAuto.view.tokens import MAX_CONTENT_WIDTH, TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 

@@ -10,6 +10,7 @@ EA_BASEDIR = EA_EXECUTABLE.parent
 # 标识
 EA_PREFIX = "[EasiAuto]"
 IPC_SERVER_NAME = "EasiAuto_Argv_IPC_v1"
+SINGLETON_MUTEX_NAME = "EasiAutoMutex"
 
 # 数据目录
 EA_DATADIR = EA_BASEDIR / "data"

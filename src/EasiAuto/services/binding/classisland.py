@@ -1,12 +1,10 @@
+"""ClassIsland 后端的绑定同步实现"""
+
 from __future__ import annotations
 
 import uuid
-from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-
-from loguru import logger
-from pydantic import BaseModel
 
 from EasiAuto.integrations.classisland.classisland import (
     CiSubject,
@@ -18,13 +16,7 @@ from EasiAuto.integrations.classisland.classisland import (
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import EasiAutomation, profile
 
-
-class SubjectRef(BaseModel):
-    """通用科目标识"""
-
-    name: str
-    provider: str
-    id: str | None = None
+from .base import BindingSyncBackendBase, SubjectRef
 
 
 @dataclass(slots=True)
@@ -32,33 +24,6 @@ class SyncContext:
     subjects: dict[str, CiSubject]
     managed_by_subject: dict[str, ManagedCiAutomation]
     used_guids: set[str]
-
-
-class BindingSyncBackendBase(ABC):
-    provider: str
-
-    def __init__(self) -> None:
-        self.last_errors: list[str] = []
-
-    @abstractmethod
-    def list_subjects(self) -> list[SubjectRef]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_binding_map(self) -> dict[str, str]:
-        """读取当前绑定关系 (subject_id -> automation_id)"""
-        raise NotImplementedError
-
-    @abstractmethod
-    def sync(self, binding_map: Mapping[str, str | None]) -> bool:
-        raise NotImplementedError
-
-    def _set_errors(self, errors: list[str]) -> bool:
-        self.last_errors = errors.copy()
-        if errors:
-            logger.warning(f"绑定同步失败: {'；'.join(errors)}")
-            return False
-        return True
 
 
 class ClassIslandBindingBackend(BindingSyncBackendBase):

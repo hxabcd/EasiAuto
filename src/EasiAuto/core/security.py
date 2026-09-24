@@ -1,4 +1,4 @@
-"""安全工具：主密码派生与档案加密
+"""安全工具：主密码派生、档案加密与账号脱敏
 
 档案加密使用用户设置的主密码（Argon2id 派生密钥），
 密码正确性通过档案内保存的校验密文验证。
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import hashlib
 from contextlib import suppress
 
 import win32crypt
@@ -146,3 +147,14 @@ def get_legacy_cipher() -> Fernet | None:
     if not key:
         return None
     return Fernet(key.encode("ascii"))
+
+
+# ─── 账号脱敏 ────────────────────────────────────────
+
+
+def desensitize_account(account: str) -> str:
+    """对账号进行脱敏，生成一致的哈希值用于统计
+
+    取 SHA256 哈希值的前 16 位十六进制数，确保相同账号产生相同脱敏值。
+    """
+    return hashlib.sha256(account.encode("utf-8")).hexdigest()[:16]

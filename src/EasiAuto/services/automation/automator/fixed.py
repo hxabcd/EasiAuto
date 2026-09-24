@@ -1,6 +1,6 @@
 import time
 
-from EasiAuto.core.utils import (
+from EasiAuto.core.display import (
     Point,
     calc_relative_login_window_position,
     get_scale,
@@ -9,7 +9,7 @@ from EasiAuto.core.utils import (
 from EasiAuto.integrations.easinote.env import detect_is_iwb, parse_start_mode
 from EasiAuto.models.config import config
 
-from .base import PyAutoGuiBaseAutomator
+from .pyautogui_base import PyAutoGuiBaseAutomator
 
 
 class FixedAutomator(PyAutoGuiBaseAutomator):

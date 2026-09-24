@@ -11,7 +11,8 @@ from loguru import logger
 
 from PySide6.QtCore import QEasingCurve, Qt
 
-from EasiAuto.core.refresh_animation import (
+from EasiAuto.core.display import get_main_display_refresh_rate
+from EasiAuto.runtime.refresh_animation import (
     RefreshDrivenAnimation,
     RefreshFadeInOutAnimation,
     RefreshFastDismissAnimation,
@@ -24,7 +25,6 @@ from EasiAuto.core.refresh_animation import (
     RefreshStrongInvokeAnimation,
     make_icon_slide_animation,
 )
-from EasiAuto.core.utils import get_main_display_refresh_rate
 
 _APPLIED = [False]  # 全部补丁是否已应用
 

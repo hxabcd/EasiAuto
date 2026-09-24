@@ -2,10 +2,12 @@ import time
 
 from loguru import logger
 
-from EasiAuto.core.utils import Point, get_resource, get_scale, get_screen_size_physical
+from EasiAuto.core.display import Point, get_scale, get_screen_size_physical
+from EasiAuto.core.resources import get_resource
 from EasiAuto.models.config import config
 
-from .base import LoginError, PyAutoGuiBaseAutomator
+from .errors import LoginError
+from .pyautogui_base import PyAutoGuiBaseAutomator
 
 # 模板图仅按以下显示环境采集，其余环境无法保证像素匹配
 # (物理分辨率, 缩放, 资源后缀)

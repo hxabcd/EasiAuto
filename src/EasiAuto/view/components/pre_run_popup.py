@@ -14,7 +14,7 @@ from qfluentwidgets import (
     PushButton,
 )
 
-from EasiAuto.core.utils import get_resource
+from EasiAuto.core.resources import get_resource
 from EasiAuto.view.tokens import BRAND
 
 

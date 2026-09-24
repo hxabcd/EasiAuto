@@ -25,17 +25,14 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
-from EasiAuto.core.utils import (
-    create_shortcut,
-    get_resource,
-    get_start_menu_programs,
-    probe_ci_executable,
-)
+from EasiAuto.core.process import probe_ci_executable
+from EasiAuto.core.resources import get_resource
 from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.models.config import LoginMethod, config
 from EasiAuto.view.components import SettingCard, SettingCardType
 from EasiAuto.view.components.setting_card import ExpandSelectorSettingCard
 from EasiAuto.view.oobe.oobe_window import OobeStep, OobeWindow
+from EasiAuto.view.shortcuts import create_shortcut, get_start_menu_programs
 from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 

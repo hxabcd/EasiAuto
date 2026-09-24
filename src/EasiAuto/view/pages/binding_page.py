@@ -25,7 +25,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, profile
-from EasiAuto.services.binding_service import ClassIslandBindingBackend, SubjectRef
+from EasiAuto.services.binding import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.helpers import get_main_container
 from EasiAuto.view.tokens import (
     DIVIDER,

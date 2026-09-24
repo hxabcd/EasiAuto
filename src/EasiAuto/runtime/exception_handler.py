@@ -32,8 +32,9 @@ from qfluentwidgets import (
 
 from EasiAuto import __version__
 from EasiAuto.consts import IS_DEV, LOG_DIR
-from EasiAuto.core.utils import get_resource, restart, stop
+from EasiAuto.core.resources import get_resource
 from EasiAuto.models.config import config
+from EasiAuto.runtime.lifecycle import restart, stop
 
 SENTRY_DSN = "https://992aafe788df5155ed58c1498188ae6b@o4510727360348160.ingest.us.sentry.io/4510727362248704"
 SENTRY_ATTACH_DEBUG_CONTEXT = True

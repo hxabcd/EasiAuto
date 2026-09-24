@@ -1,6 +1,7 @@
-"""主实例与次实例之间的本地 IPC 通信模块
+"""单实例协调与实例间 IPC
 
-通过 QLocalServer/QLocalSocket 实现单实例应用中次实例向主实例传递命令行参数。
+- 通过命名互斥锁保证同一时间仅运行一个主实例
+- 通过 QLocalServer/QLocalSocket 实现次实例向主实例传递命令行参数
 """
 
 from __future__ import annotations
@@ -30,6 +31,29 @@ def send_argv_to_primary(server_name: str, argv: Sequence[str], timeout_ms: int 
     socket.disconnectFromServer()
     socket.close()
     return bool(ok)
+
+
+def acquire_single_instance_mutex(name: str) -> int | None:
+    """尝试获取单实例互斥锁
+
+    Returns:
+        int | None: 互斥锁句柄（需由调用方持有至进程结束）；已有实例在运行或创建失败时返回 None
+    """
+    import win32api
+    import win32event
+    import winerror
+
+    try:
+        mutex = win32event.CreateMutex(None, False, name)  # type: ignore[arg-type]
+    except Exception as e:
+        logger.error(f"创建互斥锁失败: {e}")
+        return None
+
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        logger.warning("检测到另一个正在运行的 EasiAuto 实例")
+        return None
+
+    return mutex
 
 
 class ArgvIpcServer(QObject):

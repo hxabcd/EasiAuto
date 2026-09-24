@@ -23,9 +23,9 @@ from qfluentwidgets import (
     setTheme,
 )
 
-from EasiAuto.core import utils
 from EasiAuto.integrations.easinote.patcher import is_patched
 from EasiAuto.models.config import ConfigGroup, LoginMethod, config
+from EasiAuto.runtime.lifecycle import crash
 from EasiAuto.services import announcement_service
 from EasiAuto.services.announcement_service import Announcement
 from EasiAuto.view.components import (
@@ -35,6 +35,7 @@ from EasiAuto.view.components import (
 )
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.helpers import get_main_container, set_enable_by, wrap_centered
+from EasiAuto.view.shortcuts import create_shortcut
 
 # 从属关系映射: [!]Condition -> Targets
 ENABLE_MAPPING: dict[str, str | list[str]] = {
@@ -204,7 +205,7 @@ class ConfigPage(QWidget):
             text="崩溃",
         )
 
-        collapse_card.clicked.connect(utils.crash)
+        collapse_card.clicked.connect(crash)
         self.content_layout.addWidget(collapse_card)
         collapse_card.setVisible(config.Debug.DebugMode)
 
@@ -230,7 +231,7 @@ class ConfigPage(QWidget):
                     card = cast(SettingCard, card)
                     button_card = TransparentPushButton(icon=FluentIcon.SHARE, text="创建快捷方式")
                     button_card.clicked.connect(
-                        lambda: utils.create_shortcut(
+                        lambda: create_shortcut(
                             args="skip",
                             name="跳过下次自动登录",
                             show_result_to=get_main_container(),

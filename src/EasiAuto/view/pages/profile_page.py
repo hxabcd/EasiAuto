@@ -32,15 +32,15 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.core import security
-from EasiAuto.core.utils import create_shortcut
 from EasiAuto.integrations.classisland.classisland import classisland_manager as ci_manager
 from EasiAuto.models.config import config
 from EasiAuto.models.profile import BaseAutomation, EasiAutomation, ProfileChangeReason, ProfileLockedError, profile
-from EasiAuto.services.binding_service import ClassIslandBindingBackend
+from EasiAuto.services.binding import ClassIslandBindingBackend
 from EasiAuto.view.components import ProfileCard, ProfileEditor, ProfileStatusBar
 from EasiAuto.view.components.master_password_flyout import show_master_password_flyout
 from EasiAuto.view.components.qfw_widgets import ListWidget
 from EasiAuto.view.helpers import get_main_container
+from EasiAuto.view.shortcuts import create_shortcut
 from EasiAuto.view.tokens import TEXT_SECONDARY_DARK, TEXT_SECONDARY_LIGHT
 
 
