@@ -8,7 +8,7 @@ from EasiAuto.models.config import config
 from .base import LoginError, PyAutoGuiBaseAutomator
 
 
-class CVAutomator(PyAutoGuiBaseAutomator):
+class CvAutomator(PyAutoGuiBaseAutomator):
     """通过识别图像登录"""
 
     @property

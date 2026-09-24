@@ -1,15 +1,15 @@
 # NOTE: 所有实现中对 pyautogui 的导入必须使用延迟导入，在 QApplication 后初始化，否则会产生 COM 冲突
 
 from .base import BaseAutomator
-from .cv import CVAutomator
+from .cv import CvAutomator
 from .fixed import FixedAutomator
 from .token import TokenAutomator
-from .uia import UIAAutomator
+from .uia import UiaAutomator
 
 __all__ = [
     "BaseAutomator",
-    "CVAutomator",
+    "CvAutomator",
     "FixedAutomator",
     "TokenAutomator",
-    "UIAAutomator",
+    "UiaAutomator",
 ]

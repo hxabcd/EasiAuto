@@ -343,7 +343,7 @@ class PyAutoGuiBaseAutomator(BaseAutomator):
         self.compatibility_mode: bool = False
         screen_size = get_screen_size_physical()
         scale = get_scale()
-        if config.Login.ForceEnableScaling:
+        if config.Login.ForceCompatibilityMode:
             logger.warning("已强制启用兼容模式输入")
             self.compatibility_mode = True
         elif screen_size[1] / scale < 720:

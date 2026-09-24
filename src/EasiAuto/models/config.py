@@ -55,8 +55,12 @@ class LogLevelEnum(InformativeEnum):
 # fmt: off
 class LoginMethod(InformativeEnum):
     FIXED = (0, "固定位置", "大部分情况下开箱即用，仅在特殊情况需手动设置坐标", {"tags": ["较快", "较稳定", "默认"]})
-    CV = (1, "图像识别", "仅支持常规分辨率与缩放，基于精确像素匹配", {"tags": ["较慢", "不稳定"]})
+
+    CV = (1, "图像识别", "基于精确像素匹配，仅支持 1920x1080 100% 和 3840x2160 200%", {"tags": ["较慢", "不稳定"]})
+    """OpenCV 实际已移除，`CV` 为残留命名"""
+
     UIA = (2, "自动定位", "基于 UI Automation 直接获取页面元素，在部分机器上可能极慢", {"tags": ["较慢", "最稳定"]})
+
     TOKEN = (3, "令牌投递", "通过希沃接口获取登录令牌并投递至希沃白板，免密极速登录", {"tags": ["最快", "较稳定", "需要修补"]})
 # fmt: on
 
@@ -351,11 +355,12 @@ class LoginConfig(ConfigModel):
         description="在图像识别登录方式下，启用对 3840x2160 200% 缩放的支持",
         json_schema_extra={"icon": "FitPage"},
     )
-    ForceEnableScaling: bool = Field(
+    ForceCompatibilityMode: bool = Field(
         default=False,
         title="强制启用兼容模式输入",
-        description="强制使用复制粘贴进行输入，对自动定位不起作用。不要调整此选项，除非你知道自己在做什么",
+        description="强制使用复制粘贴进行输入，仅对模拟点击的登录方式生效。不要调整此选项，除非你知道自己在做什么",
         json_schema_extra={"icon": "Asterisk"},
+        validation_alias="ForceEnableScaling",  # 究竟是谁能想出这种毫不相关的键名……
     )
 
     EasiNote: EasiNoteConfig = Field(

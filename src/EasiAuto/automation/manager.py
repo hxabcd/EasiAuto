@@ -4,7 +4,7 @@ from loguru import logger
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.automation.automator import BaseAutomator, CVAutomator, FixedAutomator, TokenAutomator, UIAAutomator
+from EasiAuto.automation.automator import BaseAutomator, CvAutomator, FixedAutomator, TokenAutomator, UiaAutomator
 from EasiAuto.models.config import LoginMethod, config
 
 
@@ -26,8 +26,8 @@ class AutomationManager(QObject):
     def _get_strategy_class(self, strategy: LoginMethod) -> type[BaseAutomator]:
         strategies: dict[LoginMethod, type[BaseAutomator]] = {
             LoginMethod.FIXED: FixedAutomator,
-            LoginMethod.CV: CVAutomator,
-            LoginMethod.UIA: UIAAutomator,
+            LoginMethod.CV: CvAutomator,
+            LoginMethod.UIA: UiaAutomator,
             LoginMethod.TOKEN: TokenAutomator,
         }
         return strategies.get(strategy, FixedAutomator)
