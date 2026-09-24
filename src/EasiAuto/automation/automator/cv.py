@@ -2,22 +2,66 @@ import time
 
 from loguru import logger
 
-from EasiAuto.core.utils import Point, get_resource, get_scale
+from EasiAuto.core.utils import Point, get_resource, get_scale, get_screen_size_physical
 from EasiAuto.models.config import config
 
 from .base import LoginError, PyAutoGuiBaseAutomator
 
+# 模板图仅按以下显示环境采集，其余环境无法保证像素匹配
+# (物理分辨率, 缩放, 资源后缀)
+_IMAGE_ENVIRONMENTS: tuple[tuple[tuple[int, int], float, str], ...] = (
+    ((1920, 1080), 1.0, ""),
+    ((3840, 2160), 2.0, "_4k"),
+)
+
+
+def resolve_image_variant(size: tuple[int, int], scale: float) -> str:
+    """按当前显示环境选择模板图变体
+
+    Args:
+        size (tuple[int, int]): 屏幕物理分辨率
+        scale (float): 系统缩放比例
+
+    Returns:
+        str: 资源后缀，`""` 或 `"_4k"`
+
+    Raises:
+        LoginError: 当前分辨率与缩放无对应模板图
+    """
+    for env_size, env_scale, suffix in _IMAGE_ENVIRONMENTS:
+        if size == env_size and abs(scale - env_scale) < 0.01:
+            return suffix
+
+    supported = "、".join(f"{w}x{h} {round(s * 100)}%" for (w, h), s, _ in _IMAGE_ENVIRONMENTS)
+    detected = f"{size[0]}x{size[1]} {round(scale * 100)}%"
+    raise LoginError(f"当前显示环境 {detected} 不受图像识别支持，仅支持 {supported}", retry=False)
+
 
 class CvAutomator(PyAutoGuiBaseAutomator):
-    """通过识别图像登录"""
+    """通过识别图像登录
+
+    NOTE: 模板图仅覆盖 1920x1080 100% 与 3840x2160 200% 两套环境，
+    其余环境在启动希沃白板前即判定为不可用。
+    """
+
+    def __init__(self, account: str, password: str) -> None:
+        super().__init__(account, password)
+        self._variant: str = ""
+
+    def prepare(self):
+        size = get_screen_size_physical()
+        scale = get_scale()
+        self._variant = resolve_image_variant(size, scale)
+        logger.info(
+            f"图像识别显示环境: {size[0]}x{size[1]} {round(scale * 100)}% ({'4K' if self._variant else '默认'}模板)"
+        )
+        super().prepare()
 
     @property
     def path_suffix(self) -> str:
         """图像资源后缀，随界面环境（白板/普通）与分辨率适配变化"""
         suffix = "" if self.is_iwb else "_direct"
-        if config.Login.Is4K:
-            suffix += "_4k"
-        return suffix
+        return suffix + self._variant
 
     def find_control(self, img_name: str, ext_name: str = "png", _assert: bool = False) -> Point:
         import pyautogui

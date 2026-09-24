@@ -349,12 +349,6 @@ class LoginConfig(ConfigModel):
         description="可避免某些情况下自动登录被希沃白板的快捷登录打断",
         json_schema_extra={"icon": "PowerButton"},
     )
-    Is4K: bool = Field(
-        default=False,
-        title="图像识别 4K 适配",
-        description="在图像识别登录方式下，启用对 3840x2160 200% 缩放的支持",
-        json_schema_extra={"icon": "FitPage"},
-    )
     ForceCompatibilityMode: bool = Field(
         default=False,
         title="强制启用兼容模式输入",
