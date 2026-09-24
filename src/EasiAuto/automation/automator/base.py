@@ -2,7 +2,7 @@ import subprocess
 import time
 from abc import abstractmethod
 from collections.abc import Iterable
-from contextlib import suppress
+from enum import Enum
 from pathlib import Path
 from typing import SupportsIndex, SupportsInt
 
@@ -46,6 +46,14 @@ class LoginError(Exception):
         self.retry = retry
 
 
+class LoginStatus(Enum):
+    """登录流程的最终状态"""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class BaseAutomator(QThread, metaclass=QABCMeta):
     succeeded = Signal()
     interrupted = Signal()
@@ -63,12 +71,14 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         self.account: str = account
         self.password: str = password
         self.easinote_path: Path | None = None
-        self.easinote: int | None = None
+        self.easinote: subprocess.Popen | None = None
         self.easinote_args: str = ""
+        self.easinote_hwnd: int = 0  # 由 prepare() 在等待窗口出现后写入
         self.is_iwb: bool = False  # 由 restart_easinote() 按机器环境检测
 
         self._prev_task: str | None = None
         self._prev_progress: str | None = None
+        self._privacy_mask_shown: bool = False
 
     def check_interruption(self) -> None:
         """中断检查点"""
@@ -121,12 +131,24 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                 timeout=config.Login.Timeout.Terminate,
             )
 
-    def start_easinote(self, path: Path, args: str):
+    def start_easinote(self, path: Path, args: str) -> subprocess.Popen:
+        """启动希沃白板
+
+        Args:
+            path (Path): 启动器可执行文件路径
+            args (str): 启动参数，按空白字符分隔
+
+        Returns:
+            subprocess.Popen: 已启动的进程句柄
+
+        Raises:
+            LoginError: 启动失败（文件缺失、权限不足等）
+        """
         logger.debug(f"路径: {path}, 参数: {args}")
-        command = [str(path.resolve())]
-        if args != "":
-            command += args.strip().split(" ")
-        subprocess.Popen(command)
+        try:
+            return subprocess.Popen([str(path.resolve()), *args.split()])
+        except OSError as e:
+            raise LoginError(f"启动希沃白板失败: {e}") from e
 
     def _enum_all_windows(self) -> list[tuple[int, str, str]]:
         """枚举所有顶层窗口"""
@@ -152,47 +174,62 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         for hwnd, text, class_name in windows:
             logger.debug(f"句柄: {hwnd:8x} | 标题: {text[:30]:30} | 类名: {class_name}")
 
-    def wait_for_window(self, title: str, timeout: float, interval: float) -> int | None:
+    def _find_window(self, title: str) -> int:
+        """按标题查找窗口句柄，未找到返回 0"""
+        if config.Debug.AlternateFindWindowMethod:
+            for hwnd, text, _ in self._enum_all_windows():
+                if title in text:
+                    return hwnd
+            return 0
+        return win32gui.FindWindow(None, title) or 0
+
+    def wait_for_window(self, title: str, timeout: float, interval: float) -> int:
         """等待窗口出现
 
         Args:
-            window_title (str): 目标窗口标题
+            title (str): 目标窗口标题
             timeout (float): 超时时长
             interval (float): 检查间隔
 
         Returns:
             int: 窗口句柄
+
+        Raises:
+            LoginError: 超时仍未出现该窗口
+            LoginCancelled: 等待期间收到中断请求
         """
-        elapsed = 0
-        hwnd = None
+        elapsed = 0.0
         while elapsed < timeout:
             self.check_interruption()
 
             self.update_progress(f"等待{title}窗口出现 ({int(elapsed)}/{int(timeout)}s)")
-            if config.Debug.AlternateFindWindowMethod:
-                windows = self._enum_all_windows()
-                for w in windows:
-                    if title in w[1]:
-                        hwnd = w[0]
-                        break
-            else:
-                hwnd = win32gui.FindWindow(None, title)
             if config.Debug.VerboseLog:
-                self._enum_all_windows()
-            if hwnd:
+                self._log_all_windows()
+            if hwnd := self._find_window(title):
                 return hwnd
             time.sleep(interval)
             elapsed += interval
-        return False
+
+        raise LoginError(f"{title}窗口在{timeout}秒内未打开")
 
     def _after_easinote_dead(self):
-        pass
+        """希沃进程已终止、尚未重新启动时的扩展点"""
 
     def resolve_launch_args(self) -> str:
         """本次启动希沃白板实际使用的参数（子类可覆写以强制启动模式）"""
         return config.Login.EasiNote.Args
 
     def restart_easinote(self):
+        """终止并按本次启动参数重启希沃白板
+
+        Raises:
+            LoginError: 启动器路径缺失或启动失败
+        """
+        path = self.easinote_path
+        if path is None or not path.exists():
+            # NOTE: 校验放在终止进程之前，避免启动器缺失时白白关掉用户的希沃白板
+            raise LoginError("希沃白板可执行文件不存在", retry=False)
+
         logger.info("终止希沃进程")
         self.kill_processes()
         self.check_interruption()
@@ -202,9 +239,10 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         # 按实际启动参数判定界面环境（命令行 -m 优先，否则探测本机硬件）
         args = self.resolve_launch_args()
         self.is_iwb = resolve_is_iwb(args)
+        self.easinote_args = args
 
         logger.info("启动希沃白板")
-        self.start_easinote(path=self.easinote_path, args=args)  # type: ignore (prepare中已检验希沃白板路径)
+        self.easinote = self.start_easinote(path=path, args=args)
         self.check_interruption()
 
     def _current_uid(self) -> str | None:
@@ -236,8 +274,23 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         return current_uid == target_uid
 
+    def before_prepare(self):
+        """prepare() 之前的扩展点，子类可覆写以插入额外的准备工作
+
+        Raises:
+            LoginError: 准备失败
+            LoginCancelled: 应中止本次登录
+        """
+
     def prepare(self):
-        """准备登录"""
+        """准备登录
+
+        Raises:
+            LoginError: 路径缺失或其他准备失败
+            LoginCancelled: 目标账号已登录
+        """
+        self.before_prepare()
+
         self.update_progress("获取希沃白板目录")
         self.easinote_path = self.get_easinote_path()
         if self.easinote_path is None:
@@ -253,36 +306,87 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
         # 等待启动并唤起
         window_title = config.Login.EasiNote.WindowTitle
-        timeout = config.Login.Timeout.LaunchPollingTimeout
-        interval = config.Login.Timeout.LaunchPollingInterval
 
-        self.easinote_hwnd = self.wait_for_window(window_title, timeout, interval)
-        if self.easinote_hwnd:
-            self.update_task("等待登录")
-            self.update_progress("希沃白板已启动")
-            time.sleep(config.Login.Timeout.AfterLaunch)
-            with suppress(Exception):
-                switch_window(self.easinote_hwnd, press_key=True)
-        else:
-            raise TimeoutError(f"{window_title}窗口在{timeout}秒内未打开")
+        self.easinote_hwnd = self.wait_for_window(
+            window_title,
+            config.Login.Timeout.LaunchPollingTimeout,
+            config.Login.Timeout.LaunchPollingInterval,
+        )
+        self.update_task("等待登录")
+        self.update_progress("希沃白板已启动")
+        time.sleep(config.Login.Timeout.AfterLaunch)
+        try:
+            if not switch_window(self.easinote_hwnd, press_key=True):
+                # 焦点未抢到时会继续执行，但后续模拟输入可能落到其他窗口
+                logger.warning("未能将希沃白板窗口切到前台, 模拟输入可能落入其他窗口")
+        except Exception as e:
+            logger.warning(f"切换希沃白板窗口焦点时出错: {e}")
 
     @abstractmethod
     def login(self):
         """自动登录"""
         ...
 
-    def run(self):
-        """完整登录流程"""
+    def show_privacy_mask(self, x: int, y: int, w: int, h: int) -> None:
+        """显示隐私保护遮罩；关闭的实验性选项下不显示"""
+        if not config.Experimental.PrivacyMask.Enabled:
+            return
 
-        # 统计数据
-        time_start = time.monotonic()
+        self._privacy_mask_shown = True
+        self.privacy_mask_show.emit(x, y, w, h)
+
+    def hide_privacy_mask(self) -> None:
+        """隐藏隐私保护遮罩，重复调用无效"""
+        if not self._privacy_mask_shown:
+            return
+
+        self._privacy_mask_shown = False
+        self.privacy_mask_hide.emit()
+
+    def on_login_finished(self, status: LoginStatus, error: str | None) -> None:
+        """登录流程结束后的收尾（无论成功、失败或取消都会调用一次）
+
+        Args:
+            status (LoginStatus): 最终状态
+            error (str | None): 失败原因，成功或取消时为 None
+        """
+
+    def _finalize(self, status: LoginStatus, error: str | None = None) -> None:
+        """统一收尾并发出结果信号：保证遮罩清理与子类回调在任何情况下都执行"""
+        self.hide_privacy_mask()
+        try:
+            self.on_login_finished(status, error)
+        except Exception as e:
+            logger.error(f"登录收尾回调执行失败: {type(e).__name__}: {e}")
+
+        match status:
+            case LoginStatus.SUCCESS:
+                config.Statistics.LoginSuccessCounts += 1
+                self.succeeded.emit()
+            case LoginStatus.CANCELLED:
+                config.Statistics.LoginInterruptCounts += 1
+                self.interrupted.emit()
+            case LoginStatus.FAILED:
+                self.failed.emit(error or "未知错误")
+
+    def _record_attempt(self) -> None:
+        """统计本次登录尝试"""
         config.Statistics.LoginCounts += 1
         account_hash = desensitize_account(self.account)
-        if config.Statistics.LoginCountsPerAccount.get(account_hash) is None:
-            config.Statistics.LoginCountsPerAccount[account_hash] = 0
-        config.Statistics.LoginCountsPerAccount[account_hash] += 1
+        config.Statistics.LoginCountsPerAccount[account_hash] = (
+            config.Statistics.LoginCountsPerAccount.get(account_hash, 0) + 1
+        )
 
+    def run(self):
+        """完整登录流程"""
+        time_start = time.monotonic()
+        self._record_attempt()
+
+        max_retries = config.App.MaxRetries
         retries = 0
+        status = LoginStatus.FAILED
+        error: str | None = None
+
         while True:
             try:
                 self.check_interruption()
@@ -295,40 +399,41 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
                 self.update_task("完成")
                 self.update_progress("登录完成")
-
-                config.Statistics.LoginSuccessCounts += 1
-                self.succeeded.emit()
+                status = LoginStatus.SUCCESS
                 break
             except LoginCancelled as e:
-                config.Statistics.LoginInterruptCounts += 1
                 logger.info(f"登录被取消: {e}")
-                self.interrupted.emit()
+                status = LoginStatus.CANCELLED
                 break
             except Exception as e:
+                error = str(e)
+
                 if not getattr(e, "retry", True):
                     logger.error(f"登录失败 (重试已禁用)\n{type(e).__name__}: {e}")
-                    self.failed.emit(str(e))
                     break
 
-                if retries < config.App.MaxRetries:
+                if retries < max_retries:
                     retries += 1
+                    self.hide_privacy_mask()  # 重试会重新走 prepare()，避免遮罩残留在屏幕上
                     logger.error(f"登录失败\n{type(e).__name__}: {e}")
-                    logger.warning(f"将在2s后重试 (重试 {retries}/{config.App.MaxRetries}) ")
+                    logger.warning(f"将在2s后重试 (重试 {retries}/{max_retries}) ")
                     time.sleep(2)
-                else:
-                    logger.critical(f"多次尝试均登录失败\n{type(e).__name__}: {e}")
-                    capture_handled_exception(
-                        e,
-                        source="automator",
-                        extra_context={
-                            "retries": f"{retries}/{config.App.MaxRetries}",
-                            "automator": self.__class__.__name__,
-                            "current_task": self._prev_task,
-                            "current_progress": self._prev_progress,
-                        },
-                    )
-                    self.failed.emit(str(e))
-                    break
+                    continue
+
+                logger.critical(f"多次尝试均登录失败\n{type(e).__name__}: {e}")
+                capture_handled_exception(
+                    e,
+                    source="automator",
+                    extra_context={
+                        "retries": f"{retries}/{max_retries}",
+                        "automator": self.__class__.__name__,
+                        "current_task": self._prev_task,
+                        "current_progress": self._prev_progress,
+                    },
+                )
+                break
+
+        self._finalize(status, error)
 
         elapsed = time.monotonic() - time_start
         logger.info(f"登录流程耗时: {elapsed:.2f}秒")

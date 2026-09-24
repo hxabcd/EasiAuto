@@ -63,7 +63,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         if config.Experimental.PrivacyMask.Enabled:
             x, y = FixedAutomator.resolve_position(config.Experimental.PrivacyMask.MaskLeftTop)
             w, h = Point(config.Experimental.PrivacyMask.MaskSize).scaled()
-            self.privacy_mask_show.emit(x, y, w, h)
+            self.show_privacy_mask(x, y, w, h)
 
         # 切换至账号登录页
         self.check_interruption()
@@ -84,7 +84,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         self.update_progress("输入密码")
 
         self.click(FixedAutomator.resolve_position(config.Login.Position.PasswordInput))
-        self.input(self.password)
+        self.input(self.password, is_secret=True)
 
         # 勾选同意用户协议
         self.check_interruption()
@@ -97,6 +97,3 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         self.update_progress("点击登录按钮")
 
         self.press("enter")
-
-        if config.Experimental.PrivacyMask.Enabled:
-            self.privacy_mask_hide.emit()

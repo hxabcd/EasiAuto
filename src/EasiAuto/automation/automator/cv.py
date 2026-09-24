@@ -48,14 +48,13 @@ class CvAutomator(PyAutoGuiBaseAutomator):
         super().__init__(account, password)
         self._variant: str = ""
 
-    def prepare(self):
+    def before_prepare(self):
         size = get_screen_size_physical()
         scale = get_scale()
         self._variant = resolve_image_variant(size, scale)
         logger.info(
             f"图像识别显示环境: {size[0]}x{size[1]} {round(scale * 100)}% ({'4K' if self._variant else '默认'}模板)"
         )
-        super().prepare()
 
     @property
     def path_suffix(self) -> str:

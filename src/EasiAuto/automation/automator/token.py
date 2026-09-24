@@ -22,7 +22,7 @@ class TokenAutomator(BaseAutomator):
             return False
         return self._current_uid() == self.login_info.user.uid
 
-    def prepare(self):
+    def before_prepare(self):
         if not is_patched():
             raise LoginError("希沃白板未修补", retry=False)
 
@@ -37,8 +37,6 @@ class TokenAutomator(BaseAutomator):
             raise LoginError("账号被风控", retry=False) from e
         except SeewoLoginError as e:
             raise LoginError("未知登录异常", retry=False) from e
-
-        return super().prepare()
 
     def login(self) -> None:
         login_payload = {
