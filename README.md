@@ -51,13 +51,17 @@
 
 <img src="docs/ui/banner.png" alt="警示横幅"> <br> 警示横幅
 
-<img src="docs/ui/warning.png" alt="运行前警告"> <br> 运行前警告弹窗
-
 <img src="docs/ui/setting.png" alt="设置页" height="400px"> <br> 设置页
 
-<img src="docs/ui/ciautoedit.png" alt="自动化页" height="400px"> <br> 自动化页
+<img src="docs/ui/profile-edit.png" alt="档案页" height="400px"> <br> 档案页
 
-<img src="docs/ui/update.png" alt="更新页" height="400px"> <br> 更新页
+<img src="docs/ui/ci-auto-edit.png" alt="自动化页" height="400px"> <br> 自动化页
+
+<img src="docs/ui/update-log.png" alt="更新页" height="400px"> <br> 更新页
+
+<img src="docs/ui/pre-run-popup.png" alt="运行前警告"> <br> 运行前警告弹窗
+
+<img src="docs/ui/status-overlay.png" alt="登录状态浮窗"> <br> 登录状态浮窗
 
 </div>
 
